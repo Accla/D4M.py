@@ -670,6 +670,12 @@ class Assoc:
         print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
         return print_string
 
+    def triples(self):
+        """ Print list of triples of form (row_label,col_label,value). """
+        r, c, v = self.find()
+        triples = list(zip(list(r),list(c),list(v)))
+        return triples
+
     # Overload getitem; allows for subsref
     def __getitem__(self, obj):
         """
@@ -793,6 +799,9 @@ class Assoc:
         B.col = np.array(newcol)
         B.val = self.val
         B.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
+
+        B.condense()
+        B.deepcondense()
 
         return B
 
@@ -1023,6 +1032,23 @@ class Assoc:
                                   shape=(np.size(row_union), np.size(col_union)))
         C.adj.sum_duplicates()
 
+        return C
+
+    def __sub__(self, B):
+        """ Subtract array B from array A=self, i.e. A-B. """
+
+        A = self
+
+        # If not numerical, convert to logical
+        if not isinstance(A.val, float):
+            A = A.logical(copy=True)
+        if not isinstance(B.val, float):
+            B = B.logical(copy=True)
+
+        # Negate second array argument's numerical data
+        B.adj.data = -B.adj.data
+
+        C = A + B
         return C
 
     # Overload matrix multiplication
@@ -1467,6 +1493,7 @@ class Assoc:
         good_vals = np.where(val >= other)
         A = Assoc(row[good_vals], col[good_vals], val[good_vals])
         return A
+
 
 
 import csv
