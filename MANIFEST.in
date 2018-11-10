@@ -1,2 +1,1 @@
-include Examples/*
-include D4M/dbapp/*
+graft D4M

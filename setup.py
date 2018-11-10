@@ -18,7 +18,8 @@ setup(
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 3'
     ],
-    include_package_data = True,
+    include_package_data=True,
+    zip_safe=False,
     packages=find_packages(),
     install_requires=['scipy', 'numpy', 'py4j', 'pandas', 'matplotlib'],
 )

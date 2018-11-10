@@ -1,89 +1,79 @@
 from py4j.java_gateway import JavaGateway
-from py4j.java_gateway import java_import
+from py4j.java_gateway import launch_gateway
+from py4j.java_gateway import GatewayParameters
+from py4j.java_gateway import CallbackServerParameters
 import numpy as np
 
 import os
 import sys
-import subprocess
+
+# Facilitate jars being referenced
+from pkg_resources import resource_filename
 
 from D4M import assoc as As
 
-
-if sys.version[0]==3:
-    raw_input=input
-
+# Support raw_input between Python 2.x & Python 3.x
+if sys.version[0] == 3:
+    raw_input = input
 
 class JavaConnector:
     """
         Handles the starting of the JVM and exposing the JVM to the relevant JARs of Graphulo and Accumulo.
-        Starts JVM by running dbapp.DbApplication.class, whose only function is to use Py4J to initiate the
-        connection to Python.
     """
-    jvm_processes = list()
+
+    jvm_port = None
     jvm_gateway = None
 
     @staticmethod
-    def getprocesses():
-        """ Get the list of java processes started by start_java. """
-        return JavaConnector.jvm_processes
-
-    @staticmethod
-    def start_java(app_path=None, py4j_path=None, accumulo_path=None, graphulo_path=None):
+    def start_java(py4j_path=None, accumulo_path=None, graphulo_path=None, dieonexit=None):
         """
-            Starts JVM and connects to it by running db.DbApplication, and
-            exposes Accumulo and Graphulo to the JVM.
+            Starts JVM along with a Py4J JavaGateway instance, with classpath exposing
+            Accumulo and Graphulo to the JVM.
 
             Inputs:
-                app_path = full path of directory containing db
                 py4j_path = full path for py4j jar
-                accumulo_path = full path of directory containing Accumulo jar
+                accumulo_path = full path of directory containing Accumulo jars
                 graphulo_path = full path for graphulo jar
+                dieonexit = option to have JVM close upon exiting of python
 
             Note:
-                - looks into current directory by default
-                - Current defaults are for MIT Supercloud
+                - By default, uses packaged JARs
         """
 
-        if app_path is None:
-            app_path = os.path.dirname(os.path.realpath(__file__))  # Get directory of this file to find dbapp
-            # app_path = '/home/gridsan/hjananthan/PyD4M/'
         if py4j_path is None:
-            py4j_path = '/home/gridsan/groups/D4Muser/PyD4M/py4j/share/py4j'
-            #py4j_path = '/state/partition1/llgrid/pkg/anaconda2-5.0.1/share/py4j/py4j0.10.6.jar' # Seems to refuse connection
+            py4j_path = resource_filename(__name__, '/jars/py4j/share/py4j/py4j.0.1.jar')
         if accumulo_path is None:
-            accumulo_path = '/home/gridsan/tools/d4m_api/libext/*'
+            accumulo_path = resource_filename(__name__, '/jars/libext/*')
         if graphulo_path is None:
-            graphulo_path = '/home/gridsan/tools/d4m_api/lib/graphulo-3.0.0.jar'
+            graphulo_path = resource_filename(__name__, '/jars/lib/graphulo-3.0.0.jar')
 
-        # Note: I assume that my_library.jar contains the library you want to expose with your CLI program.
-        ARGS = ['java', '-cp',
-                '.:' + app_path + ':' + py4j_path + ':' + accumulo_path + ':' + graphulo_path,
-                'dbapp.DbApplication']
+        cp = '.:'+accumulo_path+':'+graphulo_path
 
-        # Use subprocess to run ARGS
-        p = subprocess.Popen(ARGS)
-        JavaConnector.jvm_processes.append(p.pid)  # Add process to list of running processes
-        print('Java Started: {0}'.format(p.pid))
+        if dieonexit is None:
+            dieonexit = True
 
-        JavaConnector.jvm_gateway = JavaGateway()
-        gateway = JavaConnector.jvm_gateway
-        java_import(gateway.jvm, 'edu.mit.ll.d4m.db.cloud.*')
+        port = launch_gateway(jarpath=py4j_path, classpath=cp, die_on_exit=dieonexit)
 
-        return None
+        gateway = JavaGateway(
+            gateway_parameters=GatewayParameters(port=port),
+            callback_server_parameters=CallbackServerParameters(port=0))
+
+        print('JavaGateway started in Port '+str(port))
+        
+        JavaConnector.jvm_port = port
+        JavaConnector.jvm_gateway = gateway
+
+        return gateway
 
     @staticmethod
-    def stop_java():
-        """ Shutdown JavaGateway. """
-
-        gateway = JavaGateway()
-        gateway.shutdown()
-        JavaConnector.jvm_processes.pop()
-
-        return None
-        # Two alternatives:
-        # (1) You could call a method on the Java side that calls System.exit(0);
-        # (2) You could save the pid from start_java and kill the process, but you need to handle mac, linux, and
-        # windows...
+    def getport():
+        """ Gets the port through which the JavaGateway is communicating. """
+        return JavaConnector.jvm_port
+    
+    @staticmethod
+    def getgateway():
+        """ Gets the JavaGateway instance. """
+        return JavaConnector.jvm_gateway
 
 
 class Dbserver:
@@ -145,7 +135,8 @@ if sys.version[0] == 3:
     raw_input = input
 
 
-def dbsetup(instance, config=None):
+def dbsetup(instance, config=None, py4j_path=None, accumulo_path=None, graphulo_path=None, dieonexit=None,
+            forcerestart=None):
     """
     Sets up a DB connection, starting JVM if not already started.
         Usage:
@@ -163,13 +154,17 @@ def dbsetup(instance, config=None):
                              hostname = *actual hostname*
                              username = *actual username*
                              passowrd = *actual password*"
+            py4j_path,
+             accumulo_path,
+             graphulo_path,
+             dieonexit = options for start_java()
         Output:
             DB = Dbserver, containing the connection information to Accumulo instance
         Examples:
             dbsetup('class-db49')
             dbsetup('class-db50')
     """
-
+    
     # Set config to MIT Supercloud default location if None given
     if config is None:
         config = '/home/gridsan/tools/groups/'
@@ -192,9 +187,11 @@ def dbsetup(instance, config=None):
             username = conf['username']
             pword = conf['password']
 
-        if not JavaConnector.jvm_processes:
-            JavaConnector.start_java()
-            gateway = JavaGateway()
+        if JavaConnector.jvm_gateway is None or forcerestart:
+            gateway = JavaConnector.start_java(py4j_path=py4j_path, 
+                                               accumulo_path=accumulo_path, 
+                                               graphulo_path=graphulo_path, 
+                                               dieonexit=dieonexit)
         else:
             gateway = JavaConnector.jvm_gateway
 
@@ -375,7 +372,7 @@ def getindexassoc(table, i, j):
 def getiterator(table, nelements):
     """ Query iterator functionality. """
     gateway = table.DB.gateway()
-    ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTapleOperations
+    ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
     opsObj = ops(table.DB.instanceName, table.DB.host, table.DB.user, table.DB.password)
 
     d4mQuery = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
@@ -386,7 +383,7 @@ def getiterator(table, nelements):
                          nelements, table.numRow, table.columnfamily, table.putBytes, queryObj, opsObj)
     else:
         queryObj = d4mQuery(table.DB.instanceName, table.DB.host,
-                            table.name, table.DB.user, table.DB.passowrd)
+                            table.name, table.DB.user, table.DB.password)
         Ti = Dbtable(table.DB, table.name, table.security,
                      nelements, table.numRow, table.columnfamily, table.putBytes, queryObj, opsObj)
 
@@ -424,7 +421,7 @@ def getindex(*arg):
         table, i, j = arg
         output = getindexassoc(table, i, j)
     elif len(arg) == 1:
-        table = arg
+        table = arg[0]
         output = getindexfromiter(table)
     else:
         print("Argument must be one of 'DB,tablename', 'DB,tablename1,tablename2', 'table,i,j', or 'table'.")

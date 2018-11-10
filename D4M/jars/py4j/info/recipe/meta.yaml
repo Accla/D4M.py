@@ -1,0 +1,49 @@
+# This file created by conda-build 2.1.17
+# meta.yaml template originally from:
+# /recipe_root, last modified Tue Aug  1 04:57:56 2017
+# ------------------------------------------------
+
+package:
+    name: py4j
+    version: 0.10.6
+source:
+    fn: py4j-0.10.6.zip
+    sha256: d3e7ac7c2171c290eba87e70aa5095b7eb6d6ad34789c007c88d550d9f575083
+    url: https://pypi.io/packages/source/p/py4j/py4j-0.10.6.zip
+build:
+    noarch: ''
+    noarch_python: false
+    number: '1'
+    script: python setup.py install --single-version-externally-managed --record=record.txt
+    string: py27_1
+requirements:
+    build:
+        - ca-certificates 2017.7.27.1 0
+        - ncurses 5.9 10
+        - sqlite 3.13.0 1
+        - tk 8.5.19 2
+        - zlib 1.2.11 0
+        - openssl 1.0.2l 0
+        - readline 6.2 0
+        - python 2.7.13 1
+        - certifi 2017.7.27.1 py27_0
+        - setuptools 36.2.2 py27_0
+    run:
+        - python
+test:
+    imports:
+        - py4j
+        - py4j.tests
+about:
+    dev_url: https://github.com/bartdag/py4j
+    doc_url: http://py4j.sourceforge.net/
+    home: http://py4j.sourceforge.net/
+    license: BSD 3-Clause
+    license_family: BSD
+    license_file: LICENSE.txt
+    summary: Enables Python programs to dynamically access arbitrary Java objects
+extra:
+    final: true
+    recipe-maintainers:
+        - pmlandwehr
+        - parente
