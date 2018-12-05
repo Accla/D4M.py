@@ -560,7 +560,7 @@ class Assoc:
                     raise ValueError("Invalid input. Use row==1.0 only if sp_matrix provided.")
                 else:
                     if not sparse.isspmatrix_coo(arg):
-                        arg = arg.to_coo()
+                        arg = arg.tocoo()
                     self.val = 1.0
                     self.adj = arg
 
