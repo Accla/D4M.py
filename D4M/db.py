@@ -13,7 +13,7 @@ from pkg_resources import resource_filename
 from D4M import assoc as As
 
 # Support raw_input between Python 2.x & Python 3.x
-if sys.version[0] == 3:
+if int(sys.version[0]) == 3:
     raw_input = input
 
 class JavaConnector:
