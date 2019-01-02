@@ -218,8 +218,8 @@ def startswith(prefixes):
     return func
 
 
-def str_to_num(obj):
-    """ Convert string to float if possible. """
+def str_to_num(obj, delimiter=None):
+    """ Convert string to float if possible, optionally appending a delimiter otherwise. """
     if isinstance(obj, str):
         try:
             obj = int(obj)
@@ -227,7 +227,8 @@ def str_to_num(obj):
             try:
                 obj = float(obj)
             except ValueError:
-                pass
+                if delimiter is not None:
+                    obj += delimiter
     return obj
 
 
@@ -253,16 +254,22 @@ def sanitize(obj, convert=False):
         Outputs:
             list of values
         Examples:
-            sanitize("a,b,") = ['a','b']
+            sanitize("a,b,") = ['a,','b,']
             sanitize([10,3]) = [10,3]
             sanitize(1) = [1]
     """
     # Convert delimiter-separated string list by splitting using last character
     try:
-        obj = obj.split(obj[-1])
+        delimiter = obj[-1]
+        obj = obj.split(delimiter)
         obj.pop()  # Get rid of empty strings
+
+        # Convert to numbers if requested; either way, append delimiter to remaining strings
         if convert:
-            obj = [str_to_num(item) for item in obj]  # Convert applicable items to numbers
+            obj = [str_to_num(item, delimiter) for item in obj]  # Convert applicable items to numbers
+        else:
+            obj = [item+delimiter for item in obj]
+
     except (AttributeError, IndexError):
         pass
 
@@ -706,7 +713,7 @@ class Assoc:
     def triples(self):
         """ Print list of triples of form (row_label,col_label,value). """
         r, c, v = self.find()
-        triples = list(zip(list(r),list(c),list(v)))
+        triples = list(zip(list(r), list(c), list(v)))
         return triples
 
     # Overload getitem; allows for subsref
@@ -733,7 +740,8 @@ class Assoc:
                 A['a,:,b,',['0','1']]
                 A[1:2:1, 1]
             Note:
-                - Slices and "a,:,b," *include* the stop index
+                - Regular slices are NOT right end-point inclusive
+                - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e. includes b)
                 - Integer object1 or object2, and by extension slices, do not reference A.row or A.col,
                     but the induced indexing of the rows and columns
                     e.g. A[:,0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
@@ -742,7 +750,13 @@ class Assoc:
         """
         object1, object2 = obj
 
-        # If object1 and object2 are actually row/col keys, then return corresponding value
+        # If object1 or object2 are integers, replace with corresponding row/col keys
+        if isinstance(object1, int):
+            object1 = self.row[object1]
+        if isinstance(object2, int):
+            object2 = self.col[object2]
+
+        # If object1 and object2 are singular row/col keys, then return corresponding value
         if object1 in self.row and object2 in self.col:
             index1 = np.where(self.row == object1)[0][0]
             index2 = np.where(self.col == object2)[0][0]
@@ -751,7 +765,7 @@ class Assoc:
                 return self.adj.todok()[index1, index2]
             else:
                 try:
-                    return self.val[self.adj[index1, index2] - 1]
+                    return self.val[self.adj.todok()[index1, index2] - 1]
                 except IndexError:
                     return 0
 
@@ -764,28 +778,8 @@ class Assoc:
 
         # If slice objects, convert to appropriate lists
         if isinstance(object1, slice):
-            if object1.stop is not None:
-                try:
-                    newstop = object1.stop + 1
-                    warnings.warn("Slice objects here are inclusive on right endpoint.")
-                except IndexError:
-                    newstop = object1.stop
-                    pass
-            else:
-                newstop = object1.stop
-            object1 = slice(object1.start, newstop, object1.step)
             object1 = self.row[object1]
         if isinstance(object2, slice):
-            if object2.stop is not None:
-                try:
-                    newstop = object2.stop + 1
-                    warnings.warn("Slice objects here are inclusive on right endpoint.")
-                except IndexError:
-                    newstop = object2.stop
-                    pass
-            else:
-                newstop = object2.stop
-            object2 = slice(object2.start, newstop, object2.step)
             object2 = self.col[object2]
 
         # Otherwise, sanitize to get appropriate lists
@@ -1041,32 +1035,42 @@ class Assoc:
                     A = self = Associative array
                     B = Associative array
                 Output:
-                    A + B = element-wise sum of A and B
+                    A + B =
+                        * element-wise sum of A and B (if both A and B are numerical)
+                        * element-wise minimum of A and B otherwise
                 Note:
                     - When either A or B are non-numerical the .logical() method is run on them.
         """
 
         A = self
-        # If either A=self or B are not numerical, replace with logical()
-        if not isinstance(B.val, float):
-            B = B.logical()
-        elif not isinstance(A.val, float):
-            A = A.logical()
 
-        row_union, row_index_A, row_index_B = sorted_union(A.row, B.row, return_index=True)
-        col_union, col_index_A, col_index_B = sorted_union(A.col, B.col, return_index=True)
+        if isinstance(A.val, float) and isinstance(B.val, float):
+            # Take union of rows and cols while keeping track of indices
+            row_union, row_index_A, row_index_B = sorted_union(A.row, B.row, return_index=True)
+            col_union, col_index_A, col_index_B = sorted_union(A.col, B.col, return_index=True)
 
-        row = np.append(row_index_A[A.adj.row], row_index_B[B.adj.row])
-        col = np.append(col_index_A[A.adj.col], col_index_B[B.adj.col])
-        val = np.append(A.adj.data, B.adj.data)
+            row = np.append(row_index_A[A.adj.row], row_index_B[B.adj.row])
+            col = np.append(col_index_A[A.adj.col], col_index_B[B.adj.col])
+            val = np.append(A.adj.data, B.adj.data)
 
-        C = Assoc([], [], [])
-        C.row = row_union
-        C.col = col_union
-        C.val = 1.0
-        C.adj = sparse.coo_matrix((val, (row, col)),
-                                  shape=(np.size(row_union), np.size(col_union)))
-        C.adj.sum_duplicates()
+            # Make sparse matrix and sum duplicates
+            C = Assoc([], [], [])
+            C.row = row_union
+            C.col = col_union
+            C.val = 1.0
+            C.adj = sparse.coo_matrix((val, (row, col)),
+                                      shape=(np.size(row_union), np.size(col_union)))
+            C.adj.sum_duplicates()
+        else:
+            # Take union of rows, cols, and vals
+            rowA, colA, valA = A.find()
+            rowB, colB, valB = B.find()
+            row = np.append(rowA, rowB)
+            col = np.append(colA, colB)
+            val = np.append(valA, valB)
+
+            # Construct with min as collision function
+            C = Assoc(row, col, val, min)
 
         return C
 
