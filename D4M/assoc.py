@@ -463,7 +463,7 @@ class Assoc:
                 A = Assoc(row,col,val)
                 A = Assoc(row,col,val,func)
                 A = Assoc(row,col,number,func)
-                A = Assoc(row,col,1.0,sparse_matrix)
+                A = Assoc(row,col,val,sparse_matrix)
             Inputs:
                 row = string of (delimiter separated) values (delimiter is last character)
                     or list of values of length n
@@ -473,7 +473,13 @@ class Assoc:
                     or list of values of length n
                     or 1.0 (which signals arg to be a sparse matrix)
                     or other single value
-                arg = either a sparse matrix (to be used as the adjacency array)
+                arg = either
+                        a sparse matrix (to be used as the adjacency array) where
+                            - if val=1.0, then arg is expected to contain the _actual_ values
+                            - otherwise, val is expected to be a list of _actual_ values;
+                                unique sorted entries in row, col, val are extracted
+                                and the row/column indices and values of arg are assumed to match
+                                up with the resulting row, col, val
                         or string representing collision function,
                             e.g. add, first, last, min, max
                             default is min
@@ -503,7 +509,6 @@ class Assoc:
         row_size = np.size(row)
         col_size = np.size(col)
 
-        expect_sp_matrix = False
         single_val = False
 
         # Short-circuit if empty assoc
@@ -514,15 +519,56 @@ class Assoc:
             self.adj = sparse.coo_matrix(([], ([], [])), shape=(0, 0))  # Empty sparse matrix
         else:
             # Handle data
-            if isinstance(val, float) and val == 1.0:  # No collisions, no handling necessary
-                expect_sp_matrix = True
+
+            # Case 1: sparse matrix provided which contains pointers to actual values
+            if sparse.issparse(arg) and val != 1.0:
+                arg.sum_duplicates()
+
+                val = sanitize(val, convert=True)
+                self.row = np.unique(row)
+                self.col = np.unique(col)
+                self.val = np.unique(val)
+                self.adj = arg.tocoo()
+
+                # Ensure that there are enough unique row, col, vals to make sense of adj
+                errormessage = 'Invalid Input:'
+                goodrow = np.size(self.row) >= np.size(self.adj.row)
+                goodcol = np.size(self.col) >= np.size(self.adj.col)
+                goodval = np.size(self.val) >= np.size(self.adj.data)
+                if not goodrow:
+                    errormessage += ' not enough unique row indices'
+                    if not goodcol:
+                        errormessage += ','
+                    elif goodval:
+                        errormessage += '.'
+                if not goodcol:
+                    errormessage += ' not enough unique col indices'
+                    if not goodval:
+                        errormessage += ','
+                    else:
+                        errormessage += '.'
+                if not goodval:
+                    errormessage += ' not enough unique values.'
+
+                if not (goodrow and goodcol and goodval):
+                    raise ValueError(errormessage)
+
+            # Case 2: sparse matrix provided which contains actual values
+            elif sparse.issparse(arg) and val == 1.0:
+                arg.sum_duplicates()
+
+                self.row = np.unique(row)
+                self.col = np.unique(col)
+                self.val = 1.0
+                self.adj = arg.tocoo()
+
+                if (np.size(self.row), np.size(self.col)) != arg.shape:
+                    raise ValueError("Unique row and column indices do not match sp_matrix.")
+
+            # Case 3: No sparse matrix provided
             else:
                 val = sanitize(val, convert=True)
                 val_size = np.size(val)
-
-                # Ensure that arg isn't a sparse matrix
-                if sparse.issparse(arg):
-                    raise ValueError("Invalid input. Use val==1.0 if sp_matrix provided.")
 
                 # If single value (or no value) is given for row/col/val, extend to proper length
                 N = max(row_size, col_size, val_size)
@@ -550,24 +596,9 @@ class Assoc:
 
                     row, col, val = dict_aggregate(row, col, val, arg)
 
-            # Get unique sorted row and column indices
-            self.row, fromrow = np.unique(row, return_inverse=True)
-            self.col, fromcol = np.unique(col, return_inverse=True)
-
-            # Check if val == 1.0 to indicate included sparse matrix
-            if expect_sp_matrix:
-                if not sparse.issparse(arg):
-                    raise ValueError("Invalid input. Use row==1.0 only if sp_matrix provided.")
-                else:
-                    if not sparse.isspmatrix_coo(arg):
-                        arg = arg.tocoo()
-                    self.val = 1.0
-                    self.adj = arg
-
-                if (np.size(self.row), np.size(self.col)) != arg.shape:
-                    raise ValueError("Unique row and column indices do not match sp_matrix.")
-            else:
-                # Get unique sorted values
+                # Get unique sorted row and column indices
+                self.row, fromrow = np.unique(row, return_inverse=True)
+                self.col, fromcol = np.unique(col, return_inverse=True)
                 self.val, fromval = np.unique(val, return_inverse=True)
 
                 # Check if numerical; numpy sorts numerical values to front, so only check last entry
@@ -584,6 +615,8 @@ class Assoc:
                     # If not numerical, self.adj has entries given by indices+1 of self.val
                     val_indices = fromval + np.ones(np.size(fromval))
                     self.adj = sparse.coo_matrix((val_indices, (fromrow, fromcol)), dtype=int)
+
+        self.adj.sum_duplicates()
 
     def find(self, orderby=None):
         """
@@ -701,8 +734,11 @@ class Assoc:
                 A[1:2:1, 1]
             Note:
                 - Slices and "a,:,b," *include* the stop index
-                - Slices do not reference A.row or A.col, but the induced indexing of the rows and columns
-                    e.g. A[:,0:2] will give the subarray consisting of all rows and the columns col[0], col[1]
+                - Integer object1 or object2, and by extension slices, do not reference A.row or A.col,
+                    but the induced indexing of the rows and columns
+                    e.g. A[:,0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
+                        A[:,0] will give the subarray consisting of the 0-th column
+                        A[2,4] will give the value in the 2-nd row and 4-th column
         """
         object1, object2 = obj
 
@@ -1116,7 +1152,7 @@ class Assoc:
         # Only multiply if both numerical, so logical() as appropriate
         if not isinstance(B.val, float):
             B = B.logical()
-        elif not isinstance(A.val, float):
+        if not isinstance(A.val, float):
             A = A.logical()
 
         row_int, row_index_A, row_index_B = sorted_intersect(A.row, B.row, return_index=True)
@@ -1520,7 +1556,7 @@ def readcsvtotriples(filename, labels=True, triples=False, **fmtoptions):
     """
 
     # Read CSV file and create (row-index,col-index):value dictionary
-    with open(filename) as csvfile:
+    with open(filename, 'rU') as csvfile:
         Assocreader = csv.reader(csvfile, **fmtoptions)
         
         if triples:
