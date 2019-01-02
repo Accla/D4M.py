@@ -1,3 +1,5 @@
 /build
 /D4M.egg-info
+/.idea
 /dist
+/D4M/__pycache__
