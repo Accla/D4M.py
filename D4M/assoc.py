@@ -264,11 +264,9 @@ def sanitize(obj, convert=False):
         obj = obj.split(delimiter)
         obj.pop()  # Get rid of empty strings
 
-        # Convert to numbers if requested; either way, append delimiter to remaining strings
+        # Convert to numbers if requested
         if convert:
             obj = [str_to_num(item, delimiter) for item in obj]  # Convert applicable items to numbers
-        else:
-            obj = [item+delimiter for item in obj]
 
     except (AttributeError, IndexError):
         pass
@@ -716,6 +714,22 @@ class Assoc:
         triples = list(zip(list(r), list(c), list(v)))
         return triples
 
+    def getvalue(self, rowkey, colkey):
+        """ Get the value in self corresponding to given rowkey and colkey, otherwise return 0. """
+        if rowkey in self.row and colkey in self.col:
+            index1 = np.where(self.row == rowkey)[0][0]
+            index2 = np.where(self.col == colkey)[0][0]
+
+            if isinstance(self.val, float):
+                return self.adj.todok()[index1, index2]
+            else:
+                try:
+                    return self.val[self.adj.todok()[index1, index2] - 1]
+                except IndexError:
+                    return 0
+        else:
+            return 0
+
     # Overload getitem; allows for subsref
     def __getitem__(self, obj):
         """
@@ -758,16 +772,7 @@ class Assoc:
 
         # If object1 and object2 are singular row/col keys, then return corresponding value
         if object1 in self.row and object2 in self.col:
-            index1 = np.where(self.row == object1)[0][0]
-            index2 = np.where(self.col == object2)[0][0]
-
-            if isinstance(self.val, float):
-                return self.adj.todok()[index1, index2]
-            else:
-                try:
-                    return self.val[self.adj.todok()[index1, index2] - 1]
-                except IndexError:
-                    return 0
+            return self.getvalue(object1, object2)
 
         # If either of object1 or object2 are functions on self.row or self.col,
         # apply those functions
@@ -817,6 +822,11 @@ class Assoc:
             object2 = self.col[start_index:stop_index]
 
         # Now everything is a list of row/col indices.
+
+        # If resulting arrays are both of length 1, then return corresponding value
+        if len(object1) == 1 and len(object2) == 1:
+            return self.getvalue(object1[0], object2[0])
+
         # Create new row, col, val triple to construct sub-assoc array
         object1 = np.sort(object1)
         object2 = np.sort(object2)
