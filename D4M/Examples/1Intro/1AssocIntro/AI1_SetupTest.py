@@ -12,7 +12,7 @@ column = "a,aa,aaa,b,bb,bbb,a,a,a,a,a,a,a,aa,aaa,b,bb,bbb,"
 values = "a-a,a-aa,a-aaa,a-b,a-bb,a-bbb,a-a,aa-a,aaa-a,b-a,bb-a,bbb-a,a-a,aa-aa,aaa-aaa,b-b,bb-bb,bbb-bbb,"
 
 # Create assoc array and list triples
-A = Assoc(row,column,values)
+A = Assoc(row, column, values)
 
 # This is the data structure of the Associative Array Class
 
@@ -24,5 +24,4 @@ A.printfull()
 
 # When written into CSV form, the data is stored in the tabular form
 
-writecsv(A,"A.csv")
-
+writecsv(A, "A.csv")
