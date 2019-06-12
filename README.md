@@ -36,7 +36,7 @@ from the command line.
 
 Start by importing the D4M.py package:
 ```python
-import D4M
+import D4M.assoc
 ```
 
 Associative Arrays can be constructed from strings, arrays of strings, scalars, and arrays of numbers as row keys, column keys, and values:
@@ -45,7 +45,7 @@ row = "a,a,a,a,a,a,a,aa,aaa,b,bb,bbb,a,aa,aaa,b,bb,bbb,"
 column = "a,aa,aaa,b,bb,bbb,a,a,a,a,a,a,a,aa,aaa,b,bb,bbb,"
 values = "a-a,a-aa,a-aaa,a-b,a-bb,a-bbb,a-a,aa-a,aaa-a,b-a,bb-a,bbb-a,a-a,aa-aa,aaa-aaa,b-b,bb-bb,bbb-bbb,"
 
-A = Assoc(row,column,values)
+A = D4M.assoc.Assoc(row,column,values)
 ```
 
 You can get particular rows and columns of associative arrays by using row and column indexing, as well as get the entries where the values satisfy some condition.
