@@ -172,7 +172,7 @@ def contains(substrings):
         Inputs:
             substrings = string of (delimiter separated) values (delimiter is last character)
                 or list of values of length n
-        Outpus:
+        Outputs:
             func(listofstrings) = returns a list of indices of the strings in listofstrings which have some element of
                 substrings as a substring
     """
@@ -238,7 +238,7 @@ def num_to_str(arr):
     return strarr
 
 
-def sanitize(obj, convert=False):
+def sanitize(obj, convert=None):
     """
     Converts strings of (delimiter-separated) values into a list of values
     (the delimiter is the last character),
@@ -254,10 +254,14 @@ def sanitize(obj, convert=False):
         Outputs:
             list of values
         Examples:
-            sanitize("a,b,") = ['a,','b,']
-            sanitize([10,3]) = [10,3]
+            sanitize("a,b,") = ['a', 'b']
+            sanitize("1,1,") = [1, 1]
+            sanitize([10, 3]) = [10, 3]
             sanitize(1) = [1]
     """
+    if convert is None:
+        convert = False
+
     # Convert delimiter-separated string list by splitting using last character
     try:
         delimiter = obj[-1]
@@ -266,9 +270,9 @@ def sanitize(obj, convert=False):
 
         # Convert to numbers if requested
         if convert:
-            obj = [str_to_num(item, delimiter) for item in obj]  # Convert applicable items to numbers
+            obj = [str_to_num(item) for item in obj]  # Convert applicable items to numbers
 
-    except (AttributeError, IndexError):
+    except (AttributeError, IndexError, TypeError):
         pass
 
     # Convert to numpy array
