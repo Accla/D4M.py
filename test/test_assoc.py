@@ -156,3 +156,27 @@ def test_assoc_constructor_sparse_bad_dims(test_row, test_col, test_val, test_ad
     with pytest.raises(Exception) as e_info:
         D4M.assoc.Assoc(test_row, test_col, test_val, test_adj)
     assert str(e_info.value) == "Unique row and column indices do not match sp_matrix."
+
+@pytest.mark.parametrize("test_row,test_col,test_val,arg,val",
+                         [('a,b,', 'A,B,', 1, None, np.array([1.0])),
+                          ('a,b,b,', 'A,B,A,', 1, None, np.array([1.0])),
+                          ('a,b,', 'A,B,', 'aA,bB,', None, np.array(['aA', 'bB'])),
+                          (['a', 'b'], 'A,B,', [1, 1], None, np.array([1])),
+                          ([1, 2], 'A,B,', [1, 1], None, np.array([1])),
+                          ([], 'A,B,', 1, None, np.empty(0)),
+                          ('a,b,a,', 'A,B,A,', [1, 2, 3], D4M.assoc.add, np.array([2.0, 4.0])),
+                          ('a,b,a,', 'A,B,A,', [1, 2, 3], D4M.assoc.first, np.array([1.0, 2.0])),
+                          ('a,b,a,', 'A,B,A,', [1, 2, 3], D4M.assoc.last, np.array([2.0, 3.0])),
+                          ('a,b,a,', 'A,B,A,', [1, 2, 3], min, np.array([1.0, 2.0])),
+                          ('a,b,a,', 'A,B,A,', [1, 2, 3], max, np.array([2.0, 3.0])),
+                          ('a,b,a,', 'A,B,A,', [3, 2, 3], D4M.assoc.times, np.array([2.0, 9.0])),
+                          ('a,b,a,', 'A,B,B,', 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]])),
+                           np.array([1.0, 2.0, 3.0])),
+                          ('a,b,a,', 'A,B,B,', ['aA', 'bA', 'aB'], sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                           np.array(['aA', 'aB', 'bA'])),
+                          ('a,b,', 'A,B,', ['aA', 'bA', 'aB'], sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                           np.array(['aA', 'aB', 'bA'])),
+                          ])
+def test_getval(test_row, test_col, test_val, arg, val):
+    A = D4M.assoc.Assoc(test_row, test_col, test_val, arg)
+    assert np.array_equal(val, A.getval())

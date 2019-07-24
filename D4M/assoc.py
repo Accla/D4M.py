@@ -687,6 +687,16 @@ class Assoc:
 
         return adj_dict
 
+    def getval(self):
+        """ Returns list of unique values. """
+        if isinstance(self.val, float):
+            unique_values = np.unique(self.adj.data)
+        else:
+            unique_values = self.val
+
+        return unique_values
+
+
     # print tabular form
     def printfull(self):
         """ Print associative array in tabular form. """
