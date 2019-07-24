@@ -374,18 +374,19 @@ def last(a, b):
     return b
 
 
-def catstr(s1, sep, s2):
+def catstr(s1, s2, sep=None):
     """ Concatenate strings s1 and s2 with separator sep between them. """
-    length = np.size(s1)
     s1 = num_to_str(s1)
     s2 = num_to_str(s2)
-    separr = np.full(1, '|')
+    if sep is None:
+        sep = '|'
+    separr = np.full(1, sep)
     s1sep = np.core.defchararray.add(s1, separr)
     s12 = np.core.defchararray.add(s1sep, s2)
     return s12
 
 
-def val2col(A, splitSep):
+def val2col(A, splitSep=None):
     """
         Converts from adjacency array to incidence array.
             Usage:
@@ -401,7 +402,7 @@ def val2col(A, splitSep):
     r, cType, cVal = A.find()
     cType = num_to_str(cType)
     cVal = num_to_str(cVal)
-    c = catstr(cType, splitSep, cVal)
+    c = catstr(cType, cVal, splitSep)
     A = Assoc(r, c, 1)
     return A
 
@@ -539,16 +540,18 @@ class Assoc:
                 self.val = np.unique(val)
                 self.adj = arg.tocoo()
 
+                (rowdim, coldim) = self.adj.shape
+
                 # Ensure that there are enough unique row, col, vals to make sense of adj
-                errormessage = 'Invalid Input:'
-                goodrow = np.size(self.row) >= np.size(self.adj.row)
-                goodcol = np.size(self.col) >= np.size(self.adj.col)
-                goodval = np.size(self.val) >= np.size(self.adj.data)
+                errormessage = 'Invalid input:'
+                goodrow = np.size(self.row) >= rowdim
+                goodcol = np.size(self.col) >= coldim
+                goodval = np.size(self.val) >= np.size(np.unique(self.adj.data))
                 if not goodrow:
                     errormessage += ' not enough unique row indices'
-                    if not goodcol:
+                    if not goodcol or not goodval:
                         errormessage += ','
-                    elif goodval:
+                    else:
                         errormessage += '.'
                 if not goodcol:
                     errormessage += ' not enough unique col indices'
@@ -594,7 +597,7 @@ class Assoc:
 
                 # Check that row, col, and val have same length
                 if min(row_size, col_size, val_size) != N:
-                    raise ValueError("Invalid input. Row, Col, Val must have compatible lengths.")
+                    raise ValueError("Invalid input: row, col, val must have compatible lengths.")
 
                 # In case single value was given or arg is sum or expecting unique, don't bother aggregating now
                 if single_val or arg == add or arg == "unique":
