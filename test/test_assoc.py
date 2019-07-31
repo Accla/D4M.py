@@ -6,6 +6,7 @@ import scipy.sparse as sp
 
 @pytest.mark.parametrize("test,exp",
                          [(1.0, True),
+                          (-1, True),
                           ('a', False),
                           ('1', False),
                           ('a1', False)
@@ -52,6 +53,70 @@ def test_sorted_intersect(test1, test2, returnbool, exp, returnexp1, returnexp2)
         assert np.array_equal(intersection, exp)
 
 
+@pytest.mark.parametrize("test,testsub,exp",
+                         [("aa,bb,ab,", "a,", [0, 2]),
+                          ("aa,bb,ab,", "b,", [1, 2]),
+                          ("aa,bb,ab,", "c,", []),
+                          ("aa,bb,ab,", "a,b,", [0, 1, 2]),
+                          (['aa', 'bb', 'ab'], "a,", [0, 2]),
+                          (['aa', 'bb', 'ab'], "b,", [1, 2]),
+                          (['aa', 'bb', 'ab'], "c,", []),
+                          (['aa', 'bb', 'ab'], "a,b,", [0, 1, 2]),
+                          (['aa', 'bb', 'ab'], ['a'], [0, 2]),
+                          (['aa', 'bb', 'ab'], ['b'], [1, 2]),
+                          (['aa', 'bb', 'ab'], ['c'], []),
+                          (['aa', 'bb', 'ab'], ['a', 'b'], [0, 1, 2]),
+                          ("aa,bb,ab,", ['a'], [0, 2]),
+                          ("aa,bb,ab,", ['b'], [1, 2]),
+                          ("aa,bb,ab,", ['c'], []),
+                          ("aa,bb,ab,", ['a', 'b'], [0, 1, 2])]
+                         )
+def test_contains(test, testsub, exp):
+    assert D4M.assoc.contains(testsub)(test) == exp
+
+
+@pytest.mark.parametrize("test,testsub,exp",
+                         [("aa,bb,ab,", "a,", [0, 2]),
+                          ("aa,bb,ab,", "b,", [1]),
+                          ("aa,bb,ab,", "c,", []),
+                          ("aa,bb,ab,", "a,b,", [0, 1, 2]),
+                          (['aa', 'bb', 'ab'], "a,", [0, 2]),
+                          (['aa', 'bb', 'ab'], "b,", [1]),
+                          (['aa', 'bb', 'ab'], "c,", []),
+                          (['aa', 'bb', 'ab'], "a,b,", [0, 1, 2]),
+                          (['aa', 'bb', 'ab'], ['a'], [0, 2]),
+                          (['aa', 'bb', 'ab'], ['b'], [1]),
+                          (['aa', 'bb', 'ab'], ['c'], []),
+                          (['aa', 'bb', 'ab'], ['a', 'b'], [0, 1, 2]),
+                          ("aa,bb,ab,", ['a'], [0, 2]),
+                          ("aa,bb,ab,", ['b'], [1]),
+                          ("aa,bb,ab,", ['c'], []),
+                          ("aa,bb,ab,", ['a', 'b'], [0, 1, 2])]
+                         )
+def test_startswith(test, testsub, exp):
+    assert D4M.assoc.startswith(testsub)(test) == exp
+
+
+@pytest.mark.parametrize("obj,exp",
+                         [("1", 1),
+                          ("1.2", 1.2),
+                          ("-5", -5)
+                          ])
+def test_str_to_num(obj, exp):
+    assert D4M.assoc.str_to_num(obj) == exp
+
+
+@pytest.mark.parametrize("obj,exp",
+                         [([0, 1], ['0', '1']),
+                          ([0, -1], ['0', '-1']),
+                          ([0, 1, 0.12, -1], ['0.0', '1.0', '0.12', '-1.0'])
+                          ])
+def test_num_to_str(obj, exp):
+    arr = np.array(obj)
+    strarr = np.array(exp)
+    assert np.array_equal(D4M.assoc.num_to_str(arr), strarr)
+
+
 @pytest.mark.parametrize("test,convert,exp",
                          [([1, 1], False, np.array([1, 1], dtype=object)),
                           (1, False, np.array([1], dtype=object)),
@@ -62,6 +127,54 @@ def test_sorted_intersect(test1, test2, returnbool, exp, returnexp1, returnexp2)
                           ])
 def test_sanitize(test, convert, exp):
     assert np.array_equal(exp, D4M.assoc.sanitize(test, convert))
+
+
+@pytest.mark.parametrize("row,col,val,func,agg_row,agg_col,agg_val",
+                         [(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.add, ['a', 'b'], ['A', 'B'], [3, 3]),
+                          (['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.first, ['a', 'b'], ['A', 'B'], [1, 3]),
+                          (['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.last, ['a', 'b'], ['A', 'B'], [2, 3]),
+                          (['a', 'a', 'b'], ['A', 'A', 'B'], [2, 2, 3], D4M.assoc.times, ['a', 'b'], ['A', 'B'], [4, 3]),
+                          (['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min, ['a', 'b'],
+                           ['A', 'B'], [0, 3])
+                          ])
+def test_aggregate(row, col, val, func, agg_row, agg_col, agg_val):
+    agg_row = np.array(agg_row)
+    agg_col = np.array(agg_col)
+    agg_val = np.array(agg_val)
+
+    new_row, new_col, new_val = D4M.assoc.aggregate(row, col, val, func)
+    assert np.array_equal(new_row, agg_row)
+    assert np.array_equal(new_col, agg_col)
+    assert np.array_equal(new_val, agg_val)
+
+
+@pytest.mark.parametrize("s1,s2,sep,exp",
+                         [(np.array(['a', 'b']), np.array(['A', 'B']), None, np.array(['a|A', 'b|B'])),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), ':', np.array(['a:A', 'b:B'])),
+                          (np.array([1, 1]), np.array(['A', 'B']), None, np.array(['1|A', '1|B']))
+                          ])
+def test_catstr(s1, s2, sep, exp):
+    assert np.array_equal(exp, D4M.assoc.catstr(s1, s2, sep))
+
+
+@pytest.mark.parametrize("row,col,val,splitSep,exp",
+                         [('a,b,a,', 'A,B,B,', [1, 2, 3], None, D4M.assoc.Assoc('a,b,a,', 'A|1,B|2,B|3,', 1)),
+                          ('a,b,a,', 'A,B,B,', 'aA,bB,aB,', None, D4M.assoc.Assoc('a,b,a,', 'A|aA,B|bB,B|aB,', 1)),
+                          ('a,b,a,', 'A,B,B,', [1, 2, 3], ':', D4M.assoc.Assoc('a,b,a,', 'A:1,B:2,B:3,', 1))
+                          ])
+def test_val2col(row, col, val, splitSep, exp):
+    A = D4M.assoc.Assoc(row, col, val)
+    assert D4M.assoc.val2col(A, splitSep) == exp
+
+
+@pytest.mark.parametrize("A,splitSep,row,col,val",
+                         [(D4M.assoc.Assoc('a,b,a,', 'A|1,B|2,B|3,', 1), None, 'a,b,a,', 'A,B,B,', [1, 2, 3]),
+                          (D4M.assoc.Assoc('a,b,a,', 'A|aA,B|bB,B|aB,', 1), None, 'a,b,a,', 'A,B,B,', 'aA,bB,aB,'),
+                          (D4M.assoc.Assoc('a,b,a,', 'A:1,B:2,B:3,', 1), ':', 'a,b,a,', 'A,B,B,', [1, 2, 3])
+                          ])
+def test_col2type(A, splitSep, row, col, val):
+    B = D4M.assoc.Assoc(row, col, val)
+    assert D4M.assoc.col2type(A, splitSep) == B
 
 
 def sparse_equal(A, B):

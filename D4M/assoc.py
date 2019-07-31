@@ -179,11 +179,13 @@ def contains(substrings):
     substrings = sanitize(substrings)
 
     def func(listofstrings):
+        listofstrings = sanitize(listofstrings)
         goodstrings = list()
-        for item in listofstrings:
+        for i in range(len(listofstrings)):
+            item = listofstrings[i]
             for substring in substrings:
                 if substring in item:
-                    goodstrings.append(item)
+                    goodstrings.append(i)
                     break
         return goodstrings
 
@@ -207,11 +209,14 @@ def startswith(prefixes):
     prefixes = sanitize(prefixes)
 
     def func(listofstrings):
+        listofstrings = sanitize(listofstrings)
         goodstrings = list()
-        for item in listofstrings:
+
+        for i in range(len(listofstrings)):
+            item = listofstrings[i]
             for prefix in prefixes:
                 if item.startswith(prefix):
-                    goodstrings.append(item)
+                    goodstrings.append(i)
                     break
         return goodstrings
 
@@ -285,61 +290,28 @@ def sanitize(obj, convert=None):
     return obj
 
 
-def unpair(n):
+def aggregate(row, col, val, func):
     """
-    Decodes an integer of the form (2**x)*(3**y) into x,y. Raises error if not in that form.
-    """
-    binrep = bin(n)
-    revbinrep = binrep[::-1]
-    x = revbinrep.index('1')
-    y = int(math.log(n / 2 ** x, 3))
-
-    if (2 ** x) * (3 ** y) != n:
-        raise ValueError("Input not of proper form.")
-
-    return x, y
-
-
-def pd_aggregate(row, col, val, func):
-    """
-    Aggregate elements of val, grouped by row,col, using func.
-    """
-    # Convert to pandas DataFrame to group by row-col pairs and aggregate
-    df = pd.DataFrame([row, col, val])
-    df = df.transpose()
-    df.columns = ['row', 'col', 'val']
-    grouped = df.groupby(['row', 'col'])
-    df = grouped.aggregate(func).reset_index()
-
-    # Convert back to numpy arrays
-    dfarr = df.values
-    row = dfarr[:, 0].flatten()
-    col = dfarr[:, 1].flatten()
-    val = dfarr[:, 2].flatten()
-
-    return None
-
-
-def dict_aggregate(row, col, val, func):
-    """
-        Aggregate (row[i],col[i],val[i]) triples using func as collision function.
+        Aggregate (row[i], col[i], val[i]) triples using func as collision function.
             Usage:
-                dict_aggregate(row, col, val, func)
+                aggregate(row, col, val, func)
             Inputs:
                 row = array of objects of length n
                 col = array of objects of length n
                 val = array of objects of length n
                 func = collision function (e.g. add, times, max, min, first, last)
             Output:
-                newrow, newcol, newval = subarrays of row, col, val in which pairs (r,c) = (newrow[i],newcol[i])
+                newrow, newcol, newval = subarrays of row, col, val in which pairs (r, c) = (newrow[i], newcol[i])
                                             are unique and newval[i] is the resulting of iteratively
                                             applying func to the values corresponding to triples
-                                            (r,c,value) = (row[j],col[j],val[j])
+                                            (r, c, value) = (row[j], col[j], val[j])
             Example:
-                dict_aggregate(['a','a','b'],['A','A','B'],[1,2,3],add) = ['a','b'],['A','B'],[3,3]
-                dict_aggregate(['a','a','b'],['A','A','B'],[1,2,3],first) = ['a','b'],['A','B'],[1,3]
-                dict_aggregate(['a','a','b'],['A','A','B'],[1,2,3],last) = ['a','b'],['A','B'],[2,3]
-                dict_aggregate(['a','a','a','b'],['A','A','A','B'],[1,2,0,3],min) = ['a','b'],['A','B'],[0,3]
+                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], add) = ['a', 'b'], ['A', 'B'], [3, 3]
+                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], first) = ['a', 'b'], ['A', 'B'], [1, 3]
+                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], last) = ['a', 'b'], ['A', 'B'], [2, 3]
+                aggregate(['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min)
+                        = ['a', 'b'], ['A', 'B'], [0, 3]
+                (where lists are stand-ins for the corresponding numpy arrays)
     """
     agg_dict = dict()
     for k in range(np.size(row)):
@@ -348,9 +320,9 @@ def dict_aggregate(row, col, val, func):
         else:
             agg_dict[(row[k], col[k])] = func(agg_dict[(row[k], col[k])], val[k])
 
-    newrow = np.array([item[0] for item in list(agg_dict.keys())], dtype=object)
-    newcol = np.array([item[1] for item in list(agg_dict.keys())], dtype=object)
-    newval = np.array(list(agg_dict.values()), dtype=object)
+    newrow = np.array([item[0] for item in list(agg_dict.keys())])
+    newcol = np.array([item[1] for item in list(agg_dict.keys())])
+    newval = np.array(list(agg_dict.values()))
     return newrow, newcol, newval
 
 
@@ -375,7 +347,7 @@ def last(a, b):
 
 
 def catstr(s1, s2, sep=None):
-    """ Concatenate strings s1 and s2 with separator sep between them. """
+    """ Concatenate strings/numbers s1 and s2 with separator sep between them. """
     s1 = num_to_str(s1)
     s2 = num_to_str(s2)
     if sep is None:
@@ -393,54 +365,58 @@ def val2col(A, splitSep=None):
                 val2col(A,splitSep)
             Inputs:
                 A = Associative Array
-                splitSep = (new) delimiting character (e.g. '|') to separate column labels from values
+                splitSep = (new) delimiting character (default '|') to separate column labels from values
             Output:
-                val2col(A,splitSep) = Associative Array B where B.row = A.row and
-                                        B['rowlabel','collabel|value'] = 1 if and only if
-                                        A['rowlabel','collabel'] = value
+                val2col(A,splitSep) = Associative Array B where B.row == A.row and
+                                        B[rowlabel, collabel+splitSep+value] == 1 if and only if
+                                        A[rowlabel, collabel] == value
     """
     r, cType, cVal = A.find()
     cType = num_to_str(cType)
     cVal = num_to_str(cVal)
+    if splitSep is None:
+        splitSep = '|'
     c = catstr(cType, cVal, splitSep)
     A = Assoc(r, c, 1)
     return A
 
 
-def col2type(A,splitSep):
+def col2type(A, splitSep=None):
     """
-        Splits column keys of associative array and sotres first part as column key and second part as value.
+        Splits column keys of associative array and sorts first part as column key and second part as value.
         Inverse of val2col.
             Usage:
-                B = col2type(A,splitSep)
+                B = col2type(A, splitSep)
             Inputs:
                 A = Associative array with string column keys assumed to be of the form 'key'+splitSep+'val'
-                splitSep = separator for A's column keys (e.g. '|')
+                splitSep = separator for A's column keys (default '|')
             Outputs:
-                col2type(A,splitSep) = Associative array whose row keys are the same as A, but whose column keys
+                col2type(A, splitSep) = Associative array whose row keys are the same as A, but whose column keys
                                         are the first parts of A's column keys and whose values are the second
                                         parts of A's column keys
             Example:
-                col2type(A,'|')
-                col2type(A,'/')
+                col2type(A, '|')
+                col2type(A, '/')
             Note:
                 - A's column keys must be in the desired form.
     """
     
     # Extract row and column keys from A
     r, c, v = A.find()
+    if splitSep is None:
+        splitSep = '|'
     
     # Split column keys according to splitSep
     try:
-        elsplit = [ colkey.split(splitSep) for colkey in c ]
+        elsplit = [colkey.split(splitSep) for colkey in c]
     except:
         raise ValueError('Input column keys not of correct form.')
     
     # Extract column types and values
-    cType = [ item[0] for item in elsplit ]
-    cVal = [item[1] for item in elsplit ]
+    cType = [item[0] for item in elsplit]
+    cVal = [item[1] for item in elsplit]
     
-    B = Assoc(r,cType,cVal)
+    B = Assoc(r, cType, cVal)
     
     return B
 
@@ -606,7 +582,7 @@ class Assoc:
                     if arg is None:
                         arg = min
 
-                    row, col, val = dict_aggregate(row, col, val, arg)
+                    row, col, val = aggregate(row, col, val, arg)
 
                 # Get unique sorted row and column indices
                 self.row, fromrow = np.unique(row, return_inverse=True)
@@ -805,12 +781,12 @@ class Assoc:
         if isinstance(object2, int):
             object2 = [self.col[object2]]
 
-        # If either of object1 or object2 are functions on self.row or self.col,
-        # apply those functions
+        # If either of object1 or object2 are functions on self.row or self.col returning lists of indices,
+        # apply those functions and get subarray
         if callable(object1):
-            object1 = object1(self.row)
+            object1 = self.row[object1(self.row)]
         if callable(object2):
-            object2 = object2(self.col)
+            object2 = self.row[object2(self.col)]
 
         # If slice objects, convert to appropriate lists
         if isinstance(object1, slice):
