@@ -181,7 +181,7 @@ def sparse_equal(A, B):
     """ Test whether two COO sparse matrices are equal."""
     isequal = False
 
-    eqdtype = A.dtype == B.dtype
+    #eqdtype = A.dtype == B.dtype
     eqshape = A.shape == B.shape
     eqndim = A.ndim == B.ndim
     eqnnz = A.nnz == B.nnz
@@ -189,7 +189,7 @@ def sparse_equal(A, B):
     eqrow = np.array_equal(A.row, B.row)
     eqcol = np.array_equal(A.col, B.col)
 
-    if eqdtype and eqshape and eqndim and eqnnz and eqdata and eqrow and eqcol:
+    if eqshape and eqndim and eqnnz and eqdata and eqrow and eqcol:
         isequal = True
 
     return isequal
@@ -293,3 +293,35 @@ def test_assoc_constructor_sparse_bad_dims(test_row, test_col, test_val, test_ad
 def test_getval(test_row, test_col, test_val, arg, val):
     A = D4M.assoc.Assoc(test_row, test_col, test_val, arg)
     assert np.array_equal(val, A.getval())
+
+@pytest.mark.parametrize("test_assoc,subrow,subcol,exp_assoc",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', [2])),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', 'aA,')),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 'a,b,', 'A,',
+                           D4M.assoc.Assoc('a,b,', 'A,A,', 'aA,bA,')),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'),
+                           D4M.assoc.startswith('a,'), ':',
+                           D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,')),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green']),
+                           ":", D4M.assoc.contains('color,'),
+                           D4M.assoc.Assoc('amber,birch,', 'color,leaf_color,', ['amber', 'green'])),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'),
+                           [0, 1], ":", D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,')),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'),
+                           D4M.assoc.startswith('c,'), ":",
+                           D4M.assoc.Assoc([], [], [])),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'),
+                           0, ":", D4M.assoc.Assoc('amber,', 'color,', 'amber,'))
+                          ])
+def test_getitem(test_assoc, subrow, subcol, exp_assoc):
+    B = test_assoc[subrow, subcol]
+    B.printfull()
+    exp_assoc.printfull()
+    exp_row = exp_assoc.row
+    exp_col = exp_assoc.col
+    exp_val = exp_assoc.val
+    exp_adj = exp_assoc.adj
+    assert np.array_equal(B.row, exp_row)
+    assert np.array_equal(B.col, exp_col)
+    assert np.array_equal(B.val, exp_val) or (B.val == 1.0 and exp_val == 1.0)
+    assert sparse_equal(B.adj, exp_adj)

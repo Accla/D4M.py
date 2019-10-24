@@ -781,6 +781,9 @@ class Assoc:
         if isinstance(object2, int):
             object2 = [self.col[object2]]
 
+        # If object1 or object2 are lists of integers, replace with corresponding lists of row/col keys
+
+
         # If either of object1 or object2 are functions on self.row or self.col returning lists of indices,
         # apply those functions and get subarray
         if callable(object1):
@@ -793,6 +796,14 @@ class Assoc:
             object1 = self.row[object1]
         if isinstance(object2, slice):
             object2 = self.col[object2]
+
+        # If of the form ":", convert to appropriate lists
+        if isinstance(object1, str):
+            if object1 == ":":
+                object1 = self.row
+        if isinstance(object2, str):
+            if object2 == ":":
+                object2 = self.col
 
         # Then, or otherwise, sanitize to get appropriate lists
         object1 = sanitize(object1)
@@ -828,7 +839,7 @@ class Assoc:
                 stop_index = np.size(self.col)
             object2 = self.col[start_index:stop_index]
 
-        # Now everything is a list of row/col indices.
+        # Now everything is a list of row/col labels.
         # Create new row, col, val triple to construct sub-assoc array
         object1 = np.sort(object1)
         object2 = np.sort(object2)
@@ -842,8 +853,8 @@ class Assoc:
         B.val = self.val
         B.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
 
-        B.condense()
-        B.deepcondense()
+        B = B.condense()
+        B = B.deepcondense()
 
         return B
 
@@ -1090,18 +1101,19 @@ class Assoc:
         """ Subtract array B from array A=self, i.e. A-B. """
 
         A = self
+        C = B.copy()
 
         # If not numerical, convert to logical
         if not isinstance(A.val, float):
             A = A.logical(copy=True)
         if not isinstance(B.val, float):
-            B = B.logical(copy=True)
+            C = C.logical(copy=True)
 
         # Negate second array argument's numerical data
-        B.adj.data = -B.adj.data
+        C.adj.data = -C.adj.data
 
-        C = A + B
-        return C
+        D = A + C
+        return D
 
     # Overload matrix multiplication
     def __mul__(self, B):
@@ -1247,6 +1259,11 @@ class Assoc:
             val_indices = fromval + np.ones(np.size(fromval))
             self.adj = sparse.coo_matrix((val_indices, (fromrow, fromcol)), dtype=int,
                                          shape=(np.size(self.row), np.size(self.col)))
+
+            # If self.val is now empty, replace with 1.0
+            if np.size(self.val) == 0:
+                self.val = 1.0
+
             return self
 
     # Eliminate columns
