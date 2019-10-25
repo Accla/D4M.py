@@ -270,6 +270,7 @@ def test_assoc_constructor_sparse_bad_dims(test_row, test_col, test_val, test_ad
         D4M.assoc.Assoc(test_row, test_col, test_val, test_adj)
     assert str(e_info.value) == "Unique row and column indices do not match sp_matrix."
 
+
 @pytest.mark.parametrize("test_row,test_col,test_val,arg,val",
                          [('a,b,', 'A,B,', 1, None, np.array([1.0])),
                           ('a,b,b,', 'A,B,A,', 1, None, np.array([1.0])),
@@ -294,6 +295,69 @@ def test_getval(test_row, test_col, test_val, arg, val):
     A = D4M.assoc.Assoc(test_row, test_col, test_val, arg)
     assert np.array_equal(val, A.getval())
 
+
+@pytest.mark.parametrize("test_assoc,orderby,row,col,val",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), None, np.array(['a', 'b']),
+                           np.array(['A', 'B']), np.array([2, 3])),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), None,
+                           np.array(['a', 'b', 'a', 'b']), np.array(['A', 'B', 'B', 'A']),
+                           np.array(['aA', 'bB', 'aB', 'bA'])),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 0,
+                           np.array(['a', 'a', 'b', 'b']), np.array(['A', 'B', 'A', 'B']),
+                           np.array(['aA', 'aB', 'bA', 'bB'])),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 1,
+                           np.array(['a', 'b', 'a', 'b']), np.array(['A', 'A', 'B', 'B']),
+                           np.array(['aA', 'bA', 'aB', 'bB']))
+                          ])
+def test_find(test_assoc, orderby, row, col, val):
+    test_row, test_col, test_val = test_assoc.find(orderby=orderby)
+    if orderby is None:
+        triples = list(zip(list(row), list(col), list(val)))
+        triples.sort()
+        print(triples)
+        test_triples = list(zip(list(test_row), list(test_col), list(test_val)))
+        test_triples.sort()
+        print(test_triples)
+        assert triples == test_triples
+    else:
+        assert np.array_equal(test_row, row)
+        assert np.array_equal(test_col, col)
+        assert np.array_equal(test_val, val)
+
+
+@pytest.mark.parametrize("test_assoc,orderby,triples",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), None, [('a', 'A', 2), ('b', 'B', 3)]),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), None, [('a', 'A', 'aA'), ('b', 'B', 'bB')]),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), None,
+                           [('a', 'A', 'aA'), ('b', 'B', 'bB'), ('a', 'B', 'aB'), ('b', 'A', 'bA')]),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 0,
+                           [('a', 'A', 'aA'), ('a', 'B', 'aB'), ('b', 'A', 'bA'), ('b', 'B', 'bB')]),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 1,
+                           [('a', 'A', 'aA'), ('b', 'A', 'bA'), ('a', 'B', 'aB'), ('b', 'B', 'bB')])
+                          ])
+def test_assoc_triples(test_assoc, orderby, triples):
+    if orderby is None:
+        test_triples = test_assoc.triples()
+        test_triples.sort()
+        list_triples = list(triples)
+        list_triples.sort()
+        assert test_triples == list_triples
+    else:
+        assert test_assoc.triples(orderby=orderby) == triples
+
+
+@pytest.mark.parametrize("test_assoc,rowkey,colkey,value",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'b', 'B', 3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'),
+                           'amber', 'color', 'amber'),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'),
+                           'a', 'B', 'aB'),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'c', 'B', 0)
+                          ])
+def test_getvalue(test_assoc, rowkey, colkey, value):
+    assert test_assoc.getvalue(rowkey, colkey) == value
+
+
 @pytest.mark.parametrize("test_assoc,subrow,subcol,exp_assoc",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', [2])),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', 'aA,')),
@@ -314,9 +378,10 @@ def test_getval(test_row, test_col, test_val, arg, val):
                            0, ":", D4M.assoc.Assoc('amber,', 'color,', 'amber,'))
                           ])
 def test_getitem(test_assoc, subrow, subcol, exp_assoc):
+    test_assoc.printfull()
+    print(subrow)
+    print(subcol)
     B = test_assoc[subrow, subcol]
-    B.printfull()
-    exp_assoc.printfull()
     exp_row = exp_assoc.row
     exp_col = exp_assoc.col
     exp_val = exp_assoc.val

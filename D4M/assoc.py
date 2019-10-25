@@ -701,9 +701,9 @@ class Assoc:
         print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
         return print_string
 
-    def triples(self):
-        """ Print list of triples of form (row_label,col_label,value). """
-        r, c, v = self.find()
+    def triples(self, orderby=None):
+        """ Return list of triples of form (row_label,col_label,value). """
+        r, c, v = self.find(orderby=orderby)
         triples = list(zip(list(r), list(c), list(v)))
         return triples
 
@@ -734,7 +734,10 @@ class Assoc:
             index2 = colkey
 
         if isinstance(self.val, float):
-            return self.adj.todok()[index1, index2]
+            try:
+                return self.adj.todok()[index1, index2]
+            except IndexError:
+                return 0
         else:
             try:
                 return self.val[self.adj.todok()[index1, index2] - 1]
@@ -773,73 +776,74 @@ class Assoc:
                         A[:,0] will give the subarray consisting of the 0-th column
                         A[2,4] will give the value in the 2-nd row and 4-th column
         """
+        keys = [self.row, self.col]
+        object1, object2 = obj
+        obj = [object1, object2]
+
+        # For each object, replace with corresponding array of row/col keys
+        for index in [0, 1]:
+            objecti = obj[index]
+            # If object is a single integer, replace with corresponding row/col key
+            if isinstance(objecti, int):
+                obj[index] = [keys[index][objecti]]
+                continue
+
+            # If object is an iterable of integers, replace with corresponding row/col keys
+            all_integers = True
+            if hasattr(objecti, '__iter__'):
+                for item in objecti:
+                    if not isinstance(item, int):
+                        all_integers = False
+                        break
+            else:
+                all_integers = False
+
+            if all_integers:
+                obj[index] = keys[index][objecti]
+                continue
+
+            # If object is a function on iterables returing list of indices, apply it
+            if callable(objecti):
+                obj[index] = keys[index][objecti(keys[index])]
+                continue
+
+            # If object is a slice object, convert to appropriate list of keys
+            if isinstance(objecti, slice):
+                obj[index] = keys[index][objecti]
+                continue
+
+            # If object is of form ":", convert to appropriate list of keys
+            if isinstance(objecti, str):
+                if objecti == ":":
+                    obj[index] = keys[index]
+                    continue
+
+            # Then, or otherwise, sanitize to get appropriate list of keys
+            objecti = sanitize(objecti)
+
+            # If resulting object is 'slice-like', replace with appropriate list of keys,
+            # getting all keys where objecti[0] <= element <= objecti[2]
+            # so find first index of key with objecti[0] <= key and first index of key with
+            # objecti[2] < key (so all earlier keys are <= objecti[2]).
+
+            if len(objecti) == 3 and objecti[1] == ":":
+                start_compare = (keys[index] >= objecti[0])
+                stop_compare = (keys[index] > object1[2])
+                try:
+                    start_index = np.argwhere(start_compare)[0][0]
+                except IndexError:
+                    start_index = np.size(keys[index])
+                try:
+                    stop_index = np.argwhere(stop_compare)[0][0]
+                except IndexError:
+                    stop_index = np.size(keys[index])
+                obj[index] = keys[index][start_index:stop_index]
+
+            obj[index] = objecti
+
+        # Now everything is a list of row/col keys
         object1, object2 = obj
 
-        # If object1 or object2 are integers, replace with corresponding row/col keys
-        if isinstance(object1, int):
-            object1 = [self.row[object1]]
-        if isinstance(object2, int):
-            object2 = [self.col[object2]]
-
-        # If object1 or object2 are lists of integers, replace with corresponding lists of row/col keys
-
-
-        # If either of object1 or object2 are functions on self.row or self.col returning lists of indices,
-        # apply those functions and get subarray
-        if callable(object1):
-            object1 = self.row[object1(self.row)]
-        if callable(object2):
-            object2 = self.row[object2(self.col)]
-
-        # If slice objects, convert to appropriate lists
-        if isinstance(object1, slice):
-            object1 = self.row[object1]
-        if isinstance(object2, slice):
-            object2 = self.col[object2]
-
-        # If of the form ":", convert to appropriate lists
-        if isinstance(object1, str):
-            if object1 == ":":
-                object1 = self.row
-        if isinstance(object2, str):
-            if object2 == ":":
-                object2 = self.col
-
-        # Then, or otherwise, sanitize to get appropriate lists
-        object1 = sanitize(object1)
-        object2 = sanitize(object2)
-
-        # First check if object1 or object2 are slice-like and replace with appropriate lists if so
-        # Want to get all elements of self.row/col where objecti[0] <= element <= objecti[2]
-        # so find first index of element of self.row/col with objecti[0] <= element
-        # and first index of element of self.row/col with objecti[2] < element
-        # (so all earlier elements are <= objecti[2]).
-        if len(object1) == 3 and object1[1] == ":":
-            start_compare = (self.row >= object1[0])
-            stop_compare = (self.row > object1[2])
-            try:
-                start_index = np.argwhere(start_compare)[0][0]
-            except IndexError:
-                start_index = np.size(self.row)
-            try:
-                stop_index = np.argwhere(stop_compare)[0][0]
-            except IndexError:
-                stop_index = np.size(self.row)
-            object1 = self.row[start_index:stop_index]
-        if len(object2) == 3 and object2[1] == ":":
-            start_compare = (self.col >= object2[0])
-            stop_compare = (self.col > object2[2])
-            try:
-                start_index = np.argwhere(start_compare)[0][0]
-            except IndexError:
-                start_index = np.size(self.col)
-            try:
-                stop_index = np.argwhere(stop_compare)[0][0]
-            except IndexError:
-                stop_index = np.size(self.col)
-            object2 = self.col[start_index:stop_index]
-
-        # Now everything is a list of row/col labels.
         # Create new row, col, val triple to construct sub-assoc array
         object1 = np.sort(object1)
         object2 = np.sort(object2)

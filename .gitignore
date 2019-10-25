@@ -2,6 +2,7 @@
 /D4M.egg-info
 /.idea
 /dist
+/venv
 /D4M/__pycache__
 /__pycache__
 /.pytest_cache
