@@ -736,12 +736,12 @@ class Assoc:
         if isinstance(self.val, float):
             try:
                 return self.adj.todok()[index1, index2]
-            except IndexError:
+            except (IndexError, TypeError):
                 return 0
         else:
             try:
                 return self.val[self.adj.todok()[index1, index2] - 1]
-            except IndexError:
+            except (IndexError, TypeError):
                 return 0
 
     # Overload getitem; allows for subsref
@@ -886,36 +886,78 @@ class Assoc:
         return size1, size2
 
     def nnz(self):
-        """ Returns number of stored entries. """
+        """
+        Returns number of stored entries.
+            Usage:
+                A.nnz()
+            Input:
+                self = Associative array
+            Output:
+                The number of stored entries (i.e., the number of entries in the adjacency array).
+            Notes:
+                - If null values (0, None, '') are explicitly stored in the array, then they are counted. To count only
+                    non-null values, use self.get_nonzero()
+        """
         nnz = self.adj.getnnz()
         return nnz
+
+    def count_nonzero(self):
+        """
+        Returns number of non-null stored entries.
+            Usage:
+                A.count_nonzero()
+            Input:
+                self = Associative array
+            Output:
+                The number of stored non-null entries (i.e., the number of non-null entries in the adjacency array).
+            Notes:
+                - If null values (0, None, '') are explicitly stored in the array, then they are not counted. To count
+                only all stored values, use self.nnz()
+        """
+        null = [0, None, '']
+
+        # If data is numerical, return number of nonzero values.
+        if isinstance(self.val, float):
+            nonzero = np.where(self.adj.data)
+            actual_nnz = np.size(nonzero)
+        # Otherwise, check against list of null values
+        else:
+            _, _, val = self.find()
+            nonzero = [value not in null for value in val]
+            actual_nnz = np.size(val[nonzero])
+
+        return actual_nnz
 
     # Remove zeros/empty strings/None from being recorded
     def dropzeros(self, copy=False):
         """
-        Return copy of Assoc without zeros/empty strings/None recorded.
+        Return copy of Assoc without null values recorded.
             Usage:
                 A.dropzeros()
                 A.dropzeros(copy = True)
             Inputs:
-                A = Associative array
+                self = Associative array
                 copy = Whether a new Assoc instance should be made or
                     if existing instance should be modified
             Outputs:
-                Associative subarray of A consisting only of non-zero/empty/None values
+                Associative subarray of A consisting only of non-null values
+            Notes:
+                - Null values include 0, '', and None
         """
 
         # Enumerate the 'null' values
-        zeros = ['', 0, None]
+        null = ['', 0, None]
 
         # If numerical, just use scipy.sparse's eliminate_zeros()
         if isinstance(self.val, float):
             if not copy:
-                self.adj.eliminate_zeros()
                 A = self
             else:
                 A = self.copy()
-                A.adj.eliminate_zeros()
+
+            # Remove zeros and update row and col appropriately
+            A.adj.eliminate_zeros()
+            A.condense()
         # Otherwise, manually remove and remake Assoc instance
         else:
             if not copy:
@@ -926,7 +968,7 @@ class Assoc:
             row, col, val = self.find()
 
             # Determine which values are non-zero
-            good_indices = np.isin(val, zeros, invert=True)
+            good_indices = [value not in null for value in val]
 
             # Remove the row/col/val triples that correspond to a zero value
             row = row[good_indices]
@@ -937,6 +979,14 @@ class Assoc:
             A.row, fromrow = np.unique(row, return_inverse=True)
             A.col, fromcol = np.unique(col, return_inverse=True)
             A.val, fromval = np.unique(val, return_inverse=True)
+
+            # Fix empty results
+            if np.size(A.row) == 0:
+                A.row = np.array([])
+            if np.size(A.col) == 0:
+                A.col = np.array([])
+            if np.size(A.val) == 0:
+                A.val = 1.0
 
             # Make adjacency array
             val_indices = fromval + np.ones(np.size(fromval))
@@ -952,6 +1002,7 @@ class Assoc:
                 Usage:
                     A.setadj(new_adj)
                 Input:
+                    self = Associative array
                     new_adj = A sparse matrix whose dimensions are at least that of self.
                 Output:
                     self = Associative array with given sparse matrix as adjacency array
@@ -986,15 +1037,16 @@ class Assoc:
 
     def sum(self, axis=None):
         """
-        Sum over the given axis or over whole array if None.
-            Usage:
-                A.sum()
-                A.sum(0)
-                A.sum(1)
-            Input:
-                axis = 0 if summing down columns, 1 if summing across rows, and None if over whole array
-            Output:
-                A.sum(axis) = Associative array resulting from summing over indicated axis
+            Sum over the given axis or over whole array if None.
+                Usage:
+                    A.sum()
+                    A.sum(0)
+                    A.sum(1)
+                Input:
+                    self = Associative array
+                    axis = 0 if summing down columns, 1 if summing across rows, and None if over whole array
+                Output:
+                    A.sum(axis) = Associative array resulting from summing over indicated axis
         """
 
         # If any of the values are strings, convert to logical
@@ -1037,6 +1089,7 @@ class Assoc:
                     A.logical()
                     A.logical(copy=False)
                 Input:
+                    self = Associative array
                     copy = boolean indicating whether the operation is in-place or not
                 Output:
                     self.logical() = a copy of self with all non-zero values replaced with 1.0
