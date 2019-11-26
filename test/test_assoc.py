@@ -178,7 +178,7 @@ def test_col2type(A, splitSep, row, col, val):
 
 
 def sparse_equal(A, B):
-    """ Test whether two COO sparse matrices are equal."""
+    """ Test whether two COO sparse matrices are equal. """
     isequal = False
 
     #eqdtype = A.dtype == B.dtype
@@ -193,6 +193,38 @@ def sparse_equal(A, B):
         isequal = True
 
     return isequal
+
+
+def array_equal(A, B):
+    """ Test whether two associative arrays are equal. """
+    is_equal = True
+
+    if np.array_equal(A.row, B.row):
+        pass
+    else:
+        is_equal = False
+        print("Rows unequal:"+str(A.row)+" vs. "+str(B.row))
+
+    if np.array_equal(A.col, B.col):
+        pass
+    else:
+        is_equal = False
+        print("Cols unequal:" + str(A.col) + " vs. " + str(B.col))
+
+    if (isinstance(A.val, float) and isinstance(B.val, float) and A.val == 1 and B.val == 1)\
+            or np.array_equal(A.val, B.val):
+        pass
+    else:
+        is_equal = False
+        print("Vals unequal:" + str(A.val) + " vs. " + str(B.val))
+
+    if sparse_equal(A.adj, B.adj):
+        pass
+    else:
+        is_equal = False
+        print("Adjs unequal:" + str(A.adj) + " vs. " + str(B.adj))
+
+    return is_equal
 
 
 @pytest.mark.parametrize("test_row,test_col,test_val,arg,exp_row,exp_col,exp_val,exp_adj",
@@ -358,6 +390,17 @@ def test_getvalue(test_assoc, rowkey, colkey, value):
     assert test_assoc.getvalue(rowkey, colkey) == value
 
 
+@pytest.mark.parametrize("assoc1,assoc2,equal",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1, 1]), True),
+                          (D4M.assoc.Assoc(['a', 'b'], ['A', 'B'], 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]), False),
+                          (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).deepcondense(),
+                           D4M.assoc.Assoc('a,b,', 'A,B,', 1), True)
+                          ])
+def test_array_equal(assoc1, assoc2, equal):
+    assert array_equal(assoc1, assoc2) == equal
+
+
 @pytest.mark.parametrize("test_assoc,subrow,subcol,exp_assoc",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', [2])),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 'a,', 'A,B,', D4M.assoc.Assoc('a,', 'A,', 'aA,')),
@@ -382,27 +425,9 @@ def test_getitem(test_assoc, subrow, subcol, exp_assoc):
     print(subrow)
     print(subcol)
     B = test_assoc[subrow, subcol]
-    exp_row = exp_assoc.row
-    exp_col = exp_assoc.col
-    exp_val = exp_assoc.val
-    exp_adj = exp_assoc.adj
-    assert np.array_equal(B.row, exp_row)
-    assert np.array_equal(B.col, exp_col)
-    assert np.array_equal(B.val, exp_val) or (B.val == 1.0 and exp_val == 1.0)
-    assert sparse_equal(B.adj, exp_adj)
+    assert array_equal(B, exp_assoc)
 
-
-@pytest.mark.parametrize("assoc1,assoc2,equal",
-                         [(D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1, 1]), True),
-                          (D4M.assoc.Assoc(['a', 'b'], ['A', 'B'], 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
-                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0])), False),
-                          (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).deepcondense(),
-                           D4M.assoc.Assoc('a,b,', 'A,B,', 1), True)
-                          ])
-def test_assoc_equals(assoc1, assoc2, equal):
-    assert D4M.assoc.assoc_equals(assoc1, assoc2) == equal
-
-
+"""
 @pytest.mark.parametrize("test_assoc,row_index,col_index,value,exp_assoc",
                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a', 'A', 'aA',
                           D4M.assoc.Assoc('a,b,', 'A,B,', ['a', 3])),
@@ -411,4 +436,95 @@ def test_assoc_equals(assoc1, assoc2, equal):
                          ])
 def test_setitem(test_assoc, row_index, col_index, value, exp_assoc):
     test_assoc[row_index, col_index] = value
-    assert test_assoc == exp_assoc
+"""
+
+@pytest.mark.parametrize("test_assoc",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3])),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,')),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,')),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green'])),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,')),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,')),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'))
+                          ])
+def test_copy(test_assoc):
+    exp_assoc = test_assoc.copy()
+
+    assert array_equal(test_assoc, exp_assoc)
+
+    assert not (test_assoc.row is exp_assoc.row)
+    assert not (test_assoc.col is exp_assoc.col)
+    if isinstance(test_assoc.val, float) or isinstance(exp_assoc.val, float):
+        assert test_assoc.val == exp_assoc.val
+    else:
+        assert not (test_assoc.val is exp_assoc.val)
+
+
+@pytest.mark.parametrize("test_assoc,rownum,colnum",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 2, 2),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 2, 2),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 2, 2),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'), 3, 1),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green']),
+                           3, 3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'), 3, 1),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'), 2, 1),
+                          (D4M.assoc.Assoc([], [], []), 0, 0)
+                          ])
+def test_size(test_assoc, rownum, colnum):
+    test_rownum, test_colnum = test_assoc.size()
+    assert test_rownum == rownum
+    assert test_colnum == colnum
+
+
+@pytest.mark.parametrize("test_assoc,exp_nnz",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), 2),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 2), 2),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 2),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 4),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'), 3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green']),
+                           3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'), 3),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'), 2),
+                          (D4M.assoc.Assoc('a,', 'A,', [None]), 1),
+                          (D4M.assoc.Assoc([], [], []), 0)
+                          ])
+def test_nnz(test_assoc, exp_nnz):
+    assert test_assoc.nnz() == exp_nnz
+
+@pytest.mark.parametrize("test_assoc,exp_nonzeros",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), 1),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 2), 2),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 2),
+                          (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 4),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'), 3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green']),
+                           3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'), 2),
+                          (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'), 2),
+                          (D4M.assoc.Assoc('a,', 'A,', [None]), 0),
+                          (D4M.assoc.Assoc([], [], []), 0)
+                          ])
+def test_count_nonzero(test_assoc, exp_nonzeros):
+    assert test_assoc.count_nonzero() == exp_nonzeros
+
+
+@pytest.mark.parametrize("test_assoc,exp_assoc",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), D4M.assoc.Assoc('a,', 'A,', [2])),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', [0, 2]), D4M.assoc.Assoc('b,', 'B,', [2])),
+                          (D4M.assoc.Assoc('a,b,c,', 'A,B,C,', [2, 0, 2]), D4M.assoc.Assoc('a,c,', 'A,C,', 2)),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 2), D4M.assoc.Assoc('a,b,', 'A,B,', 2)),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'),
+                           D4M.assoc.Assoc('amber,birch,', 'color,color,', 'amber,white,')),
+                          (D4M.assoc.Assoc('a,', 'A,', [None]), D4M.assoc.Assoc([], [], []))
+                          ])
+def test_dropzeros(test_assoc, exp_assoc):
+    new_assoc = test_assoc.dropzeros(copy=True)
+    test_assoc.printfull()
+    new_assoc.printfull()
+    exp_assoc.printfull()
+    assert array_equal(new_assoc, exp_assoc)
+
