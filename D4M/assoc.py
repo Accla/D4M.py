@@ -1520,51 +1520,414 @@ class Assoc:
         return D
 
     def __eq__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of matching values. """
+        """
+            Element-wise equality comparison between self and other.
+                Usage:
+                    A == B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A == B = An associative array such that for row and column labels r and c, resp., such that
+                            (A == B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) == B(r,c) (when B is another associative array
+                                    and assuming A(r,c) and B(r,c) are not null)
+                                (Case 2) A(r,c) == B (when B is not another associative array)
+                            otherwise (A == B)(r,c) = null.
+                Notes:
+                    Returns an error if other is null (0, '', or None)
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val == other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                if key in otherkeys:
+                    if selfdict[key] not in null and otherdict[key] not in null and selfdict[key] == otherdict[key]:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        elif other not in null:
+            for key in selfkeys:
+                if selfdict[key] == other:
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+        else:
+            raise ValueError("Comparison with a null value")
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
     def __ne__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of unmatching (non-null) values. """
+        """
+                    Element-wise inequality comparison between self and other.
+                        Usage:
+                            A != B
+                        Input:
+                            A = Associative Array
+                            B = other object, e.g., another associative array, a number, or a string
+                        Output:
+                            A != B = An associative array such that for row and column labels r and c, resp., such that
+                                    (A != B)(r,c) = 1 if and only if...
+                                        (Case 1) A(r,c) != B(r,c) (when B is another associative array
+                                                and at least one of A(r,c) and B(r,c) are not null)
+                                        (Case 2) A(r,c) != B (when B is not another associative array)
+                                    otherwise (A != B)(r,c) = null.
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val != other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                selfval = selfdict[key]
+
+                if key in otherkeys:
+                    otherval = otherdict[key]
+
+                    if (otherval not in null and selfval in null) \
+                            or (otherval in null and selfval not in null) \
+                            or (otherval not in null and selfval not in null and
+                                selfval != otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+            for key in otherkeys:
+                otherval = otherdict[key]
+
+                if otherval not in null:
+                    if key in selfkeys:
+                        continue  # Already addressed
+                    else:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        elif other not in null:
+            for key in selfkeys:
+                if selfdict[key] != other:
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+        else:
+            for key in selfkeys:
+                if selfdict[key] not in null:
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
     def __lt__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of values<other. """
+        """
+                    Element-wise strictly less than comparison between self and other.
+                        Usage:
+                            A < B
+                        Input:
+                            A = Associative Array
+                            B = other object, e.g., another associative array, a number, or a string
+                        Output:
+                            A < B = An associative array such that for row and column labels r and c, resp., such that
+                                    (A < B)(r,c) = 1 if and only if...
+                                        (Case 1) A(r,c) < B(r,c) (when B is another associative array)
+                                        (Case 2) A(r,c) < B (when B is not another associative array)
+                                    otherwise (A < B)(r,c) = null.
+                        Notes:
+                            - Only numeric and string data types are supported.
+                            - Any non-null string is always greater than null.
+                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
+                            (e.g., if the former is a non-null number and the latter is a non-null string)
+                            then an error is raised.
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val < other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                selfval = selfdict[key]
+                if key in otherkeys:
+                    otherval = otherdict[key]
+
+                    # Check if selfval and otherval have compatible types and whether selfval < otherval,
+                    # where selfval and otherval are interpreted appropriately if null
+                    if (selfval in null and ((is_numeric(otherval) and otherval > 0)
+                                             or (isinstance(otherval, str) and otherval not in null)))\
+                            or (otherval in null and is_numeric(selfval) and selfval < 0)\
+                            or (is_numeric(otherval) and is_numeric(selfval) and selfval < otherval)\
+                            or (isinstance(otherval, str) and isinstance(otherval) and selfval < otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+                else:
+                    if is_numeric(selfval) and selfval < 0:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+            for key in otherkeys:
+                otherval = otherdict[key]
+
+                if key in selfkeys:
+                    continue  # Already addressed
+                else:
+                    if (isinstance(otherval, str) and otherval not in null) or (is_numeric(otherval) and 0 < otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        else:
+            for key in selfkeys:
+                selfval = selfdict[key]
+
+                # Check if selfval and other have compatible types and whether selfval < other,
+                # where selfval and other are interpreted appropriately if null
+                if (selfval in null and ((is_numeric(other) and otherval > 0)
+                                                 or (isinstance(other, str) and other not in null)))\
+                                or (other in null and is_numeric(selfval) and selfval < 0)\
+                                or (is_numeric(other) and is_numeric(selfval) and selfval < other)\
+                                or (isinstance(other, str) and isinstance(other) and selfval < other):
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
     def __gt__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of values>other. """
+        """
+                    Element-wise strictly greater than comparison between self and other.
+                        Usage:
+                            A > B
+                        Input:
+                            A = Associative Array
+                            B = other object, e.g., another associative array, a number, or a string
+                        Output:
+                            A > B = An associative array such that for row and column labels r and c, resp., such that
+                                    (A > B)(r,c) = 1 if and only if...
+                                        (Case 1) A(r,c) > B(r,c) (when B is another associative array)
+                                        (Case 2) A(r,c) > B (when B is not another associative array)
+                                    otherwise (A > B)(r,c) = null.
+                        Notes:
+                            - Only numeric and string data types are supported.
+                            - Any non-null string is always greater than null.
+                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
+                            (e.g., if the former is a non-null number and the latter is a non-null string)
+                            then an error is raised.
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val > other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                selfval = selfdict[key]
+                if key in otherkeys:
+                    otherval = otherdict[key]
+
+                    # Check if selfval and otherval have compatible types and whether selfval > otherval,
+                    # where selfval and otherval are interpreted appropriately if null
+                    if (selfval in null and is_numeric(otherval) and otherval < 0)\
+                            or (otherval in null and ((is_numeric(selfval) and selfval > 0)
+                                                      or (isinstance(selfval, str) and selfval not in null)))\
+                            or (is_numeric(otherval) and is_numeric(selfval) and selfval > otherval)\
+                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval > otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+                else:
+                    if (is_numeric(selfval) and selfval > 0) or (isinstance(selfval, str) and selfval not in null):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+            for key in otherkeys:
+                otherval = otherdict[key]
+
+                if key in selfkeys:
+                    continue  # Already addressed
+                else:
+                    if is_numeric(otherval) and 0 > otherval:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        else:
+            for key in selfkeys:
+                selfval = selfdict[key]
+
+                # Check if selfval and other have compatible types and whether selfval > other,
+                # where selfval and other are interpreted appropriately if null
+                if (selfval in null and is_numeric(other) and other < 0) \
+                        or (other in null and ((is_numeric(selfval) and selfval > 0)
+                                                  or (isinstance(selfval, str) and selfval not in null))) \
+                        or (is_numeric(other) and is_numeric(selfval) and selfval > other) \
+                        or (isinstance(other, str) and isinstance(other, str) and selfval > other):
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
     def __le__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of values<=other. """
+        """
+                    Element-wise less than or equal comparison between self and other.
+                        Usage:
+                            A <= B
+                        Input:
+                            A = Associative Array
+                            B = other object, e.g., another associative array, a number, or a string
+                        Output:
+                            A <= B = An associative array such that for row and column labels r and c, resp., such that
+                                    (A <= B)(r,c) = 1 if and only if...
+                                        (Case 1) A(r,c) <= B(r,c) (when B is another associative array)
+                                        (Case 2) A(r,c) <= B (when B is not another associative array)
+                                    otherwise (A <= B)(r,c) = null.
+                        Notes:
+                            - Only numeric and string data types are supported.
+                            - Any non-null string is always greater than null.
+                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
+                            (e.g., if the former is a non-null number and the latter is a non-null string)
+                            then an error is raised.
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val <= other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                selfval = selfdict[key]
+                if key in otherkeys:
+                    otherval = otherdict[key]
+
+                    # Check if selfval and otherval have compatible types and whether selfval <= otherval,
+                    # where selfval and otherval are interpreted appropriately if null
+                    if (selfval in null and ((is_numeric(otherval) and otherval >= 0)
+                                             or isinstance(otherval, str)))\
+                            or (otherval in null and is_numeric(selfval) and selfval <= 0)\
+                            or (is_numeric(otherval) and is_numeric(selfval) and selfval <= otherval)\
+                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval <= otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+                else:
+                    if is_numeric(selfval) and selfval <= 0:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+            for key in otherkeys:
+                otherval = otherdict[key]
+
+                if key in selfkeys:
+                    continue  # Already addressed
+                else:
+                    if isinstance(otherval, str) or (is_numeric(otherval) and 0 <= otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        else:
+            for key in selfkeys:
+                selfval = selfdict[key]
+
+                # Check if selfval and other have compatible types and whether selfval <= other,
+                # where selfval and other are interpreted appropriately if null
+                if (selfval in null and ((is_numeric(other) and other >= 0)
+                                         or isinstance(other, str))) \
+                        or (other in null and is_numeric(selfval) and selfval <= 0) \
+                        or (is_numeric(other) and is_numeric(selfval) and selfval <= other) \
+                        or (isinstance(other, str) and isinstance(other, str) and selfval <= other):
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
     def __ge__(self, other):
-        """ Element-wise comparison between self and other, returning the subarray of values>=other. """
+        """
+                    Element-wise greater than or equal comparison between self and other.
+                        Usage:
+                            A >= B
+                        Input:
+                            A = Associative Array
+                            B = other object, e.g., another associative array, a number, or a string
+                        Output:
+                            A >= B = An associative array such that for row and column labels r and c, resp., such that
+                                    (A >= B)(r,c) = 1 if and only if...
+                                        (Case 1) A(r,c) >= B(r,c) (when B is another associative array)
+                                        (Case 2) A(r,c) >= B (when B is not another associative array)
+                                    otherwise (A >= B)(r,c) = null.
+                        Notes:
+                            - Only numeric and string data types are supported.
+                            - Any non-null string is always greater than null.
+                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
+                            (e.g., if the former is a non-null number and the latter is a non-null string)
+                            then an error is raised.
+        """
+        null = [0, '', None]
 
-        row, col, val = self.find()
-        good_vals = np.where(val >= other)
-        A = Assoc(row[good_vals], col[good_vals], val[good_vals])
+        selfdict = self.dict()
+        selfkeys = self.dict().keys()
+        goodrows = list()
+        goodcols = list()
+
+        if isinstance(other, Assoc):
+            otherdict = other.dict()
+            otherkeys = otherdict.keys()
+
+            for key in selfkeys:
+                selfval = selfdict[key]
+                if key in otherkeys:
+                    otherval = otherdict[key]
+
+                    # Check if selfval and otherval have compatible types and whether selfval >= otherval,
+                    # where selfval and otherval are interpreted appropriately if null
+                    if (selfval in null and is_numeric(otherval) and otherval <= 0)\
+                            or (otherval in null and ((is_numeric(selfval) and selfval >= 0)
+                                                      or isinstance(selfval, str)))\
+                            or (is_numeric(otherval) and is_numeric(selfval) and selfval >= otherval)\
+                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval >= otherval):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+                else:
+                    if (is_numeric(selfval) and selfval >= 0) or isinstance(selfval, str):
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+            for key in otherkeys:
+                otherval = otherdict[key]
+
+                if key in selfkeys:
+                    continue  # Already addressed
+                else:
+                    if is_numeric(otherval) and 0 > otherval:
+                        goodrows.append(key[0])
+                        goodcols.append(key[1])
+        else:
+            for key in selfkeys:
+                selfval = selfdict[key]
+
+                # Check if selfval and other have compatible types and whether selfval >= other,
+                # where selfval and other are interpreted appropriately if null
+                if (selfval in null and is_numeric(other) and other <= 0) \
+                        or (other in null and ((is_numeric(selfval) and selfval >= 0)
+                                                  or isinstance(selfval, str))) \
+                        or (is_numeric(other) and is_numeric(selfval) and selfval >= other) \
+                        or (isinstance(other, str) and isinstance(other, str) and selfval >= other):
+                    goodrows.append(key[0])
+                    goodcols.append(key[1])
+
+        A = Assoc(goodrows, goodcols, 1)
         return A
 
 

@@ -390,3 +390,25 @@ def test_getitem(test_assoc, subrow, subcol, exp_assoc):
     assert np.array_equal(B.col, exp_col)
     assert np.array_equal(B.val, exp_val) or (B.val == 1.0 and exp_val == 1.0)
     assert sparse_equal(B.adj, exp_adj)
+
+
+@pytest.mark.parametrize("assoc1,assoc2,equal",
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1, 1]), True),
+                          (D4M.assoc.Assoc(['a', 'b'], ['A', 'B'], 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0])), False),
+                          (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).deepcondense(),
+                           D4M.assoc.Assoc('a,b,', 'A,B,', 1), True)
+                          ])
+def test_assoc_equals(assoc1, assoc2, equal):
+    assert D4M.assoc.assoc_equals(assoc1, assoc2) == equal
+
+
+@pytest.mark.parametrize("test_assoc,row_index,col_index,value,exp_assoc",
+                        [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a', 'A', 'aA',
+                          D4M.assoc.Assoc('a,b,', 'A,B,', ['a', 3])),
+                         (D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a', 'C', 'aC',
+                          D4M.assoc.Assoc('a,b,a,', 'A,B,C,', [2, 3, 'aC']))
+                         ])
+def test_setitem(test_assoc, row_index, col_index, value, exp_assoc):
+    test_assoc[row_index, col_index] = value
+    assert test_assoc == exp_assoc
