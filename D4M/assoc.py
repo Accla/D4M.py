@@ -290,6 +290,104 @@ def sanitize(obj, convert=None):
     return obj
 
 
+def length(iterable):
+    """ Return length of iterable. """
+
+    if isinstance(iterable, np.ndarray):
+        return np.size(iterable)
+    else:
+        return len(iterable)
+
+
+def unique(iterable, return_index=None, return_inverse=None):
+    """ Uniquify and sorts an iterable, optionally providing index maps. """
+
+    if return_index is None:
+        return_index = False
+    if return_inverse is None:
+        return_inverse = False
+
+    if isinstance(iterable, np.ndarray):
+        return np.unique(iterable, return_index=return_index, return_inverse=return_inverse)
+    else:  # Assume iterable is a list
+
+        # If no index maps needed, extract unique items in iterable and sort
+        if not (return_index or return_inverse):
+            return sorted(list(dict.fromkeys(iterable)))
+
+        # If both index maps are needed, loop to extract unique items and build partial maps, then sort
+        elif return_index and return_inverse:
+            sui = list()
+            seen = dict()
+            index_map_unique = list()
+            index_map_unique_inverse = list()
+            latest = 0
+            for index in range(len(iterable)):
+                item = iterable[index]
+                if item in seen.keys():
+                    index_map_unique_inverse.append(seen[item])
+                else:
+                    index_map_unique_inverse.append(latest)
+                    index_map_unique.append(index)
+                    seen[item] = latest
+                    latest += 1
+                    sui.append(item)
+
+            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
+            sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
+            sui = [sui[i] for i in sorting_map]
+
+            index_map = [index_map_unique[i] for i in sorting_map]
+            index_map_inverse = [sorting_map_inverse[i] for i in index_map_unique_inverse]
+
+            return sui, index_map, index_map_inverse
+
+        # Same as above but do not build index_map_inverse
+        elif return_index and not return_inverse:
+            sui = list()
+            seen = set()
+            index_map_unique = list()
+            for index in range(len(iterable)):
+                item = iterable[index]
+                if item in seen:
+                    pass
+                else:
+                    seen.add(item)
+                    index_map_unique.append(index)
+                    sui.append(item)
+
+            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
+            sui = [sui[i] for i in sorting_map]
+
+            index_map = [index_map_unique[i] for i in sorting_map]
+
+            return sui, index_map
+
+        # Same as above, but do not build index_map
+        else:
+            sui = list()
+            seen = dict()
+            index_map_unique_inverse = list()
+            latest = 0
+            for index in range(len(iterable)):
+                item = iterable[index]
+                if item in seen.keys():
+                    index_map_unique_inverse.append(seen[item])
+                else:
+                    index_map_unique_inverse.append(latest)
+                    seen[item] = latest
+                    latest += 1
+                    sui.append(item)
+
+            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
+            sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
+            sui = [sui[i] for i in sorting_map]
+
+            index_map_inverse = [sorting_map_inverse[i] for i in index_map_unique_inverse]
+
+            return sui, index_map_inverse
+
+
 def aggregate(row, col, val, func):
     """
         Aggregate (row[i], col[i], val[i]) triples using func as collision function.
@@ -1275,7 +1373,21 @@ class Assoc:
 
     # Remove row/col indices that do not appear in the data
     def condense(self):
-        """ Remove items from self.row and self.col which are not reflected in self.adj. """
+        """
+            Remove items from self.row and self.col which do not correspond to values, according to self.adj.
+                Usage:
+                    A.condense()
+                    B = A.condense()
+                Input:
+                    self = Associative array
+                Output:
+                    self = self.condense() = Associative array which removes all elements of self.row and self.col
+                            which are not associated with some (nonzero) value.
+                Notes:
+                    - In-place operation.
+                    - Elements of self.row or self.col which correspond to rows or columns of all 0's
+                        (but not '' or None) are removed.
+        """
         row, col, _ = self.find()
 
         # First do row, determine which indices in self.row show up in row, get index map, and select
@@ -1283,14 +1395,14 @@ class Assoc:
         index_map = np.where(present_row)[0]
 
         self.row = self.row[present_row]
-        self.adj = self.adj.tocsr()[index_map, :].tocoo()
+        self.adj = self.adj.tocsr()[index_map, :].tocoo()  # Removes indices corresponding to zero rows
 
         # Col
         present_col = np.isin(self.col, col)
         index_map = np.where(present_col)[0]
 
         self.col = self.col[present_col]
-        self.adj = self.adj.tocsr()[:, index_map].tocoo()
+        self.adj = self.adj.tocsr()[:, index_map].tocoo()  # Removes indices corresponding to zero cols
 
         return self
 
@@ -1744,7 +1856,7 @@ class Assoc:
 
                 # Check if selfval and other have compatible types and whether selfval < other,
                 # where selfval and other are interpreted appropriately if null
-                if (selfval in null and ((is_numeric(other) and otherval > 0)
+                if (selfval in null and ((is_numeric(other) and other > 0)
                                                  or (isinstance(other, str) and other not in null)))\
                                 or (other in null and is_numeric(selfval) and selfval < 0)\
                                 or (is_numeric(other) and is_numeric(selfval) and selfval < other)\

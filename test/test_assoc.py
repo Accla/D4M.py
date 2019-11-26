@@ -131,9 +131,11 @@ def test_sanitize(test, convert, exp):
 
 @pytest.mark.parametrize("row,col,val,func,agg_row,agg_col,agg_val",
                          [(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.add, ['a', 'b'], ['A', 'B'], [3, 3]),
-                          (['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.first, ['a', 'b'], ['A', 'B'], [1, 3]),
+                          (['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.first,
+                           ['a', 'b'], ['A', 'B'], [1, 3]),
                           (['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], D4M.assoc.last, ['a', 'b'], ['A', 'B'], [2, 3]),
-                          (['a', 'a', 'b'], ['A', 'A', 'B'], [2, 2, 3], D4M.assoc.times, ['a', 'b'], ['A', 'B'], [4, 3]),
+                          (['a', 'a', 'b'], ['A', 'A', 'B'], [2, 2, 3],
+                           D4M.assoc.times, ['a', 'b'], ['A', 'B'], [4, 3]),
                           (['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min, ['a', 'b'],
                            ['A', 'B'], [0, 3])
                           ])
@@ -148,6 +150,62 @@ def test_aggregate(row, col, val, func, agg_row, agg_col, agg_val):
     assert np.array_equal(new_val, agg_val)
 
 
+# @pytest.mark.parametrize("iterable,return_index,return_inverse,unique,index_map,index_map_inverse",
+#                          [([9, 5, 7, 1, 0, 1, 5, 6], True, True, [0, 1, 5, 6, 7, 9],
+#                            [4, 3, 1, 7, 2, 0], [5, 2, 4, 1, 0, 1, 2, 3]),
+#                           ([9, 5, 7, 1, 0, 1, 5, 6], False, False, [0, 1, 5, 6, 7, 9],
+#                            None, None),
+#                           ([9, 5, 7, 1, 0, 1, 5, 6], True, False, [0, 1, 5, 6, 7, 9],
+#                            [4, 3, 1, 7, 2, 0], None),
+#                           ([9, 5, 7, 1, 0, 1, 5, 6], False, True, [0, 1, 5, 6, 7, 9],
+#                            None, [5, 2, 4, 1, 0, 1, 2, 3]),
+#                           (np.array([9, 5, 7, 1, 0, 1, 5, 6]), True, True, np.array([0, 1, 5, 6, 7, 9]),
+#                            np.array([4, 3, 1, 7, 2, 0]), np.array([5, 2, 4, 1, 0, 1, 2, 3])),
+#                           (np.array([9, 5, 7, 1, 0, 1, 5, 6]), False, False, np.array([0, 1, 5, 6, 7, 9]),
+#                            None, None),
+#                           (np.array([9, 5, 7, 1, 0, 1, 5, 6]), True, False, np.array([0, 1, 5, 6, 7, 9]),
+#                            np.array([4, 3, 1, 7, 2, 0]), None),
+#                           (np.array([9, 5, 7, 1, 0, 1, 5, 6]), False, True, np.array([0, 1, 5, 6, 7, 9]),
+#                            None, np.array([5, 2, 4, 1, 0, 1, 2, 3])),
+#                           (['abra', 'kadabra', 'alakazam', 'machop', 'machoke', 'machamp'], True, True,
+#                            ['abra', 'alakazam', 'kadabra', 'machamp', 'machoke', 'machop'],
+#                            [0, 2, 1, 5, 4, 3], [0, 2, 1, 5, 4, 3])
+#                           ])
+# def test_unique(iterable, return_index, return_inverse, unique, index_map, index_map_inverse):
+#     result = D4M.assoc.unique(iterable, return_index=return_index, return_inverse=return_inverse)
+#
+#     if isinstance(iterable, np.ndarray):
+#
+#
+#         if return_index or return_inverse:
+#             assert np.array_equal(unique, result)
+#         else:
+#             assert np.array_equal(unique, result[0])
+#
+#             if return_index:
+#                 assert index_map == result[1]
+#
+#                 if return_inverse:
+#                     assert index_map_inverse == result[2]
+#                 else:
+#                     assert index_map_inverse is None
+#             else:
+#                 assert index_map is None
+#
+#                 if return_inverse:
+#                     assert index_map_inverse == result[1]
+#                 else:
+#                     assert index_map_inverse is None
+#     else:
+#         exp = tuple([item for item in [unique, index_map, index_map_inverse] if item is not None])
+#         print(exp)
+#         print(D4M.assoc.unique(iterable, return_index=return_index, return_inverse=return_inverse))
+#
+#         assert (exp == D4M.assoc.unique(iterable, return_index=return_index, return_inverse=return_inverse))
+#         assert not return_index == index_map is None
+#         assert not return_inverse == index_map_inverse is None
+
+
 @pytest.mark.parametrize("s1,s2,sep,exp",
                          [(np.array(['a', 'b']), np.array(['A', 'B']), None, np.array(['a|A', 'b|B'])),
                           (np.array(['a', 'b']), np.array(['A', 'B']), ':', np.array(['a:A', 'b:B'])),
@@ -157,6 +215,7 @@ def test_catstr(s1, s2, sep, exp):
     assert np.array_equal(exp, D4M.assoc.catstr(s1, s2, sep))
 
 
+"""
 @pytest.mark.parametrize("row,col,val,splitSep,exp",
                          [('a,b,a,', 'A,B,B,', [1, 2, 3], None, D4M.assoc.Assoc('a,b,a,', 'A|1,B|2,B|3,', 1)),
                           ('a,b,a,', 'A,B,B,', 'aA,bB,aB,', None, D4M.assoc.Assoc('a,b,a,', 'A|aA,B|bB,B|aB,', 1)),
@@ -164,17 +223,18 @@ def test_catstr(s1, s2, sep, exp):
                           ])
 def test_val2col(row, col, val, splitSep, exp):
     A = D4M.assoc.Assoc(row, col, val)
-    assert D4M.assoc.val2col(A, splitSep) == exp
+    assert array_equal(D4M.assoc.val2col(A, splitSep), exp)
+"""
 
 
-@pytest.mark.parametrize("A,splitSep,row,col,val",
-                         [(D4M.assoc.Assoc('a,b,a,', 'A|1,B|2,B|3,', 1), None, 'a,b,a,', 'A,B,B,', [1, 2, 3]),
-                          (D4M.assoc.Assoc('a,b,a,', 'A|aA,B|bB,B|aB,', 1), None, 'a,b,a,', 'A,B,B,', 'aA,bB,aB,'),
-                          (D4M.assoc.Assoc('a,b,a,', 'A:1,B:2,B:3,', 1), ':', 'a,b,a,', 'A,B,B,', [1, 2, 3])
-                          ])
-def test_col2type(A, splitSep, row, col, val):
-    B = D4M.assoc.Assoc(row, col, val)
-    assert D4M.assoc.col2type(A, splitSep) == B
+# @pytest.mark.parametrize("A,splitSep,row,col,val",
+#                          [(D4M.assoc.Assoc('a,b,a,', 'A|1,B|2,B|3,', 1), None, 'a,b,a,', 'A,B,B,', [1, 2, 3]),
+#                           (D4M.assoc.Assoc('a,b,a,', 'A|aA,B|bB,B|aB,', 1), None, 'a,b,a,', 'A,B,B,', 'aA,bB,aB,'),
+#                           (D4M.assoc.Assoc('a,b,a,', 'A:1,B:2,B:3,', 1), ':', 'a,b,a,', 'A,B,B,', [1, 2, 3])
+#                           ])
+# def test_col2type(A, splitSep, row, col, val):
+#     B = D4M.assoc.Assoc(row, col, val)
+#     assert array_equal(D4M.assoc.col2type(A, splitSep), B)
 
 
 def sparse_equal(A, B):
@@ -394,7 +454,7 @@ def test_getvalue(test_assoc, rowkey, colkey, value):
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1, 1]), True),
                           (D4M.assoc.Assoc(['a', 'b'], ['A', 'B'], 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]), False),
-                          (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).deepcondense(),
+                          (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).condense(),
                            D4M.assoc.Assoc('a,b,', 'A,B,', 1), True)
                           ])
 def test_array_equal(assoc1, assoc2, equal):
