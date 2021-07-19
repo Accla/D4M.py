@@ -5,105 +5,105 @@ from scipy import sparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-
-import warnings
 import numbers
 import random
 import string
 import csv
-import itertools
-import math
+import shutil
+from typing import Any, Union, Tuple, Optional
 
 
 # Auxiliary/Helper functions
 
-def string_gen(length):
-    """ Create randomly-generated string of given length. """
+def string_gen(length_: int) -> str:
+    """Create randomly-generated string of given length."""
     rand_string = ''
-    for _ in range(length):
+    for _ in range(length_):
         rand_string += random.SystemRandom().choice(string.ascii_letters)
     return rand_string
 
 
-def num_string_gen(length, n):
-    """ Create string list of integers <= n of given length. """
-    rand_string = [str(random.randint(0, n)) for _ in range(length)] + ['']
+def num_string_gen(length_: int, upper_bound: int) -> str:
+    """Create string list of integers <= upper_bound of given length."""
+    rand_string = [str(random.randint(0, upper_bound)) for _ in range(length_)] + ['']
     rand_string = ','.join(rand_string)
     return rand_string
 
 
-def is_numeric(obj):
-    """ Check if obj is numeric (int, float, complex, etc) or not. """
-    if isinstance(obj, numbers.Number):
-        is_num = True
+def is_numeric(object_: Any) -> bool:
+    """ Check if object_ is numeric (int, float, complex, etc) or not. """
+    if isinstance(object_, numbers.Number):
+        numerical = True
     else:
-        is_num = False
+        numerical = False
+    return numerical
 
-    return is_num
 
-
-def sorted_union(arr_1, arr_2, return_index=False):
-    """
-    Returns the union of two sorted arrays with index maps (if return_index=True).
+def sorted_union(array_1: np.ndarray, array_2: np.ndarray, return_index: Optional[bool] = None) \
+        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Return the union of two sorted numpy arrays with index maps (if return_index=True).
         Usage:
-            union = sorted_union(arr_1,arr_2)
+            union = sorted_union(array_1, array_2)
         Input:
-            arr_1 = sorted array of values with no duplicates
-            arr_2 = sorted array of values with no duplicates
+            array_1 = sorted numpy array of values with no duplicates
+            array_2 = sorted numpy array of values with no duplicates
             return_index = boolean
         Output:
-            union = sorted array of values coming from either arr_1 or arr_2
-            index_map_1 = list of indices of the elements of arr_1 in union
-            index_map_2 = list of indices of the elements of arr_2 in union
+            union = sorted array of values coming from either array_1 or array_2
+            index_map_1 = list of indices of the elements of array_1 in union
+            index_map_2 = list of indices of the elements of array_2 in union
         Example:
             sorted_union(np.array([0,1,4,6]), np.array([0,4,7]), return_index = True)
                 = np.array([0,1,4,6,7]), [0,1,2,3], [0,2,4]
             sorted_union(np.array([0,1,4,6]), np.array([0,4,7]))
                 = np.array([0,1,4,6,7])
     """
+    if return_index is None:
+        return_index = False
+
     union = list()
     index_map_1 = list()
     index_map_2 = list()
-    i_1 = 0
-    i_2 = 0
+    index_1 = 0
+    index_2 = 0
 
-    size_1 = np.size(arr_1)
-    size_2 = np.size(arr_2)
+    size_1 = np.size(array_1)
+    size_2 = np.size(array_2)
     union_size = 0
 
-    while i_1 < size_1 or i_2 < size_2:
-        if i_1 >= size_1:
+    while index_1 < size_1 or index_2 < size_2:
+        if index_1 >= size_1:
             if return_index:
                 index_map_2.append(union_size)
-            union.append(arr_2[i_2])
+            union.append(array_2[index_2])
             union_size += 1
-            i_2 += 1
-        elif i_2 >= size_2:
+            index_2 += 1
+        elif index_2 >= size_2:
             if return_index:
                 index_map_1.append(union_size)
-            union.append(arr_1[i_1])
+            union.append(array_1[index_1])
             union_size += 1
-            i_1 += 1
-        elif arr_1[i_1] == arr_2[i_2]:
+            index_1 += 1
+        elif array_1[index_1] == array_2[index_2]:
             if return_index:
                 index_map_1.append(union_size)
                 index_map_2.append(union_size)
-            union.append(arr_1[i_1])
+            union.append(array_1[index_1])
             union_size += 1
-            i_1 += 1
-            i_2 += 1
-        elif arr_1[i_1] < arr_2[i_2]:
+            index_1 += 1
+            index_2 += 1
+        elif array_1[index_1] < array_2[index_2]:
             if return_index:
                 index_map_1.append(union_size)
-            union.append(arr_1[i_1])
+            union.append(array_1[index_1])
             union_size += 1
-            i_1 += 1
+            index_1 += 1
         else:
             if return_index:
                 index_map_2.append(union_size)
-            union.append(arr_2[i_2])
+            union.append(array_2[index_2])
             union_size += 1
-            i_2 += 1
+            index_2 += 1
 
     union = np.array(union)
 
@@ -115,57 +115,62 @@ def sorted_union(arr_1, arr_2, return_index=False):
         return union
 
 
-def sorted_intersect(arr1, arr2,
-                     return_index=False, return_index_1=False, return_index_2=False):
-    """
-    Returns the intersection of two sorted arrays with index maps
+def sorted_intersect(array_1: np.ndarray, array_2: np.ndarray, return_index: Optional[bool] = None,
+                     return_index_1: Optional[bool] = None, return_index_2: Optional[bool] = None) \
+        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """Return the intersection of two sorted numpy arrays with index maps
     (if return_index, return_index_1, or return_index_2 are True).
         Usage:
-            intersection = sorted_intersection(arr_1,arr_2)
+            intersection = sorted_intersection(array_1, array_2)
         Input:
-            arr_1 = sorted array of values with no duplicates
-            arr_2 = sorted array of values with no duplicates
+            array_1 = sorted numpy array of values with no duplicates
+            array_2 = sorted numpy array of values with no duplicates
             return_index = boolean
         Output:
-            intersection = sorted array of values coming from both arr_1 and arr_2
-            index_map_1 = list of indices of elements of intersection in arr_1
-            index_map_2 = list of indices of elements of intersection in arr_2
+            intersection = sorted array of values coming from both array_1 and array_2
+            index_map_1 = list of indices of elements of intersection in array_1
+            index_map_2 = list of indices of elements of intersection in array_2
         Example:
             sorted_intersect(np.array([0,1,4]), np.array([0,4,7]), return_index = True)
                 = np.array([0,4]), [0,2], [0,1]
             sorted_intersect(np.array([0,1,4]), np.array([0,4,7]))
                 = np.array([0,4])
     """
+    if return_index is None:
+        return_index = False
+    if return_index_1 is None:
+        return_index_1 = False
+    if return_index_2 is None:
+        return_index_2 = False
 
-    set2 = set(arr2)
-    inter = [item for item in arr1 if item in set2]
+    set_2 = set(array_2)
+    intersection = [item for item in array_1 if item in set_2]
 
     if return_index or return_index_1:
-        A_index = {arr1[index]: index for index in range(len(arr1))}
-        index_map_A = [A_index[x] for x in inter]
+        array_1_index = {array_1[index]: index for index in range(len(array_1))}
+        index_map_1 = [array_1_index[x] for x in intersection]
     else:
-        index_map_A = None
+        index_map_1 = None
 
     if return_index or return_index_2:
-        B_index = {arr2[index]: index for index in range(len(arr2))}
-        index_map_B = [B_index[x] for x in inter]
+        array_2_index = {array_2[index]: index for index in range(len(array_2))}
+        index_map_2 = [array_2_index[x] for x in intersection]
     else:
-        index_map_B = None
+        index_map_2 = None
 
     if return_index:
-        return np.array(inter), np.array(index_map_A), np.array(index_map_B)
+        return np.array(intersection), np.array(index_map_1), np.array(index_map_2)
     elif return_index_1:
-        return np.array(inter), np.array(index_map_A)
+        return np.array(intersection), np.array(index_map_1)
     elif return_index_2:
-        return np.array(inter), np.array(index_map_B)
+        return np.array(intersection), np.array(index_map_2)
     else:
-        return np.array(inter)
+        return np.array(intersection)
 
 
-def contains(substrings):
-    """
-    Returns another function which accepts a list of strings and returns the list of indices
-    of those strings which contain some element of substrings
+def contains(substrings: Union[str, list[str]]) -> callable:
+    """Return callable which accepts a list of strings and returns the list of indices
+    of those strings which contain some element of substrings.
         Usage:
             contains("a,b,")
             contains(['a','b'])
@@ -173,29 +178,28 @@ def contains(substrings):
             substrings = string of (delimiter separated) values (delimiter is last character)
                 or list of values of length n
         Outputs:
-            func(listofstrings) = returns a list of indices of the strings in listofstrings which have some element of
+            func(string_list) = returns a list of indices of the strings in string_list which have some element of
                 substrings as a substring
     """
     substrings = sanitize(substrings)
 
-    def func(listofstrings):
-        listofstrings = sanitize(listofstrings)
-        goodstrings = list()
-        for i in range(len(listofstrings)):
-            item = listofstrings[i]
+    def func(string_list):
+        string_list = sanitize(string_list)
+        good_string_list = list()
+        for index in range(len(string_list)):
+            item = string_list[index]
             for substring in substrings:
                 if substring in item:
-                    goodstrings.append(i)
+                    good_string_list.append(index)
                     break
-        return goodstrings
+        return good_string_list
 
     return func
 
 
-def startswith(prefixes):
-    """
-    Returns another function which accepts a list of strings and returns the list of indices
-    of those strings which have some element of prefixes as a prefix
+def startswith(prefixes: Union[str, list[str]]) -> callable:
+    """Return callable which accepts a list of strings and returns the list of indices
+    of those strings which have some element of prefixes as a prefix.
         Usage:
             startswith("a,b,")
             startswith(['a','b'])
@@ -208,90 +212,88 @@ def startswith(prefixes):
     """
     prefixes = sanitize(prefixes)
 
-    def func(listofstrings):
-        listofstrings = sanitize(listofstrings)
-        goodstrings = list()
+    def func(string_list):
+        string_list = sanitize(string_list)
+        good_string_list = list()
 
-        for i in range(len(listofstrings)):
-            item = listofstrings[i]
+        for index in range(len(string_list)):
+            item = string_list[index]
             for prefix in prefixes:
                 if item.startswith(prefix):
-                    goodstrings.append(i)
+                    good_string_list.append(index)
                     break
-        return goodstrings
+        return good_string_list
 
     return func
 
 
-def str_to_num(obj, delimiter=None):
-    """ Convert string to float if possible, optionally appending a delimiter otherwise. """
-    if isinstance(obj, str):
+def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, numbers.Number]:
+    """Convert string to float if possible, otherwise return original object with optionally appended delimiter."""
+    if isinstance(object_, str):
         try:
-            obj = int(obj)
+            object_ = int(object_)
         except ValueError:
             try:
-                obj = float(obj)
+                object_ = float(object_)
             except ValueError:
                 if delimiter is not None:
-                    obj += delimiter
-    return obj
+                    object_ += delimiter
+    return object_
 
 
-def num_to_str(arr):
-    """ Convert array of numbers to array of strings. """
-    strarr = arr.astype('str')
-    return strarr
+def num_to_str(array: np.ndarray) -> np.ndarray:
+    """Convert array of numbers to array of strings."""
+    stringified_array = array.astype('str')
+    return stringified_array
 
 
-def sanitize(obj, convert=None):
-    """
-    Converts strings of (delimiter-separated) values into a list of values
-    (the delimiter is the last character),
-    iterables into numpy arrays,
-    and all other objects into a numpy array having that object.
+def sanitize(object_: Any, convert: Optional[bool] = None) -> np.ndarray:
+    """Convert
+        * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
+        * iterables into numpy arrays, and
+        * all other objects into a numpy array having that object.
         Usage:
             sanitized list = sanitize(obj)
         Inputs:
-            obj = string of (delimiter separated) values (delimiter is last character)
+            object_ = string of (delimiter separated) values (delimiter is last character)
                 or iterable of values of length n or single value
             convert = Boolean indicating whether strings which represent numbers should
                 be replaced with numbers
         Outputs:
             list of values
         Examples:
-            sanitize("a,b,") = ['a', 'b']
-            sanitize("1,1,") = [1, 1]
-            sanitize([10, 3]) = [10, 3]
-            sanitize(1) = [1]
+            sanitize("a,b,") = np.array(['a', 'b'])
+            sanitize("1,1,") = np.array([1, 1])
+            sanitize([10, 3]) = np.array([10, 3])
+            sanitize(1) = np.array([1])
     """
     if convert is None:
         convert = False
 
     # Convert delimiter-separated string list by splitting using last character
     try:
-        delimiter = obj[-1]
-        obj = obj.split(delimiter)
-        obj.pop()  # Get rid of empty strings
+        delimiter = object_[-1]
+        object_ = object_.split(delimiter)
+        object_.pop()  # Get rid of empty strings
 
         # Convert to numbers if requested
         if convert:
-            obj = [str_to_num(item) for item in obj]  # Convert applicable items to numbers
-
+            object_ = [str_to_num(item) for item in object_]  # Convert applicable items to numbers
     except (AttributeError, IndexError, TypeError):
         pass
 
     # Convert to numpy array
-    if not isinstance(obj, np.ndarray):
-        if hasattr(obj, '__iter__'):
-            obj = np.array(obj, dtype=object)  # use dtype=object to prevent silent upcasting
+    if not isinstance(object_, np.ndarray):
+        if hasattr(object_, '__iter__'):
+            object_ = np.array(object_)  # Possible silent upcasting
         else:
-            obj = np.array([obj])
+            object_ = np.array([object_])
 
-    return obj
+    return object_
 
 
-def length(iterable):
-    """ Return length of iterable. """
+def length(iterable: Union[list, np.ndarray]) -> int:
+    """Return length of iterable."""
 
     if isinstance(iterable, np.ndarray):
         return np.size(iterable)
@@ -299,9 +301,11 @@ def length(iterable):
         return len(iterable)
 
 
-def unique(iterable, return_index=None, return_inverse=None):
-    """ Uniquify and sorts an iterable, optionally providing index maps. """
-
+def unique(iterable: Union[list[Any], np.ndarray], return_index: Optional[bool] = None,
+           return_inverse: Optional[bool] = None)\
+        -> Union[list[Any], Tuple[list[Any], list[int]], Tuple[list[Any], list[int], list[int]],
+                 np.ndarray, Tuple[np.ndarray, list[int]], Tuple[np.ndarray, list[int], list[int]]]:
+    """Uniquiefy and sorts an iterable, optionally providing index maps."""
     if return_index is None:
         return_index = False
     if return_inverse is None:
@@ -317,7 +321,7 @@ def unique(iterable, return_index=None, return_inverse=None):
 
         # If both index maps are needed, loop to extract unique items and build partial maps, then sort
         elif return_index and return_inverse:
-            sui = list()
+            sorted_unique = list()
             seen = dict()
             index_map_unique = list()
             index_map_unique_inverse = list()
@@ -331,20 +335,20 @@ def unique(iterable, return_index=None, return_inverse=None):
                     index_map_unique.append(index)
                     seen[item] = latest
                     latest += 1
-                    sui.append(item)
+                    sorted_unique.append(item)
 
-            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
+            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
             sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
-            sui = [sui[i] for i in sorting_map]
+            sorted_unique = [sorted_unique[index] for index in sorting_map]
 
-            index_map = [index_map_unique[i] for i in sorting_map]
-            index_map_inverse = [sorting_map_inverse[i] for i in index_map_unique_inverse]
+            index_map = [index_map_unique[index] for index in sorting_map]
+            index_map_inverse = [sorting_map_inverse[index] for index in index_map_unique_inverse]
 
-            return sui, index_map, index_map_inverse
+            return sorted_unique, index_map, index_map_inverse
 
         # Same as above but do not build index_map_inverse
         elif return_index and not return_inverse:
-            sui = list()
+            sorted_unique = list()
             seen = set()
             index_map_unique = list()
             for index in range(len(iterable)):
@@ -354,18 +358,18 @@ def unique(iterable, return_index=None, return_inverse=None):
                 else:
                     seen.add(item)
                     index_map_unique.append(index)
-                    sui.append(item)
+                    sorted_unique.append(item)
 
-            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
-            sui = [sui[i] for i in sorting_map]
+            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
+            sorted_unique = [sorted_unique[index] for index in sorting_map]
 
-            index_map = [index_map_unique[i] for i in sorting_map]
+            index_map = [index_map_unique[index] for index in sorting_map]
 
-            return sui, index_map
+            return sorted_unique, index_map
 
         # Same as above, but do not build index_map
         else:
-            sui = list()
+            sorted_unique = list()
             seen = dict()
             index_map_unique_inverse = list()
             latest = 0
@@ -377,26 +381,27 @@ def unique(iterable, return_index=None, return_inverse=None):
                     index_map_unique_inverse.append(latest)
                     seen[item] = latest
                     latest += 1
-                    sui.append(item)
+                    sorted_unique.append(item)
 
-            sorting_map = sorted(range(len(sui)), key=lambda k: sui[k])
+            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
             sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
-            sui = [sui[i] for i in sorting_map]
+            sorted_unique = [sorted_unique[index] for index in sorting_map]
 
-            index_map_inverse = [sorting_map_inverse[i] for i in index_map_unique_inverse]
+            index_map_inverse = [sorting_map_inverse[index] for index in index_map_unique_inverse]
 
-            return sui, index_map_inverse
+            return sorted_unique, index_map_inverse
 
 
-def aggregate(row, col, val, func):
-    """
-        Aggregate (row[i], col[i], val[i]) triples using func as collision function.
+def aggregate(row: Union[np.ndarray, list], col: Union[np.ndarray, list], val: Union[np.ndarray, list],
+              func: callable) \
+        -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Aggregate (row[i], col[i], val[i]) triples using func as collision function.
             Usage:
                 aggregate(row, col, val, func)
             Inputs:
-                row = array of objects of length n
-                col = array of objects of length n
-                val = array of objects of length n
+                row = numpy array of length n
+                col = numpy array of length n
+                val = numpy array of length n
                 func = collision function (e.g. add, times, max, min, first, last)
             Output:
                 newrow, newcol, newval = subarrays of row, col, val in which pairs (r, c) = (newrow[i], newcol[i])
@@ -411,120 +416,64 @@ def aggregate(row, col, val, func):
                         = ['a', 'b'], ['A', 'B'], [0, 3]
                 (where lists are stand-ins for the corresponding numpy arrays)
     """
-    agg_dict = dict()
-    for k in range(np.size(row)):
-        if (row[k], col[k]) not in agg_dict:
-            agg_dict[(row[k], col[k])] = val[k]
+    aggregate_dict = dict()
+    for index in range(np.size(row)):
+        if (row[index], col[index]) not in aggregate_dict:
+            aggregate_dict[(row[index], col[index])] = val[index]
         else:
-            agg_dict[(row[k], col[k])] = func(agg_dict[(row[k], col[k])], val[k])
+            aggregate_dict[(row[index], col[index])] = func(aggregate_dict[(row[index], col[index])], val[index])
 
-    newrow = np.array([item[0] for item in list(agg_dict.keys())])
-    newcol = np.array([item[1] for item in list(agg_dict.keys())])
-    newval = np.array(list(agg_dict.values()))
+    newrow = np.array([item[0] for item in list(aggregate_dict.keys())])
+    newcol = np.array([item[1] for item in list(aggregate_dict.keys())])
+    newval = np.array(list(aggregate_dict.values()))
     return newrow, newcol, newval
 
 
-def add(a, b):
-    """ Binary addition. """
-    return a + b
+def add(object_1: Any, object_2: Any) -> Any:
+    """Binary addition (including string concatenation or other implementations of __add__)."""
+    return object_1 + object_2
 
 
-def times(a, b):
-    """ Binary multiplication. """
-    return a * b
+def times(object_1: Any, object_2: Any) -> Any:
+    """Binary multiplication (and other implementations of __mult__)."""
+    return object_1 * object_2
 
 
-def first(a, b):
-    """ Binary projection onto first coordinate (Returns first argument). """
-    return a
+def first(object_1: Any, _: Any) -> Any:
+    """Binary projection onto first coordinate (Return first argument)."""
+    return object_1
 
 
-def last(a, b):
-    """ Binary projection onto last coordinate (Returns last argument). """
-    return b
+def last(_: Any, object_2: Any) -> Any:
+    """Binary projection onto last coordinate (Return last argument)."""
+    return object_2
 
 
-def catstr(s1, s2, sep=None):
-    """ Concatenate strings/numbers s1 and s2 with separator sep between them. """
-    s1 = num_to_str(s1)
-    s2 = num_to_str(s2)
-    if sep is None:
-        sep = '|'
-    separr = np.full(1, sep)
-    s1sep = np.core.defchararray.add(s1, separr)
-    s12 = np.core.defchararray.add(s1sep, s2)
-    return s12
+# Aliases for valid binary operations
+operation_dict = {'add': add, 'plus': add, 'sum': add, 'addition': add,
+                  'times': times, 'multiply': times, 'product': times, 'multiplication': times,
+                  'min': min, 'minimum': min, 'minimize': min, 'max': max, 'maximum': max, 'maximize': max,
+                  'first': first, 'last': last}
 
 
-def val2col(A, splitSep=None):
-    """
-        Converts from adjacency array to incidence array.
-            Usage:
-                val2col(A,splitSep)
-            Inputs:
-                A = Associative Array
-                splitSep = (new) delimiting character (default '|') to separate column labels from values
-            Output:
-                val2col(A,splitSep) = Associative Array B where B.row == A.row and
-                                        B[rowlabel, collabel+splitSep+value] == 1 if and only if
-                                        A[rowlabel, collabel] == value
-    """
-    r, cType, cVal = A.find()
-    cType = num_to_str(cType)
-    cVal = num_to_str(cVal)
-    if splitSep is None:
-        splitSep = '|'
-    c = catstr(cType, cVal, splitSep)
-    A = Assoc(r, c, 1)
-    return A
+def catstr(str_array_1: np.ndarray, str_array_2: np.ndarray, separator: Optional[str] = None) -> np.ndarray:
+    """Concatenate arrays of strings/numbers str_array_1 and str_array_2 with separator sep between them."""
+    if separator is None:
+        separator = '|'
 
-
-def col2type(A, splitSep=None):
-    """
-        Splits column keys of associative array and sorts first part as column key and second part as value.
-        Inverse of val2col.
-            Usage:
-                B = col2type(A, splitSep)
-            Inputs:
-                A = Associative array with string column keys assumed to be of the form 'key'+splitSep+'val'
-                splitSep = separator for A's column keys (default '|')
-            Outputs:
-                col2type(A, splitSep) = Associative array whose row keys are the same as A, but whose column keys
-                                        are the first parts of A's column keys and whose values are the second
-                                        parts of A's column keys
-            Example:
-                col2type(A, '|')
-                col2type(A, '/')
-            Note:
-                - A's column keys must be in the desired form.
-    """
-    
-    # Extract row and column keys from A
-    r, c, v = A.find()
-    if splitSep is None:
-        splitSep = '|'
-    
-    # Split column keys according to splitSep
-    try:
-        elsplit = [colkey.split(splitSep) for colkey in c]
-    except:
-        raise ValueError('Input column keys not of correct form.')
-    
-    # Extract column types and values
-    cType = [item[0] for item in elsplit]
-    cVal = [item[1] for item in elsplit]
-    
-    B = Assoc(r, cType, cVal)
-    
-    return B
+    str_array_1 = num_to_str(str_array_1)
+    str_array_2 = num_to_str(str_array_2)
+    separator_array = np.full(1, separator)
+    str_array_1_separator = np.char.add(str_array_1, separator_array)
+    concatenation = np.char.add(str_array_1_separator, str_array_2)
+    return concatenation
 
 
 # Main class and methods
 
 # noinspection PyPep8Naming
 class Assoc:
-    """
-    Associative arrays, supporting basic sparse linear algebra on sparse matrices with
+    """Associative arrays, supporting basic sparse linear algebra on sparse matrices with
     values of variable (string or numerical) type, variable operations (plus-times, max-min, etc)
     and row and column indices of variable (string or numerical) type.
 
@@ -536,12 +485,15 @@ class Assoc:
         adj = adjacency array implemented as sparse matrix (COO format)
             if val==1.0 then adj is a sparse matrix containing the actual numerical values
             otherwise
-            adj[row_id,col_id] = index+1 of corresponding value in val, or 0 if empty
+            adj[row_id,col_id] = (index of corresponding value in val) + 1, or 0 if empty
     """
 
-    def __init__(self, row, col, val, arg=None):
-        """
-        Constructs an associative array either from an existing sparse matrix (spmatrix) or
+    null_values = {'', 0, None}
+
+    def __init__(self, row: Union[str, list, np.ndarray], col: Union[str, list, np.ndarray],
+                 val: Union[numbers.Number, str, list, np.ndarray],
+                 arg: Optional[Union[sparse.spmatrix, callable, str]] = None):
+        """Construct an associative array either from an existing sparse matrix (scipy.sparse.spmatrix) or
         from row, column, and value triples.
             Usage:
                 A = Assoc(row,col,val)
@@ -564,17 +516,17 @@ class Assoc:
                                 unique sorted entries in row, col, val are extracted
                                 and the row/column indices and values of arg are assumed to match
                                 up with the resulting row, col, val
-                        or string representing collision function,
-                            e.g. add, first, last, min, max
-                            default is min
-                        or "unique" which assumes there are no collisions
+                        or a two-input callable compatible with values,
+                        or a string representing collision function, e.g., 'add', 'first', 'last', 'min', 'max'
+                        or 'unique' which assumes there are no collisions
+                    (default is min)
             Outputs:
                 A = Associative array made from the triples row, col, and val
             Examples:
                 A = Assoc('r1,r2,', 'c1,c2,', 'v1;v2;')
-                A = Assoc(['r1','r2'], 'c1/c2/', [1,2], sum)
+                A = Assoc(['r1','r2'], 'c1/c2/', [1,2], 'add')
                 A = Assoc('1,', 'c1,', np.array([3]))
-                A = Assoc('r1,r2,', 'c1,c2,', 1.0, sparse_matrix)
+                A = Assoc('r1,r2,', 'c1,c2,', 1.0, [sparse_matrix])
             Notes:
                 - If expected data is numerical, arg=add gives slight speed-up
                 - If val == 1.0 and optional sparse matrix is supplied, it will be used as the adjacency array
@@ -683,46 +635,46 @@ class Assoc:
                     row, col, val = aggregate(row, col, val, arg)
 
                 # Get unique sorted row and column indices
-                self.row, fromrow = np.unique(row, return_inverse=True)
-                self.col, fromcol = np.unique(col, return_inverse=True)
-                self.val, fromval = np.unique(val, return_inverse=True)
+                self.row, from_row = np.unique(row, return_inverse=True)
+                self.col, from_col = np.unique(col, return_inverse=True)
+                self.val, from_val = np.unique(val, return_inverse=True)
 
                 # Check if numerical; numpy sorts numerical values to front, so only check last entry
+                assert isinstance(self.val, np.ndarray)
                 if is_numeric(self.val[-1]):
-                    self.adj = sparse.coo_matrix((val, (fromrow, fromcol)), dtype=float,
+                    self.adj = sparse.coo_matrix((val, (from_row, from_col)), dtype=float,
                                                  shape=(np.size(self.row), np.size(self.col)))
                     self.val = 1.0
 
                     if single_val and arg != add:
                         self.adj.data[:] = val[0]
                 elif single_val:
-                    self.adj = sparse.coo_matrix((np.ones(row_size), (fromrow, fromcol)))
+                    self.adj = sparse.coo_matrix((np.ones(row_size), (from_row, from_col)))
                 else:
                     # If not numerical, self.adj has entries given by indices+1 of self.val
-                    val_indices = fromval + np.ones(np.size(fromval))
-                    self.adj = sparse.coo_matrix((val_indices, (fromrow, fromcol)), dtype=int)
+                    val_indices = from_val + np.ones(np.size(from_val))
+                    self.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int)
 
         self.adj.sum_duplicates()
 
-    def find(self, orderby=None):
-        """
-            Get row, col, and val arrays that would generate the Assoc (reverse constructor).
+    def find(self, ordering: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Get row, col, and val arrays that would generate the Assoc (reverse constructor).
                 Usage:
                     self.find()
                 Input:
                     self = Associative Array
-                    orderby = optional paramater to control the ordering of result.
+                    ordering = optional parameter to control the ordering of result.
                                 if 0, then order by row first, then column
                                 if 1, then order by column first, then row
                                 if None, no particular order is guaranteed
                 Output:
-                    row,col,val = arrays for which self = Assoc(row,col,val)
+                    row,col,val = numpy arrays for which self = Assoc(row, col, val)
         """
         # Use self.adj to extract row, col, and val
-        if orderby == 0:  # Order by row first, then column
+        if ordering == 0:  # Order by row first, then column
             row_adj = self.adj.tocsr().tocoo()
             enc_val, enc_row, enc_col = row_adj.data, row_adj.row, row_adj.col
-        elif orderby == 1:  # Order by column first, then row
+        elif ordering == 1:  # Order by column first, then row
             col_adj = self.adj.tocsc().tocoo()
             enc_val, enc_row, enc_col = col_adj.data, col_adj.row, col_adj.col
         else:  # Otherwise don't order
@@ -740,6 +692,7 @@ class Assoc:
         if isinstance(self.val, float):
             val = enc_val
         else:
+            assert isinstance(self.val, np.ndarray)
             enc_val = [int(item - 1) for item in enc_val]
             if np.size(enc_val) != 0:
                 val = self.val[enc_val]
@@ -748,21 +701,21 @@ class Assoc:
 
         return row, col, val
 
-    def dict(self):
-        """ Returns a two-dimensional dictionary adj_dict for which adj_dict[index1][index2]=value. """
+    def dict(self) -> dict:
+        """Return two-dimensional dictionary adjacency_dict for which adjacency_dict[index1][index2]=value."""
         row, col, val = self.find()
-        adj_dict = dict()
+        adjacency_dict = dict()
 
         for index in range(np.size(row)):
-            if row[index] not in adj_dict:
-                adj_dict[row[index]] = {col[index]: val[index]}
+            if row[index] not in adjacency_dict:
+                adjacency_dict[row[index]] = {col[index]: val[index]}
             else:
-                adj_dict[row[index]][col[index]] = val[index]
+                adjacency_dict[row[index]][col[index]] = val[index]
 
-        return adj_dict
+        return adjacency_dict
 
-    def getval(self):
-        """ Returns list of unique values. """
+    def getval(self) -> np.ndarray:
+        """Return numpy array of unique values."""
         if isinstance(self.val, float):
             unique_values = np.unique(self.adj.data)
         else:
@@ -770,11 +723,9 @@ class Assoc:
 
         return unique_values
 
-
     # print tabular form
-    def printfull(self):
-        """ Print associative array in tabular form. """
-
+    def printfull(self) -> None:
+        """Print associative array in tabular form."""
         df = pd.DataFrame(self.dict())
         df = df.transpose()  # Transpose it to get correct order of rows/cols
 
@@ -784,112 +735,234 @@ class Assoc:
         print(df)
         return None
 
-    def spy(self):
-        """ Print spy plot of self.adj """
+    def printfullalt(self) -> None:
+        """Print associative array in tabular form (non-pandas implementation)."""
+        terminal_col, terminal_row = shutil.get_terminal_size()
+
+        # Determine if all rows fit in terminal window (with col labels and array size footer)
+        cutoff = False
+        if np.size(self.row) <= terminal_row - 3:
+            max_array_rows = np.size(self.row)
+        else:
+            cutoff = True
+            max_array_rows = terminal_row - 5  # Include space for vertical ellipses and final row
+
+        rel_array = self[0:max_array_rows, :]  # Disregard rows outside range
+        trans_dict = rel_array.transpose().dict()  # Take transpose to collate by column labels
+        trans_dict.update(self[-1, :].transpose().dict())  # Add in final row (may already be present)
+
+        # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
+        col_widths = list()
+        for index in np.arange(np.size(self.col)):
+            col_label = self.col[index]
+            if col_label in trans_dict:
+                width = max([len(str(val)) for val in trans_dict[col_label].values()])
+            else:
+                width = 0
+            width = max([width, len(str(col_label))])
+            col_widths.append(width)
+
+        # Format array values according to calculated column-wise max widths
+        rel_dict = rel_array.dict()
+        rel_dict.update(self[-1, :].dict())  # Add in final row (may already be present)
+        formatted_rows = list()
+        row_indices = list(range(max_array_rows))
+        if cutoff:
+            row_indices.append(-1)
+        else:
+            pass
+        for row_index in row_indices:
+            current_row = list()
+            for col_index in np.arange(np.size(self.col)):
+                if self.col[col_index] in rel_dict[self.row[row_index]]:
+                    row_item = str(rel_dict[self.row[row_index]][self.col[col_index]])
+                else:
+                    row_item = ''
+                current_row.append(('  {:>' + str(col_widths[col_index]) + '}').format(row_item))
+            formatted_rows.append(current_row)
+        if cutoff:
+            vellipses = list()
+            for col_index in np.arange(np.size(self.col)):
+                vellipses.append(('  {:>' + str(col_widths[col_index]) + '}').format(':'))  # ⋮
+            formatted_rows.insert(-1, vellipses)
+        else:
+            pass
+
+        # Format column labels according to calculated column-wise max widths
+        col_labels = list()
+        for index in np.arange(np.size(self.col)):
+            col_labels.append(('  {:>' + str(col_widths[index]) + '}').format(str(self.col[index])))
+
+        # Format row labels according to max (relevant) row label width
+        row_label_width = max([len(str(self.row[row_index])) for row_index in row_indices])
+        row_labels = list()
+        for row_index in row_indices:
+            row_labels.append(('{:<' + str(row_label_width) + '}').format(str(self.row[row_index])))
+        if cutoff:
+            row_labels.insert(-1, ('{:<' + str(row_label_width) + '}').format(':'))
+        else:
+            pass
+
+        # Determine how many columns fit in terminal window and print
+        last_index = np.size(self.col)-1
+        too_wide = False
+
+        # Case 1: All columns fits
+        if row_label_width + sum(col_widths) + 2 * (last_index + 1) <= terminal_col:
+            print(' '*row_label_width + ''.join(col_labels))
+            for row_index in np.arange(len(row_labels)):
+                print(row_labels[row_index] + ''.join(formatted_rows[row_index]))
+
+        # Case 2: Not all columns fit, but at least the first and last do, plus ellipsis
+        elif row_label_width + col_widths[0] + col_widths[last_index] + 9 <= terminal_col:
+
+            # Determine how many columns fit
+            penul_index = 0
+            running_total = row_label_width + col_widths[last_index] + 9
+            while running_total + col_widths[penul_index] + 2 <= terminal_col:
+                running_total += col_widths[penul_index] + 2
+                penul_index += 1
+
+            print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...' + col_labels[last_index])
+            for row_index in np.arange(len(row_labels)):
+                print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index])
+                      + '  ...' + formatted_rows[row_index][last_index])
+
+            too_wide = True
+
+        # Case 3: First column plus ellipses fit, but not with addition of final column
+        elif row_label_width + col_widths[0] + 7 <= terminal_col:
+
+            # Determine how many columns fit
+            penul_index = 0
+            running_total = row_label_width + 7
+            while running_total + col_widths[penul_index] + 2 <= terminal_col:
+                running_total += col_widths[penul_index] + 2
+                penul_index += 1
+
+            print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...')
+            for row_index in np.arange(len(row_labels)):
+                print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index]) + '  ...')
+
+            too_wide = True
+
+        # Case 4: Can't fit even the first column plus ellipsis
+        else:
+            print('Columns too wide to fit window.')
+
+            too_wide = True
+
+        # Report dimensions if either horizontally or vertically cut off
+        if cutoff or too_wide:
+            print('\n' + '[' + str(np.size(self.row)) + ' rows x ' + str(np.size(self.col)) + ' columns]')
+
+        return None
+
+    def spy(self) -> None:
+        """Print spy plot of self.adj"""
         plt.spy(self.adj, markersize=0.2, aspect='auto')
         plt.show()
         return None
 
     # Overload print
-    def __str__(self):
-        """ Print the attributes of associative array. """
+    def __str__(self) -> str:
+        """Print the attributes of associative array."""
         print_string = "Row indices: " + str(self.row) + "\n"
         print_string += "Column indices: " + str(self.col) + "\n"
         print_string += "Values: " + str(self.val) + "\n"
         print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
         return print_string
 
-    def triples(self, orderby=None):
-        """ Return list of triples of form (row_label,col_label,value). """
-        r, c, v = self.find(orderby=orderby)
+    def triples(self, ordering: Optional[int] = None) -> list:
+        """Return list of triples of form (row_label,col_label,value)."""
+        r, c, v = self.find(ordering=ordering)
         triples = list(zip(list(r), list(c), list(v)))
         return triples
 
-    def getvalue(self, rowkey, colkey):
-        """
-        Get the value in self corresponding to given rowkey and colkey, otherwise return 0.
+    def getvalue(self, row_key: Any, col_key: Any) -> Any:
+        """Get the value in self corresponding to given row_key and col_key, otherwise return 0.
             Usage:
                 v = A.getvalue('a', 'B')
             Inputs:
                 A = self = Associative Array
-                rowkey = row key
-                colkey = column key
+                row_key = row key
+                col_key = column key
             Output:
-                v = value of A corresponding to the pair (rowkey, colkey), i.e. (rowkey, colkey, v) is in A.triples()
+                v = value of A corresponding to the pair (row_key, col_key),
+                    i.e., (row_key, col_key, v) is in A.triples()
             Note:
-                If either of rowkey or colkey are integers, they are taken as indices instead of *actual*
+                If either of row_key or col_key are integers, they are taken as indices instead of *actual*
                 row and column keys, respectively.
         """
-
-        if not isinstance(rowkey, int) and rowkey in self.row:
-            index1 = np.where(self.row == rowkey)[0][0]
+        if not isinstance(row_key, int) and row_key in self.row:
+            index_1 = np.where(self.row == row_key)[0][0]
         else:
-            index1 = rowkey
+            index_1 = row_key
 
-        if not isinstance(colkey, int) and colkey in self.col:
-            index2 = np.where(self.col == colkey)[0][0]
+        if not isinstance(col_key, int) and col_key in self.col:
+            index_2 = np.where(self.col == col_key)[0][0]
         else:
-            index2 = colkey
+            index_2 = col_key
 
         if isinstance(self.val, float):
             try:
-                return self.adj.todok()[index1, index2]
+                return self.adj.todok()[index_1, index_2]
             except (IndexError, TypeError):
                 return 0
         else:
+            assert isinstance(self.val, np.ndarray)
             try:
-                return self.val[self.adj.todok()[index1, index2] - 1]
+                return self.val[self.adj.todok()[index_1, index_2] - 1]
             except (IndexError, TypeError):
                 return 0
 
     # Overload getitem; allows for subsref
-    def __getitem__(self, obj):
-        """
-        Returns a sub-associative array of self according to object1 and object2 or corresponding value
+    def __getitem__(self, selection) -> 'Assoc':
+        """Returns a sub-associative array of self according to object1 and object2 or corresponding value
             Usage:
-                B = A[object1,object2]
+                B = A[row_select, col_select]
             Inputs:
                 A = Associative Array
-                obj = tuple (object1,object2) where
-                    object1 = string of (delimiter separate) values (delimiter is last character)
+                obj = tuple (row_select, col_select) where
+                    row_select = string of (delimiter separate) values (delimiter is last character)
                         or iterable or int or slice object or function
-                    object2 = string of (delimiter separate) values (delimiter is last character)
+                    col_select = string of (delimiter separate) values (delimiter is last character)
                         or iterable or int or slice object or function
-                        e.g. "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"),
+                        e.g., "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"),
                             "a *,"
             Outputs:
-                B = sub-associative array of A whose row indices are selected by object1 and whose
-                    column indices are selected by object2, assuming not both of object1, object2 are single
+                B = sub-associative array of A whose row indices are selected by row_select and whose
+                    column indices are selected by col_select, assuming not both of row_select, col_select are single
                     indices
-                B = value of A corresponding to single indices of object1 and object2
+                B = value of A corresponding to single indices of row_select and col_select
             Examples:
-                A['a,:,b,',['0','1']]
+                A['a,:,b,', ['0', '1']]
                 A[1:2:1, 1]
             Note:
                 - Regular slices are NOT right end-point inclusive
                 - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e. includes b)
-                - Integer object1 or object2, and by extension slices, do not reference A.row or A.col,
+                - Integer row_select or col_select, and by extension slices, do not reference A.row or A.col,
                     but the induced indexing of the rows and columns
-                    e.g. A[:,0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
-                        A[:,0] will give the subarray consisting of the 0-th column
-                        A[2,4] will give the value in the 2-nd row and 4-th column
+                    e.g., A[:, 0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
+                        A[:, 0] will give the subarray consisting of the 0-th column
+                        A[2, 4] will give the value in the 2-nd row and 4-th column
         """
         keys = [self.row, self.col]
-        object1, object2 = obj
-        obj = [object1, object2]
+        row_select, col_select = selection
+        selection = [row_select, col_select]
 
         # For each object, replace with corresponding array of row/col keys
         for index in [0, 1]:
-            objecti = obj[index]
+            i_select = selection[index]
             # If object is a single integer, replace with corresponding row/col key
-            if isinstance(objecti, int):
-                obj[index] = [keys[index][objecti]]
+            if isinstance(i_select, int):
+                selection[index] = [keys[index][i_select]]
                 continue
 
             # If object is an iterable of integers, replace with corresponding row/col keys
             all_integers = True
-            if hasattr(objecti, '__iter__'):
-                for item in objecti:
+            if hasattr(i_select, '__iter__'):
+                for item in i_select:
                     if not isinstance(item, int):
                         all_integers = False
                         break
@@ -897,36 +970,44 @@ class Assoc:
                 all_integers = False
 
             if all_integers:
-                obj[index] = keys[index][objecti]
+                selection[index] = keys[index][i_select]
                 continue
+            else:
+                pass
 
             # If object is a function on iterables returing list of indices, apply it
-            if callable(objecti):
-                obj[index] = keys[index][objecti(keys[index])]
+            if callable(i_select):
+                selection[index] = keys[index][i_select(keys[index])]
                 continue
+            else:
+                pass
 
             # If object is a slice object, convert to appropriate list of keys
-            if isinstance(objecti, slice):
-                obj[index] = keys[index][objecti]
+            if isinstance(i_select, slice):
+                selection[index] = keys[index][i_select]
                 continue
+            else:
+                pass
 
             # If object is of form ":", convert to appropriate list of keys
-            if isinstance(objecti, str):
-                if objecti == ":":
-                    obj[index] = keys[index]
+            if isinstance(i_select, str):
+                if i_select == ":":
+                    selection[index] = keys[index]
                     continue
+            else:
+                pass
 
             # Then, or otherwise, sanitize to get appropriate list of keys
-            objecti = sanitize(objecti)
+            i_select = sanitize(i_select)
 
             # If resulting object is 'slice-like', replace with appropriate list of keys,
-            # getting all keys where objecti[0] <= element <= objecti[2]
-            # so find first index of key with objecti[0] <= key and first index of key with
-            # objecti[2] < key (so all earlier keys are <= objecti[2]).
+            # getting all keys where i_select[0] <= element <= i_select[2]
+            # so find first index of key with i_select[0] <= key and first index of key with
+            # i_select[2] < key (so all earlier keys are <= i_select[2]).
 
-            if len(objecti) == 3 and objecti[1] == ":":
-                start_compare = (keys[index] >= objecti[0])
-                stop_compare = (keys[index] > object1[2])
+            if len(i_select) == 3 and i_select[1] == ":":
+                start_compare = (keys[index] >= i_select[0])
+                stop_compare = (keys[index] > i_select[2])
                 try:
                     start_index = np.argwhere(start_compare)[0][0]
                 except IndexError:
@@ -935,50 +1016,52 @@ class Assoc:
                     stop_index = np.argwhere(stop_compare)[0][0]
                 except IndexError:
                     stop_index = np.size(keys[index])
-                obj[index] = keys[index][start_index:stop_index]
+                selection[index] = keys[index][start_index:stop_index]
+            else:
+                pass
 
-            obj[index] = objecti
+            selection[index] = i_select
 
-        # Now everything is a list of row/col keys
-        object1, object2 = obj
+        row_select, col_select = selection  # Now everything is a list of row/col keys
 
         # Create new row, col, val triple to construct sub-assoc array
-        object1 = np.sort(object1)
-        object2 = np.sort(object2)
+        row_select = np.sort(row_select)
+        col_select = np.sort(col_select)
 
-        newrow, row_index_map = sorted_intersect(self.row, object1, return_index_1=True)
-        newcol, col_index_map = sorted_intersect(self.col, object2, return_index_1=True)
+        new_row, row_index_map = sorted_intersect(self.row, row_select, return_index_1=True)
+        new_col, col_index_map = sorted_intersect(self.col, col_select, return_index_1=True)
 
-        B = Assoc([], [], [])
-        B.row = np.array(newrow)
-        B.col = np.array(newcol)
-        B.val = self.val
-        B.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
+        subarray = Assoc([], [], [])
+        subarray.row = np.array(new_row)
+        subarray.col = np.array(new_col)
+        subarray.val = self.val
+        subarray.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
 
-        B = B.condense()
-        B = B.deepcondense()
+        subarray = subarray.condense()
+        subarray = subarray.deepcondense()
 
-        return B
+        return subarray
 
     # Overload setitem
     def __setitem__(self, col_index, row_index, value):
         return NotImplemented
 
-    def copy(self):
-        """ Creates a copy of self. """
-        A = Assoc([], [], [])
-        A.row = self.row.copy()
-        A.col = self.col.copy()
+    def copy(self) -> 'Assoc':
+        """Create a copy of self."""
+        array_copy = Assoc([], [], [])
+        array_copy.row = self.row.copy()
+        array_copy.col = self.col.copy()
         if isinstance(self.val, float):
-            A.val = 1.0
+            array_copy.val = 1.0
         else:
-            A.val = self.val.copy()
-        A.adj = self.adj.copy()
+            assert isinstance(self.val, np.ndarray)
+            array_copy.val = self.val.copy()
+        array_copy.adj = self.adj.copy()
 
-        return A
+        return array_copy
 
-    def size(self):
-        """ Returns dimensions of self. """
+    def size(self) -> Tuple[int, int]:
+        """Returns dimensions of self."""
         size1 = np.size(self.row)
         size2 = np.size(self.col)
         return size1, size2
@@ -1000,8 +1083,7 @@ class Assoc:
         return nnz
 
     def count_nonzero(self):
-        """
-        Returns number of non-null stored entries.
+        """Returns number of non-null stored entries.
             Usage:
                 A.count_nonzero()
             Input:
@@ -1009,8 +1091,7 @@ class Assoc:
             Output:
                 The number of stored non-null entries (i.e., the number of non-null entries in the adjacency array).
             Notes:
-                - If null values (0, None, '') are explicitly stored in the array, then they are not counted. To count
-                only all stored values, use self.nnz()
+                - Even if null values (0, None, '') are explicitly stored in the array, they are not counted.
         """
         null = [0, None, '']
 
@@ -1248,7 +1329,7 @@ class Assoc:
             val = np.append(valA, valB)
 
             # Construct with min as collision function
-            C = Assoc(row, col, val, min)
+            C = Assoc(row, col, val, 'min')
 
         return C
 
@@ -1360,6 +1441,7 @@ class Assoc:
             if isinstance(self.val, float):
                 A.val = 1.0
             else:
+                assert isinstance(self.val, np.ndarray)
                 A.val = self.val.copy()
             A.adj = self.adj.copy().transpose()
         else:
@@ -1373,8 +1455,7 @@ class Assoc:
 
     # Remove row/col indices that do not appear in the data
     def condense(self):
-        """
-            Remove items from self.row and self.col which do not correspond to values, according to self.adj.
+        """Remove items from self.row and self.col which do not correspond to values, according to self.adj.
                 Usage:
                     A.condense()
                     B = A.condense()
@@ -1408,7 +1489,7 @@ class Assoc:
 
     # extension of condense() which also removes unused values
     def deepcondense(self):
-        """ Remove values from self.val which are not reflected in self.adj. """
+        """Remove values from self.val which are not reflected in self.adj."""
 
         # If numerical, do nothing (no unused values)
         if isinstance(self.val, float):
@@ -1834,7 +1915,7 @@ class Assoc:
                                              or (isinstance(otherval, str) and otherval not in null)))\
                             or (otherval in null and is_numeric(selfval) and selfval < 0)\
                             or (is_numeric(otherval) and is_numeric(selfval) and selfval < otherval)\
-                            or (isinstance(otherval, str) and isinstance(otherval) and selfval < otherval):
+                            or (isinstance(selfval, str) and isinstance(otherval, str) and selfval < otherval):
                         goodrows.append(key[0])
                         goodcols.append(key[1])
                 else:
@@ -1857,10 +1938,11 @@ class Assoc:
                 # Check if selfval and other have compatible types and whether selfval < other,
                 # where selfval and other are interpreted appropriately if null
                 if (selfval in null and ((is_numeric(other) and other > 0)
-                                                 or (isinstance(other, str) and other not in null)))\
-                                or (other in null and is_numeric(selfval) and selfval < 0)\
-                                or (is_numeric(other) and is_numeric(selfval) and selfval < other)\
-                                or (isinstance(other, str) and isinstance(other) and selfval < other):
+                    or (isinstance(other, str) and other not in null)))\
+                    or (other in null and is_numeric(selfval) and selfval < 0)\
+                    or (is_numeric(other) and is_numeric(selfval) and selfval < other)\
+                        or (isinstance(other, str) and isinstance(selfval, str) and selfval < other):
+
                     goodrows.append(key[0])
                     goodcols.append(key[1])
 
@@ -1933,9 +2015,9 @@ class Assoc:
                 # Check if selfval and other have compatible types and whether selfval > other,
                 # where selfval and other are interpreted appropriately if null
                 if (selfval in null and is_numeric(other) and other < 0) \
-                        or (other in null and ((is_numeric(selfval) and selfval > 0)
-                                                  or (isinstance(selfval, str) and selfval not in null))) \
-                        or (is_numeric(other) and is_numeric(selfval) and selfval > other) \
+                    or (other in null and ((is_numeric(selfval) and selfval > 0)
+                        or (isinstance(selfval, str) and selfval not in null))) \
+                    or (is_numeric(other) and is_numeric(selfval) and selfval > other) \
                         or (isinstance(other, str) and isinstance(other, str) and selfval > other):
                     goodrows.append(key[0])
                     goodcols.append(key[1])
@@ -2086,7 +2168,7 @@ class Assoc:
                 # where selfval and other are interpreted appropriately if null
                 if (selfval in null and is_numeric(other) and other <= 0) \
                         or (other in null and ((is_numeric(selfval) and selfval >= 0)
-                                                  or isinstance(selfval, str))) \
+                            or isinstance(selfval, str))) \
                         or (is_numeric(other) and is_numeric(selfval) and selfval >= other) \
                         or (isinstance(other, str) and isinstance(other, str) and selfval >= other):
                     goodrows.append(key[0])
@@ -2096,8 +2178,64 @@ class Assoc:
         return A
 
 
+def val2col(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
+    """Convert from adjacency array to incidence array.
+            Usage:
+                val2col(A, separator)
+            Inputs:
+                A = Associative Array
+                separator = (new) delimiting character (default '|') to separate column labels from values
+            Output:
+                val2col(A, separator) = Associative Array B where B.row == A.row and
+                                        B[row_label, col_label + split_separator + value] == 1 if and only if
+                                        A[row_label, col_label] == value
+    """
+    if separator is None:
+        separator = '|'
 
-import csv
+    rows, column_types, column_vals = array_.find()
+    column_types = num_to_str(column_types)
+    column_vals = num_to_str(column_vals)
+    cols = catstr(column_types, column_vals, separator)
+    return Assoc(rows, cols, 1)
+
+
+def col2type(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
+    """Split column keys of associative array and sorts first part as column key and second part as value.
+        Inverse of val2col.
+            Usage:
+                B = col2type(A, separator)
+            Inputs:
+                A = Associative array with string column keys assumed to be of the form 'key' + separator + 'val'
+                separator = separator for A's column keys (default '|')
+            Outputs:
+                col2type(A, separator) = Associative array whose row keys are the same as A, but whose column
+                                        keys are the first parts of A's column keys and whose values are the second
+                                        parts of A's column keys
+            Example:
+                col2type(A, '|')
+                col2type(A, '/')
+            Note:
+                - A's column keys must be in the desired form.
+    """
+    if separator is None:
+        separator = '|'
+
+    # Extract row and column keys from A
+    row, col, _ = array_.find()
+
+    # Split column keys according to splitSep
+    try:
+        column_splits = [column_key.split(separator) for column_key in col]
+    except:
+        raise ValueError('Input column keys not of correct form.')
+
+    # Extract column types and values
+    column_types = [split_column_key[0] for split_column_key in column_splits]
+    column_vals = [split_column_key[1] for split_column_key in column_splits]
+
+    return Assoc(row, column_types, column_vals)
+
 
 def readcsvtotriples(filename, labels=True, triples=False, **fmtoptions):
     """
@@ -2119,74 +2257,72 @@ def readcsvtotriples(filename, labels=True, triples=False, **fmtoptions):
             row, col, val = readcsv('my_file_name.csv', delimiter=';')
             row, col, val = readcsv('my_file_name.tsv', triples=True, delimiter='\t')
     """
-
     # Read CSV file and create (row-index,col-index):value dictionary
     with open(filename, 'rU') as csvfile:
-        Assocreader = csv.reader(csvfile, **fmtoptions)
+        assoc_reader = csv.reader(csvfile, **fmtoptions)
         
         if triples:
             row = list()
             col = list()
             val = list()
             
-            for line in Assocreader:
+            for line in assoc_reader:
                 if len(line) == 0:
                     continue
                 if len(line) != 3:
-                    raise ValueError('line has '+str(len(line))+' elements:\n'+str(line)
-                                     +'\ntriples=True implies there are three columns')
+                    raise ValueError('line has ' + str(len(line)) + ' elements:\n' + str(line)
+                                     + '\ntriples=True implies there are three columns')
                 else:
                     row.append(line[0])
                     col.append(line[1])
                     val.append(line[2])
         else:
-            Assocdict = dict()
+            assoc_dict = dict()
             
             # If labels are expected, take first row to be the column labels
             if labels:
-                headings = next(Assocreader)
+                headings = next(assoc_reader)
             else:
-                linenum = 0 # Otherwise start counting the lines
+                line_num = 0  # Otherwise start counting the lines
 
-            for row in Assocreader:
+            for row in assoc_reader:
                 if len(row) == 0:
                     continue
                 if labels and len(row) != len(headings):
-                    raise ValueError("row has "+str(len(row))+" elements while there are "
-                                     +str(len(headings))+" column labels.")
+                    raise ValueError("row has " + str(len(row)) + " elements while there are "
+                                     + str(len(headings)) + " column labels.")
                 else:
                     # If labels are expected, first element of row is row label, otherwise actual value
                     if labels:
-                        start=1
+                        start = 1
                     else:
-                        start=0
+                        start = 0
 
                     for i in range(start, len(row)):
                         # If labels are expected, use with dictionary
                         if row[i] is not None and row[i] != '':
                             if labels:
-                                Assocdict[(row[0], headings[i])] = row[i]
+                                assoc_dict[(row[0], headings[i])] = row[i]
                             else:
-                                Assocdict[(linenum,i)] = row[i]
+                                assoc_dict[(line_num, i)] = row[i]
                 # Increment line counter
                 if not labels:
-                    linenum += 1
+                    line_num += 1
 
             # Extract row, col, val from dictionary
-            row_col_tuples = list(Assocdict.keys())
+            row_col_tuples = list(assoc_dict.keys())
             row = [str_to_num(item[0]) for item in row_col_tuples]
             col = [str_to_num(item[1]) for item in row_col_tuples]
-            val = [str_to_num(item) for item in list(Assocdict.values())]
+            val = [str_to_num(item) for item in list(assoc_dict.values())]
 
     return row, col, val
 
 
 def readcsv(filename, labels=True, triples=False, **fmtoptions):
-    """
-    Read CSV file to Assoc instance.
+    """Read CSV file to Assoc instance.
         Usage:
-            A = readCSV(filename)
-            A = readCSV(filename, fmtoptions)
+            A = readcsv(filename)
+            A = readcsv(filename, fmtoptions)
         Inputs:
             filename = name of file (string)
             labels = optional parameter to say whether row and column labels are 
@@ -2203,16 +2339,13 @@ def readcsv(filename, labels=True, triples=False, **fmtoptions):
             A = readcsv('my_file_name.csv', delimiter=';')
             A = readcsv('my_file_name.tsv', delimiter='\t')
     """
-    
     row, col, val = readcsvtotriples(filename, labels=labels, triples=triples, **fmtoptions)
 
-    A = Assoc(row, col, val)
-    return A
+    return Assoc(row, col, val)
 
 
-def writecsv(A, filename, fmtparams=None):
-    """
-    Write CSV file from Assoc instance.
+def writecsv(array_, filename, fmtparams=None):
+    """Write CSV file from Assoc instance.
         Usage:
             writeCSV(filename)
             writeCSV(filename, fmtoptions)
@@ -2226,34 +2359,29 @@ def writecsv(A, filename, fmtparams=None):
             writeCSV(A, 'my_file_name.csv')
             writeCSV(A, 'my_file_name.csv', delimiter=';')
     """
-
-    with open(filename, 'w') as csvfile:
-        Assocwriter = csv.writer(csvfile, fmtparams, lineterminator='\r')
+    with open(filename, 'w') as csv_file:
+        assoc_writer = csv.writer(csv_file, fmtparams, lineterminator='\r')
 
         # Write the headings (offset by one to account for row indices)
-        headings = [item for item in A.col]
+        headings = [item for item in array_.col]
         headings.insert(0, None)
-        Assocwriter.writerow(headings)
+        assoc_writer.writerow(headings)
 
         # Create lookup dictionary
-        row, col, val = A.find()
-        try:
-            tups = itertools.izip(itertools.izip(row, col), val)
-        except AttributeError:
-            tups = list(zip(zip(row, col), val))
-        adj_dict = dict(tups)
+        row, col, val = array_.find()
+        adj_dict = dict(zip(zip(row, col), val))
 
-        for i in range(len(A.row)):
-            newline = list()
-            newline.append(A.row[i])  # Start with row index
+        for i in range(len(array_.row)):
+            new_line = list()
+            new_line.append(array_.row[i])  # Start with row index
 
             # Go through the row and add value if it exists, else None
-            for j in range(len(A.col)):
-                if (A.row[i], A.col[j]) in adj_dict.keys():
-                    newline.append(adj_dict[(A.row[i], A.col[j])])
+            for j in range(len(array_.col)):
+                if (array_.row[i], array_.col[j]) in adj_dict.keys():
+                    new_line.append(adj_dict[(array_.row[i], array_.col[j])])
                 else:
-                    newline.append(None)
+                    new_line.append(None)
 
-            Assocwriter.writerow(newline)
+            assoc_writer.writerow(new_line)
 
     return None

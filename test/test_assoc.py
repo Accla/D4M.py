@@ -239,20 +239,20 @@ def test_val2col(row, col, val, splitSep, exp):
 
 def sparse_equal(A, B):
     """ Test whether two COO sparse matrices are equal. """
-    isequal = False
+    # isequal = False
+    #
+    # #eqdtype = A.dtype == B.dtype
+    # eqshape = A.shape == B.shape
+    # eqndim = A.ndim == B.ndim
+    # eqnnz = A.nnz == B.nnz
+    # eqdata = np.array_equal(A.data, B.data)
+    # eqrow = np.array_equal(A.row, B.row)
+    # eqcol = np.array_equal(A.col, B.col)
+    #
+    # if eqshape and eqndim and eqnnz and eqdata and eqrow and eqcol:
+    #     isequal = True
 
-    #eqdtype = A.dtype == B.dtype
-    eqshape = A.shape == B.shape
-    eqndim = A.ndim == B.ndim
-    eqnnz = A.nnz == B.nnz
-    eqdata = np.array_equal(A.data, B.data)
-    eqrow = np.array_equal(A.row, B.row)
-    eqcol = np.array_equal(A.col, B.col)
-
-    if eqshape and eqndim and eqnnz and eqdata and eqrow and eqcol:
-        isequal = True
-
-    return isequal
+    return (A != B).nnz == 0
 
 
 def array_equal(A, B):
@@ -388,7 +388,7 @@ def test_getval(test_row, test_col, test_val, arg, val):
     assert np.array_equal(val, A.getval())
 
 
-@pytest.mark.parametrize("test_assoc,orderby,row,col,val",
+@pytest.mark.parametrize("test_assoc,ordering,row,col,val",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), None, np.array(['a', 'b']),
                            np.array(['A', 'B']), np.array([2, 3])),
                           (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), None,
@@ -401,9 +401,9 @@ def test_getval(test_row, test_col, test_val, arg, val):
                            np.array(['a', 'b', 'a', 'b']), np.array(['A', 'A', 'B', 'B']),
                            np.array(['aA', 'bA', 'aB', 'bB']))
                           ])
-def test_find(test_assoc, orderby, row, col, val):
-    test_row, test_col, test_val = test_assoc.find(orderby=orderby)
-    if orderby is None:
+def test_find(test_assoc, ordering, row, col, val):
+    test_row, test_col, test_val = test_assoc.find(ordering=ordering)
+    if ordering is None:
         triples = list(zip(list(row), list(col), list(val)))
         triples.sort()
         print(triples)
@@ -417,7 +417,7 @@ def test_find(test_assoc, orderby, row, col, val):
         assert np.array_equal(test_val, val)
 
 
-@pytest.mark.parametrize("test_assoc,orderby,triples",
+@pytest.mark.parametrize("test_assoc,ordering,triples",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), None, [('a', 'A', 2), ('b', 'B', 3)]),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), None, [('a', 'A', 'aA'), ('b', 'B', 'bB')]),
                           (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), None,
@@ -427,15 +427,16 @@ def test_find(test_assoc, orderby, row, col, val):
                           (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 1,
                            [('a', 'A', 'aA'), ('b', 'A', 'bA'), ('a', 'B', 'aB'), ('b', 'B', 'bB')])
                           ])
-def test_assoc_triples(test_assoc, orderby, triples):
-    if orderby is None:
+def test_assoc_triples(test_assoc, ordering, triples):
+    if ordering is None:
         test_triples = test_assoc.triples()
         test_triples.sort()
         list_triples = list(triples)
         list_triples.sort()
         assert test_triples == list_triples
     else:
-        assert test_assoc.triples(orderby=orderby) == triples
+        assert test_assoc.triples(ordering=ordering) == triples
+
 
 
 @pytest.mark.parametrize("test_assoc,rowkey,colkey,value",
@@ -452,8 +453,12 @@ def test_getvalue(test_assoc, rowkey, colkey, value):
 
 @pytest.mark.parametrize("assoc1,assoc2,equal",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1, 1]), True),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', [1.0, 1.0]), True),
                           (D4M.assoc.Assoc(['a', 'b'], ['A', 'B'], 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
-                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]), False),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', 1), D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 1]), False),
+                          (D4M.assoc.Assoc('a,b,', 'A,B,', [1, 2]), D4M.assoc.Assoc('a,b,c,', 'A,B,C,', [1, 2, 0]),
+                           True),
+                          (D4M.assoc.Assoc('b,a,', 'B,A,', 1), D4M.assoc.Assoc('a,b,', 'A,B,', 1), True),
                           (D4M.assoc.Assoc('a,b,a,', 'A,B,B,', [1, 1, 0]).condense(),
                            D4M.assoc.Assoc('a,b,', 'A,B,', 1), True)
                           ])
@@ -539,7 +544,7 @@ def test_size(test_assoc, rownum, colnum):
 
 
 @pytest.mark.parametrize("test_assoc,exp_nnz",
-                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), 2),
+                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), 1),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 2), 2),
                           (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), 2),
                           (D4M.assoc.Assoc('a,b,a,b,', 'A,B,B,A,', 'aA,bB,aB,bA,'), 4),
