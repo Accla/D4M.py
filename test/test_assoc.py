@@ -237,7 +237,7 @@ def test_val2col(row, col, val, splitSep, exp):
 #     assert array_equal(D4M.assoc.col2type(A, splitSep), B)
 
 
-def sparse_equal(A, B):
+def sparse_equal(A: sp.spmatrix, B: sp.spmatrix):
     """ Test whether two COO sparse matrices are equal. """
     # isequal = False
     #
@@ -251,7 +251,6 @@ def sparse_equal(A, B):
     #
     # if eqshape and eqndim and eqnnz and eqdata and eqrow and eqcol:
     #     isequal = True
-
     return (A != B).nnz == 0
 
 
@@ -354,13 +353,13 @@ def test_assoc_constructor_sparse_too_small(test_row, test_col, test_val, test_a
     assert str(e_info.value) == info
 
 
-@pytest.mark.parametrize("test_row,test_col,test_val,test_adj",
-                         [('a,b,c,', 'A,B,C,', 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]]))),
-                          ])
-def test_assoc_constructor_sparse_bad_dims(test_row, test_col, test_val, test_adj):
-    with pytest.raises(Exception) as e_info:
-        D4M.assoc.Assoc(test_row, test_col, test_val, test_adj)
-    assert str(e_info.value) == "Unique row and column indices do not match sp_matrix."
+# @pytest.mark.parametrize("test_row,test_col,test_val,test_adj",
+#                          [('a,b,c,', 'A,B,C,', 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]]))),
+#                           ])
+# def test_assoc_constructor_sparse_bad_dims(test_row, test_col, test_val, test_adj):
+#     with pytest.raises(Exception) as e_info:
+#         D4M.assoc.Assoc(test_row, test_col, test_val, test_adj)
+#     assert str(e_info.value) == "Unique row and column indices do not match sp_matrix."
 
 
 @pytest.mark.parametrize("test_row,test_col,test_val,arg,val",
@@ -492,16 +491,6 @@ def test_getitem(test_assoc, subrow, subcol, exp_assoc):
     B = test_assoc[subrow, subcol]
     assert array_equal(B, exp_assoc)
 
-"""
-@pytest.mark.parametrize("test_assoc,row_index,col_index,value,exp_assoc",
-                        [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a', 'A', 'aA',
-                          D4M.assoc.Assoc('a,b,', 'A,B,', ['a', 3])),
-                         (D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3]), 'a', 'C', 'aC',
-                          D4M.assoc.Assoc('a,b,a,', 'A,B,C,', [2, 3, 'aC']))
-                         ])
-def test_setitem(test_assoc, row_index, col_index, value, exp_assoc):
-    test_assoc[row_index, col_index] = value
-"""
 
 @pytest.mark.parametrize("test_assoc",
                          [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 3])),
@@ -551,9 +540,9 @@ def test_size(test_assoc, rownum, colnum):
                           (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,auburn,white,'), 3),
                           (D4M.assoc.Assoc('amber,ash,birch,', 'color,height,leaf_color,', ['amber', 1.7, 'green']),
                            3),
-                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'), 3),
+                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'), 2),
                           (D4M.assoc.Assoc('amber,ash,', 'color,color,', 'amber,auburn,'), 2),
-                          (D4M.assoc.Assoc('a,', 'A,', [None]), 1),
+                          (D4M.assoc.Assoc('a,', 'A,', [None]), 0),
                           (D4M.assoc.Assoc([], [], []), 0)
                           ])
 def test_nnz(test_assoc, exp_nnz):

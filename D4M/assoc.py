@@ -537,6 +537,14 @@ class Assoc:
                     dicts, tuples, sets) to come after numerical data, so this should indicate whether there is
                     any non-numerical data.
         """
+        if arg is None:
+            arg = min
+        elif sparse.issparse(arg) or callable(arg) or arg == 'unique':
+            pass
+        elif arg in operation_dict.keys():
+            arg = operation_dict[arg]
+        else:
+            raise ValueError('Optional arg not supported.')
 
         # Sanitize
         row = sanitize(row)
@@ -544,8 +552,6 @@ class Assoc:
 
         row_size = np.size(row)
         col_size = np.size(col)
-
-        single_val = False
 
         # Short-circuit if empty assoc
         if row_size == 0 or col_size == 0 or np.size(val) == 0:
@@ -556,84 +562,96 @@ class Assoc:
         else:
             # Handle data
 
-            # Case 1: sparse matrix provided which contains pointers to actual values
-            if sparse.issparse(arg) and val != 1.0:
-                arg.sum_duplicates()
+            if sparse.issparse(arg):
+                arg.eliminate_zeros()
 
-                val = sanitize(val, convert=True)
-                self.row = np.unique(row)
-                self.col = np.unique(col)
-                self.val = np.unique(val)
-                self.adj = arg.tocoo()
-
-                (rowdim, coldim) = self.adj.shape
-
-                # Ensure that there are enough unique row, col, vals to make sense of adj
-                errormessage = 'Invalid input:'
-                goodrow = np.size(self.row) >= rowdim
-                goodcol = np.size(self.col) >= coldim
-                goodval = np.size(self.val) >= np.size(np.unique(self.adj.data))
-                if not goodrow:
-                    errormessage += ' not enough unique row indices'
-                    if not goodcol or not goodval:
-                        errormessage += ','
-                    else:
-                        errormessage += '.'
-                if not goodcol:
-                    errormessage += ' not enough unique col indices'
-                    if not goodval:
-                        errormessage += ','
-                    else:
-                        errormessage += '.'
-                if not goodval:
-                    errormessage += ' not enough unique values.'
-
-                if not (goodrow and goodcol and goodval):
-                    raise ValueError(errormessage)
-
-            # Case 2: sparse matrix provided which contains actual values
-            elif sparse.issparse(arg) and val == 1.0:
-                arg.sum_duplicates()
-
-                self.row = np.unique(row)
-                self.col = np.unique(col)
-                self.val = 1.0
-                self.adj = arg.tocoo()
-
-                if (np.size(self.row), np.size(self.col)) != arg.shape:
-                    raise ValueError("Unique row and column indices do not match sp_matrix.")
-
-            # Case 3: No sparse matrix provided
-            else:
-                val = sanitize(val, convert=True)
-                val_size = np.size(val)
-
-                # If single value (or no value) is given for row/col/val, extend to proper length
-                N = max(row_size, col_size, val_size)
-                if row_size == 1:
-                    row = np.full(N, row[0])
-                    row_size = N
-                if col_size == 1:
-                    col = np.full(N, col[0])
-                    col_size = N
-                if val_size == 1:
-                    val = np.full(N, val[0])
-                    val_size = N
-                    single_val = True
-
-                # Check that row, col, and val have same length
-                if min(row_size, col_size, val_size) != N:
-                    raise ValueError("Invalid input: row, col, val must have compatible lengths.")
-
-                # In case single value was given or arg is sum or expecting unique, don't bother aggregating now
-                if single_val or arg == add or arg == "unique":
-                    pass
+                if isinstance(val, float) and val == 1.0:
+                    is_float = True
+                    arg.sum_duplicates()
+                    val = arg.data
                 else:
-                    if arg is None:
-                        arg = min
+                    is_float = False
+                    val = sanitize(val, convert=True)
 
-                    row, col, val = aggregate(row, col, val, arg)
+                (row_dim, col_dim) = arg.shape
 
+                unique_row = np.unique(row)
+                unique_col = np.unique(col)
+                unique_val = np.unique(val)
+
+                error_message = 'Invalid input:'
+                good_params = [np.size(unique_row) >= row_dim, np.size(unique_col) >= col_dim,
+                               np.size(unique_val) >= np.size(np.unique(arg.data))]
+                param_type = ['row indices', 'col indices', 'values']
+                for index in range(3):
+                    if index > 0 and False in good_params[0:index] and not good_params[index]:
+                        error_message += ','
+                    else:
+                        pass
+                    if good_params[index]:
+                        pass
+                    else:
+                        error_message += ' not enough unique ' + param_type[index]
+                error_message += '.'
+                if False in good_params:
+                    raise ValueError(error_message)
+                else:
+                    pass
+
+                new_row = unique_row[arg.row]
+                new_col = unique_col[arg.col]
+                new_val = 0
+
+                if is_float:
+                    new_val = arg.data
+                else:
+                    try:
+                        new_val = unique_val[arg.data - np.ones(np.size(arg.data), dtype=int)]
+                    except (TypeError, IndexError):
+                        print('Values in sparse matrix must correspond to elements of val (after sorting and removing '
+                              'duplicates)')
+
+                row = new_row
+                row_size = np.size(row)
+                col = new_col
+                col_size = np.size(col)
+                val = new_val
+                arg = min
+            else:
+                pass
+
+            val = sanitize(val)
+            val_size = np.size(val)
+            max_size = max([row_size, col_size, val_size])
+            if row_size == 1:
+                row = np.full(max_size, row[0])
+                row_size = max_size
+            if col_size == 1:
+                col = np.full(max_size, col[0])
+                col_size = max_size
+            if val_size == 1:
+                val = np.full(max_size, val[0])
+                val_size = max_size
+
+            if min([row_size, col_size, val_size]) < max_size:
+                raise ValueError("Invalid input: row, col, val must have compatible lengths.")
+            else:
+                pass
+
+            row, col, val = aggregate(row, col, val, arg)
+
+            null_indices = [index for index in range(np.size(val)) if val[index] in Assoc.null_values]
+            row = np.delete(row, null_indices)
+            col = np.delete(col, null_indices)
+            val = np.delete(val, null_indices)
+
+            # Array possibly empty after deletion of null values
+            if row_size == 0 or col_size == 0 or np.size(val) == 0:
+                self.row = np.empty(0)
+                self.col = np.empty(0)
+                self.val = 1.0  # Considered numerical
+                self.adj = sparse.coo_matrix(([], ([], [])), shape=(0, 0))  # Empty sparse matrix
+            else:
                 # Get unique sorted row and column indices
                 self.row, from_row = np.unique(row, return_inverse=True)
                 self.col, from_col = np.unique(col, return_inverse=True)
@@ -645,17 +663,10 @@ class Assoc:
                     self.adj = sparse.coo_matrix((val, (from_row, from_col)), dtype=float,
                                                  shape=(np.size(self.row), np.size(self.col)))
                     self.val = 1.0
-
-                    if single_val and arg != add:
-                        self.adj.data[:] = val[0]
-                elif single_val:
-                    self.adj = sparse.coo_matrix((np.ones(row_size), (from_row, from_col)))
                 else:
                     # If not numerical, self.adj has entries given by indices+1 of self.val
                     val_indices = from_val + np.ones(np.size(from_val))
                     self.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int)
-
-        self.adj.sum_duplicates()
 
     def find(self, ordering: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get row, col, and val arrays that would generate the Assoc (reverse constructor).
