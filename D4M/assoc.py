@@ -209,7 +209,7 @@ def startswith(prefixes: StrList) -> Callable[[StrList], list[int]]:
             prefixes = string of (delimiter separated) values (delimiter is last character)
                 or list of values of length n
         Outputs:
-            func(listofstrings) = returns a list of indices of the strings in listofstrings which have some element of
+            func(string_list) = returns a list of indices of the strings in string_list which have some element of
                 prefixes as a prefix
     """
     prefixes = sanitize(prefixes)
@@ -400,8 +400,8 @@ def aggregate(row: Sequence, col: Sequence, val: Sequence,
                 val = numpy array of length n
                 func = collision function (e.g. add, times, max, min, first, last)
             Output:
-                newrow, newcol, newval = subarrays of row, col, val in which pairs (r, c) = (newrow[i], newcol[i])
-                                            are unique and newval[i] is the resulting of iteratively
+                new_row, new_col, new_val = subarrays of row, col, val in which pairs (r, c) = (new_row[i], new_col[i])
+                                            are unique and new_val[i] is the resulting of iteratively
                                             applying func to the values corresponding to triples
                                             (r, c, value) = (row[j], col[j], val[j])
             Example:
@@ -419,10 +419,10 @@ def aggregate(row: Sequence, col: Sequence, val: Sequence,
         else:
             aggregate_dict[(row[index], col[index])] = func(aggregate_dict[(row[index], col[index])], val[index])
 
-    newrow = np.array([item[0] for item in list(aggregate_dict.keys())])
-    newcol = np.array([item[1] for item in list(aggregate_dict.keys())])
-    newval = np.array(list(aggregate_dict.values()))
-    return newrow, newcol, newval
+    new_row = np.array([item[0] for item in list(aggregate_dict.keys())])
+    new_col = np.array([item[1] for item in list(aggregate_dict.keys())])
+    new_val = np.array(list(aggregate_dict.values()))
+    return new_row, new_col, new_val
 
 
 def add(object_1: Any, object_2: Any) -> Any:
@@ -719,7 +719,8 @@ class Assoc:
         return row, col, val
 
     def to_dict(self) -> dict[KeyVal, dict[KeyVal, KeyVal]]:
-        """Return two-dimensional dictionary adjacency_dict for which adjacency_dict[index1][index2]=value."""
+        """Return a dictionary satisfying self.to_dict[row_key][col_key] = value if and only if row_key col_key,
+        value correspond to an entry of self."""
         row, col, val = self.find()
         adjacency_dict = dict()
 
@@ -732,17 +733,201 @@ class Assoc:
         return adjacency_dict
 
     def to_dict2(self) -> dict[Tuple[KeyVal, KeyVal], KeyVal]:
+        """Return a dictionary satisfying self.to_dict2[(row_key, col_key)] = value if and only if row_key, col_key,
+        value correspond to an entry of self."""
         row, col, val = self.find()
         return dict(zip(zip(row, col), val))
 
     def getval(self) -> np.ndarray:
         """Return numpy array of unique values."""
         if isinstance(self.val, float):
-            unique_values = np.unique(self.adj.data)
+            return np.unique(self.adj.data)
         else:
-            unique_values = self.val
+            assert(isinstance(self.val, np.ndarray))
+            return self.val
 
-        return unique_values
+    def triples(self, ordering: Optional[int] = None) -> list[Tuple[KeyVal, KeyVal, KeyVal]]:
+        """Return list of triples of form (row_label,col_label,value)."""
+        row, col, val = self.find(ordering=ordering)
+        return list(zip(row, col, val))
+
+    def getvalue(self, row_key: KeyVal, col_key: KeyVal, indices: Optional[bool] = None,
+                 row_index: Optional[bool] = None, col_index: Optional[bool] = None) -> KeyVal:
+        """Get the value in self corresponding to given row_key and col_key, otherwise return 0.
+            Usage:
+                v = A.getvalue('a', 'B')
+            Inputs:
+                A = self = Associative Array
+                row_key = row key (or index, see optional argument 'indices' below)
+                col_key = column key (or index, see optional argument 'indices' below)
+                indices = (Optional, default False) Boolean indicating whether row_key and col_key should be
+                            interpreted as indices instead of *actual* row and column keys, respectively.
+                row_index = (Optional, default False) 'indices', but only affecting the interpretation of row_key
+                col_index = (Optional, default False) 'indices', but only affecting the interpretation of col_key
+            Output:
+                v = value of A corresponding to the pair (row_key, col_key),
+                    i.e., (row_key, col_key, v) is in A.triples()
+            Note:
+                'indices' supersedes 'row_index' and 'col_index', so if indices=True, then row_index and col_index are
+                set to True, regardless of if/how those latter optional arguments were set.
+        """
+        if indices is None:
+            indices = False
+        if row_index is None:
+            row_index = False
+        if col_index is None:
+            col_index = False
+        if indices:
+            row_index = True
+            col_index = True
+
+        row_size, col_size = self.adj.shape
+
+        if not row_index:
+            try:
+                row_key = np.where(self.row == row_key)[0][0]
+            except IndexError:
+                return 0
+        else:
+            assert(isinstance(row_key, int))
+            if row_key < 0 or row_size < row_key:
+                return 0
+        if not col_index:
+            try:
+                col_key = np.where(self.col == col_key)[0][0]
+            except IndexError:
+                return 0
+        else:
+            assert(isinstance(col_key, int))
+            if col_key < 0 or col_size < col_key:
+                return 0
+
+        if isinstance(self.val, float):
+            return self.adj.tocsr()[row_key, col_key]
+        else:
+            assert(isinstance(self.val, np.ndarray))
+            value_index = self.adj.tocsr()[row_key, col_key] - 1
+            return self.val[value_index]
+
+    # Overload getitem; allows for subsref
+    def __getitem__(self, selection: Tuple[Union[str, int, slice, Callable, list[str], list[int]],
+                                           Union[str, int, slice, Callable, list[str], list[int]]]) -> 'Assoc':
+        """Returns a sub-associative array of self according to object1 and object2 or corresponding value
+            Usage:
+                B = A[row_select, col_select]
+            Inputs:
+                A = Associative Array
+                selection = tuple (row_select, col_select) where
+                    row_select = string of (delimiter separate) values (delimiter is last character)
+                        or iterable or int or slice object or function
+                    col_select = string of (delimiter separate) values (delimiter is last character)
+                        or iterable or int or slice object or function
+                        e.g., "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"),
+                            "a *,"
+            Outputs:
+                B = sub-associative array of A whose row indices are selected by row_select and whose
+                    column indices are selected by col_select, assuming not both of row_select, col_select are single
+                    indices
+                B = value of A corresponding to single indices of row_select and col_select
+            Examples:
+                A['a,:,b,', ['0', '1']]
+                A[1:2:1, 1]
+            Note:
+                - Regular slices are NOT right end-point inclusive
+                - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e. includes b)
+                - Integer row_select or col_select, and by extension slices, do not reference A.row or A.col,
+                    but the induced indexing of the rows and columns
+                    e.g., A[:, 0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
+                        A[:, 0] will give the subarray consisting of the 0-th column
+                        A[2, 4] will give the value in the 2-nd row and 4-th column
+        """
+        keys = [self.row, self.col]
+        row_select, col_select = selection
+        selection = [row_select, col_select]
+
+        # For each object, replace with corresponding array of row/col keys
+        for index in [0, 1]:
+            i_select = selection[index]
+            # If object is a single integer, replace with corresponding row/col key
+            if isinstance(i_select, int):
+                selection[index] = [keys[index][i_select]]
+                continue
+
+            # If object is an iterable of integers, replace with corresponding row/col keys
+            all_integers = True
+            if hasattr(i_select, '__iter__'):
+                for item in i_select:
+                    if not isinstance(item, int):
+                        all_integers = False
+                        break
+            else:
+                all_integers = False
+
+            if all_integers:
+                selection[index] = keys[index][i_select]
+                continue
+
+            # If object is a function on iterables returning list of indices, apply it
+            if callable(i_select):
+                selection[index] = keys[index][i_select(keys[index])]
+                continue
+
+            # If object is a slice object, convert to appropriate list of keys
+            if isinstance(i_select, slice):
+                selection[index] = keys[index][i_select]
+                continue
+
+            # If object is of form ":", convert to appropriate list of keys
+            if isinstance(i_select, str):
+                if i_select == ":":
+                    selection[index] = keys[index]
+                    continue
+
+            # Then, or otherwise, sanitize to get appropriate list of keys
+            i_select = sanitize(i_select)
+
+            # If resulting object is 'slice-like', replace with appropriate list of keys,
+            # getting all keys where i_select[0] <= element <= i_select[2]
+            # so find first index of key with i_select[0] <= key and first index of key with
+            # i_select[2] < key (so all earlier keys are <= i_select[2]).
+
+            if len(i_select) == 3 and i_select[1] == ":":
+                start_compare = (keys[index] >= i_select[0])
+                stop_compare = (keys[index] > i_select[2])
+                try:
+                    start_index = np.argwhere(start_compare)[0][0]
+                except IndexError:
+                    start_index = np.size(keys[index])
+                try:
+                    stop_index = np.argwhere(stop_compare)[0][0]
+                except IndexError:
+                    stop_index = np.size(keys[index])
+                selection[index] = keys[index][start_index:stop_index]
+
+            selection[index] = i_select
+
+        row_select, col_select = selection  # Now everything is a list of row/col keys
+
+        # Create new row, col, val triple to construct sub-assoc array
+        row_select = np.sort(row_select)
+        col_select = np.sort(col_select)
+
+        new_row, row_index_map = sorted_intersect(self.row, row_select, return_index_1=True)
+        new_col, col_index_map = sorted_intersect(self.col, col_select, return_index_1=True)
+
+        subarray = Assoc([], [], [])
+        subarray.row = np.array(new_row)
+        subarray.col = np.array(new_col)
+        subarray.val = self.val
+        subarray.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
+
+        subarray = subarray.condense()
+        subarray = subarray.deepcondense()
+
+        return subarray
+
+    def __setitem__(self, col_index: KeyVal, row_index: KeyVal, value: KeyVal):
+        return NotImplemented
 
     # print tabular form
     def printfull(self) -> None:
@@ -879,171 +1064,6 @@ class Assoc:
         print_string += "Values: " + str(self.val) + "\n"
         print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
         return print_string
-
-    def triples(self, ordering: Optional[int] = None) -> list[Tuple[KeyVal, KeyVal, KeyVal]]:
-        """Return list of triples of form (row_label,col_label,value)."""
-        r, c, v = self.find(ordering=ordering)
-        triples = list(zip(list(r), list(c), list(v)))
-        return triples
-
-    def getvalue(self, row_key: KeyVal, col_key: KeyVal) -> KeyVal:
-        """Get the value in self corresponding to given row_key and col_key, otherwise return 0.
-            Usage:
-                v = A.getvalue('a', 'B')
-            Inputs:
-                A = self = Associative Array
-                row_key = row key
-                col_key = column key
-            Output:
-                v = value of A corresponding to the pair (row_key, col_key),
-                    i.e., (row_key, col_key, v) is in A.triples()
-            Note:
-                If either of row_key or col_key are integers, they are taken as indices instead of *actual*
-                row and column keys, respectively.
-        """
-        if not isinstance(row_key, int) and row_key in self.row:
-            index_1 = np.where(self.row == row_key)[0][0]
-        else:
-            index_1 = row_key
-
-        if not isinstance(col_key, int) and col_key in self.col:
-            index_2 = np.where(self.col == col_key)[0][0]
-        else:
-            index_2 = col_key
-
-        if isinstance(self.val, float):
-            try:
-                return self.adj.todok()[index_1, index_2]
-            except (IndexError, TypeError):
-                return 0
-        else:
-            assert isinstance(self.val, np.ndarray)
-            try:
-                return self.val[self.adj.todok()[index_1, index_2] - 1]
-            except (IndexError, TypeError):
-                return 0
-
-    # Overload getitem; allows for subsref
-    def __getitem__(self, selection: Tuple[Union[str, int, slice, Callable, list[str], list[int]],
-                                           Union[str, int, slice, Callable, list[str], list[int]]]) \
-            -> 'Assoc':
-        """Returns a sub-associative array of self according to object1 and object2 or corresponding value
-            Usage:
-                B = A[row_select, col_select]
-            Inputs:
-                A = Associative Array
-                selection = tuple (row_select, col_select) where
-                    row_select = string of (delimiter separate) values (delimiter is last character)
-                        or iterable or int or slice object or function
-                    col_select = string of (delimiter separate) values (delimiter is last character)
-                        or iterable or int or slice object or function
-                        e.g., "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"),
-                            "a *,"
-            Outputs:
-                B = sub-associative array of A whose row indices are selected by row_select and whose
-                    column indices are selected by col_select, assuming not both of row_select, col_select are single
-                    indices
-                B = value of A corresponding to single indices of row_select and col_select
-            Examples:
-                A['a,:,b,', ['0', '1']]
-                A[1:2:1, 1]
-            Note:
-                - Regular slices are NOT right end-point inclusive
-                - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e. includes b)
-                - Integer row_select or col_select, and by extension slices, do not reference A.row or A.col,
-                    but the induced indexing of the rows and columns
-                    e.g., A[:, 0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
-                        A[:, 0] will give the subarray consisting of the 0-th column
-                        A[2, 4] will give the value in the 2-nd row and 4-th column
-        """
-        keys = [self.row, self.col]
-        row_select, col_select = selection
-        selection = [row_select, col_select]
-
-        # For each object, replace with corresponding array of row/col keys
-        for index in [0, 1]:
-            i_select = selection[index]
-            # If object is a single integer, replace with corresponding row/col key
-            if isinstance(i_select, int):
-                selection[index] = [keys[index][i_select]]
-                continue
-
-            # If object is an iterable of integers, replace with corresponding row/col keys
-            all_integers = True
-            if hasattr(i_select, '__iter__'):
-                for item in i_select:
-                    if not isinstance(item, int):
-                        all_integers = False
-                        break
-            else:
-                all_integers = False
-
-            if all_integers:
-                selection[index] = keys[index][i_select]
-                continue
-
-            # If object is a function on iterables returning list of indices, apply it
-            if callable(i_select):
-                selection[index] = keys[index][i_select(keys[index])]
-                continue
-
-            # If object is a slice object, convert to appropriate list of keys
-            if isinstance(i_select, slice):
-                selection[index] = keys[index][i_select]
-                continue
-
-            # If object is of form ":", convert to appropriate list of keys
-            if isinstance(i_select, str):
-                if i_select == ":":
-                    selection[index] = keys[index]
-                    continue
-
-            # Then, or otherwise, sanitize to get appropriate list of keys
-            i_select = sanitize(i_select)
-
-            # If resulting object is 'slice-like', replace with appropriate list of keys,
-            # getting all keys where i_select[0] <= element <= i_select[2]
-            # so find first index of key with i_select[0] <= key and first index of key with
-            # i_select[2] < key (so all earlier keys are <= i_select[2]).
-
-            if len(i_select) == 3 and i_select[1] == ":":
-                start_compare = (keys[index] >= i_select[0])
-                stop_compare = (keys[index] > i_select[2])
-                try:
-                    start_index = np.argwhere(start_compare)[0][0]
-                except IndexError:
-                    start_index = np.size(keys[index])
-                try:
-                    stop_index = np.argwhere(stop_compare)[0][0]
-                except IndexError:
-                    stop_index = np.size(keys[index])
-                selection[index] = keys[index][start_index:stop_index]
-
-            selection[index] = i_select
-
-        row_select, col_select = selection  # Now everything is a list of row/col keys
-
-        # Create new row, col, val triple to construct sub-assoc array
-        row_select = np.sort(row_select)
-        col_select = np.sort(col_select)
-
-        new_row, row_index_map = sorted_intersect(self.row, row_select, return_index_1=True)
-        new_col, col_index_map = sorted_intersect(self.col, col_select, return_index_1=True)
-
-        subarray = Assoc([], [], [])
-        subarray.row = np.array(new_row)
-        subarray.col = np.array(new_col)
-        subarray.val = self.val
-        subarray.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
-
-        subarray = subarray.condense()
-        subarray = subarray.deepcondense()
-
-        return subarray
-
-    # Overload setitem
-    def __setitem__(self, col_index: KeyVal, row_index: KeyVal, value: KeyVal):
-        return NotImplemented
 
     def copy(self) -> 'Assoc':
         """Create a copy of self."""
@@ -1454,13 +1474,13 @@ class Assoc:
             row, col, val = self.find()
 
             # Get unique sorted row, column indices and values
-            self.row, fromrow = np.unique(row, return_inverse=True)
-            self.col, fromcol = np.unique(col, return_inverse=True)
-            self.val, fromval = np.unique(val, return_inverse=True)
+            self.row, from_row = np.unique(row, return_inverse=True)
+            self.col, from_col = np.unique(col, return_inverse=True)
+            self.val, from_val = np.unique(val, return_inverse=True)
 
             # Remake adjacency array
-            val_indices = fromval + np.ones(np.size(fromval))
-            self.adj = sparse.coo_matrix((val_indices, (fromrow, fromcol)), dtype=int,
+            val_indices = from_val + np.ones(np.size(from_val))
+            self.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int,
                                          shape=(np.size(self.row), np.size(self.col)))
 
             # If self.val is now empty, replace with 1.0
@@ -1712,11 +1732,11 @@ class Assoc:
                 catval[i] = cat_inters[(r, c)]
             else:
                 rc_keys = [item for item in row_keys[r] if item in col_keys[c]]
-                rc_valpairs = [str(A_dict[r][key])
-                               + pair_delimiter
-                               + str(B_dict[key][c])
-                               + pair_delimiter for key in rc_keys]
-                catval[i] = delimiter.join(rc_valpairs) + delimiter
+                rc_val_pairs = [str(A_dict[r][key])
+                                + pair_delimiter
+                                + str(B_dict[key][c])
+                                + pair_delimiter for key in rc_keys]
+                catval[i] = delimiter.join(rc_val_pairs) + delimiter
                 cat_inters[(r, c)] = catval[i]
 
         D = Assoc(row, col, catval, add)
