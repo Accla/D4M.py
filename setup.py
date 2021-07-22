@@ -15,7 +15,6 @@ setup(
     long_description_content_type='text/markdown',
     url='https://github.com/Accla/D4M.py',
     classifiers=[
-        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 3'
     ],
     include_package_data=True,

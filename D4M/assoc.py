@@ -1,16 +1,23 @@
 # Import packages
-from __future__ import print_function, division
+# from __future__ import print_function, division  # Python 2.7 no longer supported.
 
 from scipy import sparse
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import numbers
+
 import random
 import string
 import csv
 import shutil
+import warnings
+from numbers import Number
 from typing import Any, Union, Tuple, Optional
+from collections.abc import Callable, Sequence
+
+
+KeyVal = Union[str, Number]
+StrList = Union[str, Sequence[str]]
 
 
 # Auxiliary/Helper functions
@@ -32,11 +39,7 @@ def num_string_gen(length_: int, upper_bound: int) -> str:
 
 def is_numeric(object_: Any) -> bool:
     """ Check if object_ is numeric (int, float, complex, etc) or not. """
-    if isinstance(object_, numbers.Number):
-        numerical = True
-    else:
-        numerical = False
-    return numerical
+    return isinstance(object_, Number)
 
 
 def sorted_union(array_1: np.ndarray, array_2: np.ndarray, return_index: Optional[bool] = None) \
@@ -168,7 +171,7 @@ def sorted_intersect(array_1: np.ndarray, array_2: np.ndarray, return_index: Opt
         return np.array(intersection)
 
 
-def contains(substrings: Union[str, list[str]]) -> callable:
+def contains(substrings: StrList) -> Callable[[StrList], list[int]]:
     """Return callable which accepts a list of strings and returns the list of indices
     of those strings which contain some element of substrings.
         Usage:
@@ -197,7 +200,7 @@ def contains(substrings: Union[str, list[str]]) -> callable:
     return func
 
 
-def startswith(prefixes: Union[str, list[str]]) -> callable:
+def startswith(prefixes: StrList) -> Callable[[StrList], list[int]]:
     """Return callable which accepts a list of strings and returns the list of indices
     of those strings which have some element of prefixes as a prefix.
         Usage:
@@ -227,7 +230,7 @@ def startswith(prefixes: Union[str, list[str]]) -> callable:
     return func
 
 
-def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, numbers.Number]:
+def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, Number]:
     """Convert string to float if possible, otherwise return original object with optionally appended delimiter."""
     if isinstance(object_, str):
         try:
@@ -247,7 +250,7 @@ def num_to_str(array: np.ndarray) -> np.ndarray:
     return stringified_array
 
 
-def sanitize(object_: Any, convert: Optional[bool] = None) -> np.ndarray:
+def sanitize(object_: Any, prevent_upcasting: Optional[bool] = None, convert: Optional[bool] = None) -> np.ndarray:
     """Convert
         * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
         * iterables into numpy arrays, and
@@ -269,6 +272,8 @@ def sanitize(object_: Any, convert: Optional[bool] = None) -> np.ndarray:
     """
     if convert is None:
         convert = False
+    if prevent_upcasting is None:
+        prevent_upcasting = False
 
     # Convert delimiter-separated string list by splitting using last character
     try:
@@ -285,26 +290,20 @@ def sanitize(object_: Any, convert: Optional[bool] = None) -> np.ndarray:
     # Convert to numpy array
     if not isinstance(object_, np.ndarray):
         if hasattr(object_, '__iter__'):
-            object_ = np.array(object_)  # Possible silent upcasting
+            # Only make dtype=object if necessary
+            if prevent_upcasting and len({type(item) for item in object_}) > 1:
+                object_ = np.array(object_, dtype=object)
+            else:
+                object_ = np.array(object_)  # Possible silent upcasting
         else:
             object_ = np.array([object_])
 
     return object_
 
 
-def length(iterable: Union[list, np.ndarray]) -> int:
-    """Return length of iterable."""
-
-    if isinstance(iterable, np.ndarray):
-        return np.size(iterable)
-    else:
-        return len(iterable)
-
-
-def unique(iterable: Union[list[Any], np.ndarray], return_index: Optional[bool] = None,
+def unique(iterable: Sequence, return_index: Optional[bool] = None,
            return_inverse: Optional[bool] = None)\
-        -> Union[list[Any], Tuple[list[Any], list[int]], Tuple[list[Any], list[int], list[int]],
-                 np.ndarray, Tuple[np.ndarray, list[int]], Tuple[np.ndarray, list[int], list[int]]]:
+        -> Union[Sequence, Tuple[Sequence, list[int]], Tuple[Sequence, list[int], list[int]]]:
     """Uniquiefy and sorts an iterable, optionally providing index maps."""
     if return_index is None:
         return_index = False
@@ -353,9 +352,7 @@ def unique(iterable: Union[list[Any], np.ndarray], return_index: Optional[bool] 
             index_map_unique = list()
             for index in range(len(iterable)):
                 item = iterable[index]
-                if item in seen:
-                    pass
-                else:
+                if item not in seen:
                     seen.add(item)
                     index_map_unique.append(index)
                     sorted_unique.append(item)
@@ -392,8 +389,8 @@ def unique(iterable: Union[list[Any], np.ndarray], return_index: Optional[bool] 
             return sorted_unique, index_map_inverse
 
 
-def aggregate(row: Union[np.ndarray, list], col: Union[np.ndarray, list], val: Union[np.ndarray, list],
-              func: callable) \
+def aggregate(row: Sequence, col: Sequence, val: Sequence,
+              func: Callable[[KeyVal, KeyVal], KeyVal]) \
         -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Aggregate (row[i], col[i], val[i]) triples using func as collision function.
             Usage:
@@ -417,7 +414,7 @@ def aggregate(row: Union[np.ndarray, list], col: Union[np.ndarray, list], val: U
                 (where lists are stand-ins for the corresponding numpy arrays)
     """
     aggregate_dict = dict()
-    for index in range(np.size(row)):
+    for index in range(len(row)):
         if (row[index], col[index]) not in aggregate_dict:
             aggregate_dict[(row[index], col[index])] = val[index]
         else:
@@ -451,9 +448,11 @@ def last(_: Any, object_2: Any) -> Any:
 
 # Aliases for valid binary operations
 operation_dict = {'add': add, 'plus': add, 'sum': add, 'addition': add,
-                  'times': times, 'multiply': times, 'product': times, 'multiplication': times,
-                  'min': min, 'minimum': min, 'minimize': min, 'max': max, 'maximum': max, 'maximize': max,
-                  'first': first, 'last': last}
+                  'times': times, 'multiply': times, 'product': times, 'multiplication': times, 'prod': times,
+                  'min': min, 'minimum': min, 'minimize': min,
+                  'max': max, 'maximum': max, 'maximize': max,
+                  'first': first,
+                  'last': last}
 
 
 def catstr(str_array_1: np.ndarray, str_array_2: np.ndarray, separator: Optional[str] = None) -> np.ndarray:
@@ -486,13 +485,18 @@ class Assoc:
             if val==1.0 then adj is a sparse matrix containing the actual numerical values
             otherwise
             adj[row_id,col_id] = (index of corresponding value in val) + 1, or 0 if empty
+
+    Note: Associative arrays are assumed to contain no explicit null values ('', 0, None).
     """
 
     null_values = {'', 0, None}
 
-    def __init__(self, row: Union[str, list, np.ndarray], col: Union[str, list, np.ndarray],
-                 val: Union[numbers.Number, str, list, np.ndarray],
-                 arg: Optional[Union[sparse.spmatrix, callable, str]] = None):
+    def __init__(self, row: Union[KeyVal, Sequence[KeyVal]],
+                 col: Union[KeyVal, Sequence[KeyVal]],
+                 val: Union[KeyVal, Sequence[KeyVal]],
+                 arg: Optional[Union[sparse.spmatrix, Callable[[KeyVal, KeyVal], KeyVal], str]] = None,
+                 prevent_upcasting: Optional[bool] = None,
+                 convert_val: Optional[bool] = None):
         """Construct an associative array either from an existing sparse matrix (scipy.sparse.spmatrix) or
         from row, column, and value triples.
             Usage:
@@ -509,7 +513,7 @@ class Assoc:
                     or list of values of length n
                     or 1.0 (which signals arg to be a sparse matrix)
                     or other single value
-                arg = either
+                arg = (Optional, default is min) either
                         a sparse matrix (to be used as the adjacency array) where
                             - if val=1.0, then arg is expected to contain the _actual_ values
                             - otherwise, val is expected to be a list of _actual_ values;
@@ -519,7 +523,11 @@ class Assoc:
                         or a two-input callable compatible with values,
                         or a string representing collision function, e.g., 'add', 'first', 'last', 'min', 'max'
                         or 'unique' which assumes there are no collisions
-                    (default is min)
+                prevent_upcasting = (Optional, not fully implemented, default is False) Boolean indicating if
+                        row/col/val entries should keep their types (e.g., [1, 2.5] won't be upcast to [1.0, 2.5])
+                        [at the cost of potential loss of performance]
+                convert = (Optional, not fully implemented, default is False) Boolean indicating if values should be
+                        converted to numerical data when possible
             Outputs:
                 A = Associative array made from the triples row, col, and val
             Examples:
@@ -546,9 +554,14 @@ class Assoc:
         else:
             raise ValueError('Optional arg not supported.')
 
+        if convert_val is None:
+            convert_val = False
+        if prevent_upcasting is None:
+            prevent_upcasting = False
+
         # Sanitize
-        row = sanitize(row)
-        col = sanitize(col)
+        row = sanitize(row, prevent_upcasting=prevent_upcasting)
+        col = sanitize(col, prevent_upcasting=prevent_upcasting)
 
         row_size = np.size(row)
         col_size = np.size(col)
@@ -586,17 +599,11 @@ class Assoc:
                 for index in range(3):
                     if index > 0 and False in good_params[0:index] and not good_params[index]:
                         error_message += ','
-                    else:
-                        pass
-                    if good_params[index]:
-                        pass
-                    else:
+                    if not good_params[index]:
                         error_message += ' not enough unique ' + param_type[index]
                 error_message += '.'
                 if False in good_params:
                     raise ValueError(error_message)
-                else:
-                    pass
 
                 new_row = unique_row[arg.row]
                 new_col = unique_col[arg.col]
@@ -617,10 +624,8 @@ class Assoc:
                 col_size = np.size(col)
                 val = new_val
                 arg = min
-            else:
-                pass
 
-            val = sanitize(val)
+            val = sanitize(val, prevent_upcasting=prevent_upcasting, convert=convert_val)
             val_size = np.size(val)
             max_size = max([row_size, col_size, val_size])
             if row_size == 1:
@@ -635,8 +640,6 @@ class Assoc:
 
             if min([row_size, col_size, val_size]) < max_size:
                 raise ValueError("Invalid input: row, col, val must have compatible lengths.")
-            else:
-                pass
 
             row, col, val = aggregate(row, col, val, arg)
 
@@ -660,8 +663,12 @@ class Assoc:
                 # Check if numerical; numpy sorts numerical values to front, so only check last entry
                 assert isinstance(self.val, np.ndarray)
                 if is_numeric(self.val[-1]):
-                    self.adj = sparse.coo_matrix((val, (from_row, from_col)), dtype=float,
-                                                 shape=(np.size(self.row), np.size(self.col)))
+                    if prevent_upcasting:
+                        self.adj = sparse.coo_matrix((val, (from_row, from_col)),
+                                                     shape=(np.size(self.row), np.size(self.col)))
+                    else:
+                        self.adj = sparse.coo_matrix((val, (from_row, from_col)), dtype=float,
+                                                     shape=(np.size(self.row), np.size(self.col)))
                     self.val = 1.0
                 else:
                     # If not numerical, self.adj has entries given by indices+1 of self.val
@@ -712,7 +719,7 @@ class Assoc:
 
         return row, col, val
 
-    def dict(self) -> dict:
+    def to_dict(self) -> dict[KeyVal, dict[KeyVal, KeyVal]]:
         """Return two-dimensional dictionary adjacency_dict for which adjacency_dict[index1][index2]=value."""
         row, col, val = self.find()
         adjacency_dict = dict()
@@ -724,6 +731,10 @@ class Assoc:
                 adjacency_dict[row[index]][col[index]] = val[index]
 
         return adjacency_dict
+
+    def to_dict2(self) -> dict[Tuple[KeyVal, KeyVal], KeyVal]:
+        row, col, val = self.find()
+        return dict(zip(zip(row, col), val))
 
     def getval(self) -> np.ndarray:
         """Return numpy array of unique values."""
@@ -737,7 +748,7 @@ class Assoc:
     # print tabular form
     def printfull(self) -> None:
         """Print associative array in tabular form."""
-        df = pd.DataFrame(self.dict())
+        df = pd.DataFrame(self.to_dict())
         df = df.transpose()  # Transpose it to get correct order of rows/cols
 
         # Replace NaN's with empty string
@@ -748,124 +759,121 @@ class Assoc:
 
     def printfullalt(self) -> None:
         """Print associative array in tabular form (non-pandas implementation)."""
-        terminal_col, terminal_row = shutil.get_terminal_size()
-
-        # Determine if all rows fit in terminal window (with col labels and array size footer)
-        cutoff = False
-        if np.size(self.row) <= terminal_row - 3:
-            max_array_rows = np.size(self.row)
+        if (isinstance(self.val, float) and np.size(self.adj.data) == 0) or np.size(self.val) == 0:
+            print('Empty associative array.')
         else:
-            cutoff = True
-            max_array_rows = terminal_row - 5  # Include space for vertical ellipses and final row
+            terminal_col, terminal_row = shutil.get_terminal_size()
 
-        rel_array = self[0:max_array_rows, :]  # Disregard rows outside range
-        trans_dict = rel_array.transpose().dict()  # Take transpose to collate by column labels
-        trans_dict.update(self[-1, :].transpose().dict())  # Add in final row (may already be present)
-
-        # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
-        col_widths = list()
-        for index in np.arange(np.size(self.col)):
-            col_label = self.col[index]
-            if col_label in trans_dict:
-                width = max([len(str(val)) for val in trans_dict[col_label].values()])
+            # Determine if all rows fit in terminal window (with col labels and array size footer)
+            cutoff = False
+            if np.size(self.row) <= terminal_row - 3:
+                max_array_rows = np.size(self.row)
             else:
-                width = 0
-            width = max([width, len(str(col_label))])
-            col_widths.append(width)
+                cutoff = True
+                max_array_rows = terminal_row - 5  # Include space for vertical ellipses and final row
 
-        # Format array values according to calculated column-wise max widths
-        rel_dict = rel_array.dict()
-        rel_dict.update(self[-1, :].dict())  # Add in final row (may already be present)
-        formatted_rows = list()
-        row_indices = list(range(max_array_rows))
-        if cutoff:
-            row_indices.append(-1)
-        else:
-            pass
-        for row_index in row_indices:
-            current_row = list()
-            for col_index in np.arange(np.size(self.col)):
-                if self.col[col_index] in rel_dict[self.row[row_index]]:
-                    row_item = str(rel_dict[self.row[row_index]][self.col[col_index]])
+            rel_array = self[0:max_array_rows, :]  # Disregard rows outside range
+            trans_dict = rel_array.transpose().to_dict()  # Take transpose to collate by column labels
+            trans_dict.update(self[-1, :].transpose().to_dict())  # Add in final row (may already be present)
+
+            # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
+            col_widths = list()
+            for index in np.arange(np.size(self.col)):
+                col_label = self.col[index]
+                if col_label in trans_dict:
+                    width = max([len(str(val)) for val in trans_dict[col_label].values()])
                 else:
-                    row_item = ''
-                current_row.append(('  {:>' + str(col_widths[col_index]) + '}').format(row_item))
-            formatted_rows.append(current_row)
-        if cutoff:
-            vellipses = list()
-            for col_index in np.arange(np.size(self.col)):
-                vellipses.append(('  {:>' + str(col_widths[col_index]) + '}').format(':'))  # ⋮
-            formatted_rows.insert(-1, vellipses)
-        else:
-            pass
+                    width = 0
+                width = max([width, len(str(col_label))])
+                col_widths.append(width)
 
-        # Format column labels according to calculated column-wise max widths
-        col_labels = list()
-        for index in np.arange(np.size(self.col)):
-            col_labels.append(('  {:>' + str(col_widths[index]) + '}').format(str(self.col[index])))
+            # Format array values according to calculated column-wise max widths
+            rel_dict = rel_array.to_dict()
+            rel_dict.update(self[-1, :].to_dict())  # Add in final row (may already be present)
+            formatted_rows = list()
+            row_indices = list(range(max_array_rows))
+            if cutoff:
+                row_indices.append(-1)
+            for row_index in row_indices:
+                current_row = list()
+                for col_index in np.arange(np.size(self.col)):
+                    if self.col[col_index] in rel_dict[self.row[row_index]]:
+                        row_item = str(rel_dict[self.row[row_index]][self.col[col_index]])
+                    else:
+                        row_item = ''
+                    current_row.append(('  {:>' + str(col_widths[col_index]) + '}').format(row_item))
+                formatted_rows.append(current_row)
+            if cutoff:
+                vellipses = list()
+                for col_index in np.arange(np.size(self.col)):
+                    vellipses.append(('  {:>' + str(col_widths[col_index]) + '}').format(':'))  # ⋮
+                formatted_rows.insert(-1, vellipses)
 
-        # Format row labels according to max (relevant) row label width
-        row_label_width = max([len(str(self.row[row_index])) for row_index in row_indices])
-        row_labels = list()
-        for row_index in row_indices:
-            row_labels.append(('{:<' + str(row_label_width) + '}').format(str(self.row[row_index])))
-        if cutoff:
-            row_labels.insert(-1, ('{:<' + str(row_label_width) + '}').format(':'))
-        else:
-            pass
+            # Format column labels according to calculated column-wise max widths
+            col_labels = list()
+            for index in np.arange(np.size(self.col)):
+                col_labels.append(('  {:>' + str(col_widths[index]) + '}').format(str(self.col[index])))
 
-        # Determine how many columns fit in terminal window and print
-        last_index = np.size(self.col)-1
-        too_wide = False
+            # Format row labels according to max (relevant) row label width
+            row_label_width = max([len(str(self.row[row_index])) for row_index in row_indices])
+            row_labels = list()
+            for row_index in row_indices:
+                row_labels.append(('{:<' + str(row_label_width) + '}').format(str(self.row[row_index])))
+            if cutoff:
+                row_labels.insert(-1, ('{:<' + str(row_label_width) + '}').format(':'))
 
-        # Case 1: All columns fits
-        if row_label_width + sum(col_widths) + 2 * (last_index + 1) <= terminal_col:
-            print(' '*row_label_width + ''.join(col_labels))
-            for row_index in np.arange(len(row_labels)):
-                print(row_labels[row_index] + ''.join(formatted_rows[row_index]))
+            # Determine how many columns fit in terminal window and print
+            last_index = np.size(self.col)-1
+            too_wide = False
 
-        # Case 2: Not all columns fit, but at least the first and last do, plus ellipsis
-        elif row_label_width + col_widths[0] + col_widths[last_index] + 9 <= terminal_col:
+            # Case 1: All columns fits
+            if row_label_width + sum(col_widths) + 2 * (last_index + 1) <= terminal_col:
+                print(' '*row_label_width + ''.join(col_labels))
+                for row_index in np.arange(len(row_labels)):
+                    print(row_labels[row_index] + ''.join(formatted_rows[row_index]))
 
-            # Determine how many columns fit
-            penul_index = 0
-            running_total = row_label_width + col_widths[last_index] + 9
-            while running_total + col_widths[penul_index] + 2 <= terminal_col:
-                running_total += col_widths[penul_index] + 2
-                penul_index += 1
+            # Case 2: Not all columns fit, but at least the first and last do, plus ellipsis
+            elif row_label_width + col_widths[0] + col_widths[last_index] + 9 <= terminal_col:
 
-            print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...' + col_labels[last_index])
-            for row_index in np.arange(len(row_labels)):
-                print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index])
-                      + '  ...' + formatted_rows[row_index][last_index])
+                # Determine how many columns fit
+                penul_index = 0
+                running_total = row_label_width + col_widths[last_index] + 9
+                while running_total + col_widths[penul_index] + 2 <= terminal_col:
+                    running_total += col_widths[penul_index] + 2
+                    penul_index += 1
 
-            too_wide = True
+                print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...' + col_labels[last_index])
+                for row_index in np.arange(len(row_labels)):
+                    print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index])
+                          + '  ...' + formatted_rows[row_index][last_index])
 
-        # Case 3: First column plus ellipses fit, but not with addition of final column
-        elif row_label_width + col_widths[0] + 7 <= terminal_col:
+                too_wide = True
 
-            # Determine how many columns fit
-            penul_index = 0
-            running_total = row_label_width + 7
-            while running_total + col_widths[penul_index] + 2 <= terminal_col:
-                running_total += col_widths[penul_index] + 2
-                penul_index += 1
+            # Case 3: First column plus ellipses fit, but not with addition of final column
+            elif row_label_width + col_widths[0] + 7 <= terminal_col:
 
-            print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...')
-            for row_index in np.arange(len(row_labels)):
-                print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index]) + '  ...')
+                # Determine how many columns fit
+                penul_index = 0
+                running_total = row_label_width + 7
+                while running_total + col_widths[penul_index] + 2 <= terminal_col:
+                    running_total += col_widths[penul_index] + 2
+                    penul_index += 1
 
-            too_wide = True
+                print(' ' * row_label_width + ''.join(col_labels[0:penul_index]) + '  ...')
+                for row_index in np.arange(len(row_labels)):
+                    print(row_labels[row_index] + ''.join(formatted_rows[row_index][0:penul_index]) + '  ...')
 
-        # Case 4: Can't fit even the first column plus ellipsis
-        else:
-            print('Columns too wide to fit window.')
+                too_wide = True
 
-            too_wide = True
+            # Case 4: Can't fit even the first column plus ellipsis
+            else:
+                print('Columns too wide to fit window.')
 
-        # Report dimensions if either horizontally or vertically cut off
-        if cutoff or too_wide:
-            print('\n' + '[' + str(np.size(self.row)) + ' rows x ' + str(np.size(self.col)) + ' columns]')
+                too_wide = True
+
+            # Report dimensions if either horizontally or vertically cut off
+            if cutoff or too_wide:
+                print('\n' + '[' + str(np.size(self.row)) + ' rows x ' + str(np.size(self.col)) + ' columns]')
 
         return None
 
@@ -884,13 +892,13 @@ class Assoc:
         print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
         return print_string
 
-    def triples(self, ordering: Optional[int] = None) -> list:
+    def triples(self, ordering: Optional[int] = None) -> list[Tuple[KeyVal, KeyVal, KeyVal]]:
         """Return list of triples of form (row_label,col_label,value)."""
         r, c, v = self.find(ordering=ordering)
         triples = list(zip(list(r), list(c), list(v)))
         return triples
 
-    def getvalue(self, row_key: Any, col_key: Any) -> Any:
+    def getvalue(self, row_key: KeyVal, col_key: KeyVal) -> KeyVal:
         """Get the value in self corresponding to given row_key and col_key, otherwise return 0.
             Usage:
                 v = A.getvalue('a', 'B')
@@ -928,13 +936,15 @@ class Assoc:
                 return 0
 
     # Overload getitem; allows for subsref
-    def __getitem__(self, selection) -> 'Assoc':
+    def __getitem__(self, selection: Tuple[Union[str, int, slice, Callable, list[str], list[int]],
+                                           Union[str, int, slice, Callable, list[str], list[int]]]) \
+            -> 'Assoc':
         """Returns a sub-associative array of self according to object1 and object2 or corresponding value
             Usage:
                 B = A[row_select, col_select]
             Inputs:
                 A = Associative Array
-                obj = tuple (row_select, col_select) where
+                selection = tuple (row_select, col_select) where
                     row_select = string of (delimiter separate) values (delimiter is last character)
                         or iterable or int or slice object or function
                     col_select = string of (delimiter separate) values (delimiter is last character)
@@ -983,30 +993,22 @@ class Assoc:
             if all_integers:
                 selection[index] = keys[index][i_select]
                 continue
-            else:
-                pass
 
-            # If object is a function on iterables returing list of indices, apply it
+            # If object is a function on iterables returning list of indices, apply it
             if callable(i_select):
                 selection[index] = keys[index][i_select(keys[index])]
                 continue
-            else:
-                pass
 
             # If object is a slice object, convert to appropriate list of keys
             if isinstance(i_select, slice):
                 selection[index] = keys[index][i_select]
                 continue
-            else:
-                pass
 
             # If object is of form ":", convert to appropriate list of keys
             if isinstance(i_select, str):
                 if i_select == ":":
                     selection[index] = keys[index]
                     continue
-            else:
-                pass
 
             # Then, or otherwise, sanitize to get appropriate list of keys
             i_select = sanitize(i_select)
@@ -1028,8 +1030,6 @@ class Assoc:
                 except IndexError:
                     stop_index = np.size(keys[index])
                 selection[index] = keys[index][start_index:stop_index]
-            else:
-                pass
 
             selection[index] = i_select
 
@@ -1054,7 +1054,7 @@ class Assoc:
         return subarray
 
     # Overload setitem
-    def __setitem__(self, col_index, row_index, value):
+    def __setitem__(self, col_index: KeyVal, row_index: KeyVal, value: KeyVal):
         return NotImplemented
 
     def copy(self) -> 'Assoc':
@@ -1077,66 +1077,28 @@ class Assoc:
         size2 = np.size(self.col)
         return size1, size2
 
-    def nnz(self):
-        """
-        Returns number of stored entries.
-            Usage:
-                A.nnz()
-            Input:
-                self = Associative array
-            Output:
-                The number of stored entries (i.e., the number of entries in the adjacency array).
-            Notes:
-                - If null values (0, None, '') are explicitly stored in the array, then they are counted. To count only
-                    non-null values, use self.get_nonzero()
-        """
-        nnz = self.adj.getnnz()
+    def nnz(self) -> int:
+        """Count number of non-null entries."""
+        nnz = self.adj.count_nonzero()
         return nnz
 
-    def count_nonzero(self):
-        """Returns number of non-null stored entries.
-            Usage:
-                A.count_nonzero()
-            Input:
-                self = Associative array
-            Output:
-                The number of stored non-null entries (i.e., the number of non-null entries in the adjacency array).
-            Notes:
-                - Even if null values (0, None, '') are explicitly stored in the array, they are not counted.
-        """
-        null = [0, None, '']
-
-        # If data is numerical, return number of nonzero values.
-        if isinstance(self.val, float):
-            nonzero = np.where(self.adj.data)
-            actual_nnz = np.size(nonzero)
-        # Otherwise, check against list of null values
-        else:
-            _, _, val = self.find()
-            nonzero = [value not in null for value in val]
-            actual_nnz = np.size(val[nonzero])
-
-        return actual_nnz
-
     # Remove zeros/empty strings/None from being recorded
-    def dropzeros(self, copy=False):
-        """
-        Return copy of Assoc without null values recorded.
+    def dropzeros(self, copy: Optional[bool] = None) -> 'Assoc':
+        """Return copy of Assoc without null values recorded.
             Usage:
                 A.dropzeros()
-                A.dropzeros(copy = True)
+                A.dropzeros(copy=True)
             Inputs:
                 self = Associative array
-                copy = Whether a new Assoc instance should be made or
-                    if existing instance should be modified
+                copy = (Optional, default False) Whether operation is 'in-place' or if a copy of the Assoc instance
+                    is made for which the null values are dropped.
             Outputs:
                 Associative subarray of A consisting only of non-null values
             Notes:
                 - Null values include 0, '', and None
         """
-
-        # Enumerate the 'null' values
-        null = ['', 0, None]
+        if copy is None:
+            copy = False
 
         # If numerical, just use scipy.sparse's eliminate_zeros()
         if isinstance(self.val, float):
@@ -1158,7 +1120,7 @@ class Assoc:
             row, col, val = self.find()
 
             # Determine which values are non-zero
-            good_indices = [value not in null for value in val]
+            good_indices = [value not in Assoc.null_values for value in val]
 
             # Remove the row/col/val triples that correspond to a zero value
             row = row[good_indices]
@@ -1166,9 +1128,9 @@ class Assoc:
             val = val[good_indices]
 
             # Get unique sorted row and column indices
-            A.row, fromrow = np.unique(row, return_inverse=True)
-            A.col, fromcol = np.unique(col, return_inverse=True)
-            A.val, fromval = np.unique(val, return_inverse=True)
+            A.row, from_row = np.unique(row, return_inverse=True)
+            A.col, from_col = np.unique(col, return_inverse=True)
+            A.val, from_val = np.unique(val, return_inverse=True)
 
             # Fix empty results
             if np.size(A.row) == 0:
@@ -1179,16 +1141,15 @@ class Assoc:
                 A.val = 1.0
 
             # Make adjacency array
-            val_indices = fromval + np.ones(np.size(fromval))
-            A.adj = sparse.coo_matrix((val_indices, (fromrow, fromcol)), dtype=int,
+            val_indices = from_val + np.ones(np.size(from_val))
+            A.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int,
                                       shape=(np.size(A.row), np.size(A.col)))
 
         return A
 
     # Redefine adjacency array
-    def setadj(self, new_adj):
-        """
-            Replace the adjacency array of self with new_adj. (in-place)
+    def setadj(self, new_adj: sparse.spmatrix) -> 'Assoc':
+        """Replace the adjacency array of self with new_adj. (in-place)
                 Usage:
                     A.setadj(new_adj)
                 Input:
@@ -1220,14 +1181,13 @@ class Assoc:
         if isinstance(self.val, float):
             diag = enc_diag
         else:
-            # Append 0 to the start of self.val so that indices of enc_kdiag match up
+            # Append 0 to the start of self.val so that indices of enc_diag match up
             inc_val = np.append(np.zeros(1), self.val)
             diag = inc_val[enc_diag]
         return diag
 
-    def sum(self, axis=None):
-        """
-            Sum over the given axis or over whole array if None.
+    def sum(self, axis: Optional[int] = None) -> Union[float, 'Assoc']:
+        """Sum over the given axis or over whole array if None.
                 Usage:
                     A.sum()
                     A.sum(0)
@@ -1236,6 +1196,7 @@ class Assoc:
                     self = Associative array
                     axis = 0 if summing down columns, 1 if summing across rows, and None if over whole array
                 Output:
+                    A.sum() = sum of all entries in A (or A.nnz() if A has non-numerical entries)
                     A.sum(axis) = Associative array resulting from summing over indicated axis
         """
 
@@ -1272,9 +1233,8 @@ class Assoc:
         return A
 
     # replace all non-zero values with ones
-    def logical(self, copy=True):
-        """
-            Replaces every non-zero value with 1.0
+    def logical(self, copy: Optional[bool] = None):
+        """Replaces every non-zero value with 1.0
                 Usage:
                     A.logical()
                     A.logical(copy=False)
@@ -1285,20 +1245,14 @@ class Assoc:
                     self.logical() = a copy of self with all non-zero values replaced with 1.0
                     self.logical(copy=False) = self with all non-zero values replaced with 1.0
         """
-        if copy:
-            A = self.dropzeros(copy=True)
-        else:
-            A = self.dropzeros()
-
+        A = self.dropzeros(copy=copy)
         A.val = 1.0
-
         A.adj.data[:] = 1.0
         return A
 
     # Overload element-wise addition
-    def __add__(self, B):
-        """
-            Element-wise addition of self and B, matched up by row and column indices.
+    def __add__(self, B: 'Assoc') -> 'Assoc':
+        """Element-wise addition of self and B, matched up by row and column indices.
                 Usage:
                     A + B
                 Input:
@@ -1307,11 +1261,15 @@ class Assoc:
                 Output:
                     A + B =
                         * element-wise sum of A and B (if both A and B are numerical)
-                        * element-wise minimum of A and B otherwise
+                        * element-wise concatenation of entries of A and B (if neither A nor B are numerical)
                 Note:
-                    - When either A or B are non-numerical the .logical() method is run on them.
+                    - If one argument is non-numerical and the other is, the non-numerical array has .logical() called
+                        prior to addition. This may produce undesired results!
         """
-
+        # self_row, self_col, self_val = self.find()
+        # other_row, other_col, other_val = B.find()
+        # return Assoc(np.append(self_row, other_row), np.append(self_col, other_col), np.append(self_val, other_val),
+        #              arg='add')
         A = self
 
         if isinstance(A.val, float) and isinstance(B.val, float):
@@ -1331,6 +1289,7 @@ class Assoc:
             C.adj = sparse.coo_matrix((val, (row, col)),
                                       shape=(np.size(row_union), np.size(col_union)))
             C.adj.sum_duplicates()
+            C.dropzeros()
         else:
             # Take union of rows, cols, and vals
             rowA, colA, valA = A.find()
@@ -1340,13 +1299,12 @@ class Assoc:
             val = np.append(valA, valB)
 
             # Construct with min as collision function
-            C = Assoc(row, col, val, 'min')
+            C = Assoc(row, col, val, 'add')
 
         return C
 
-    def __sub__(self, B):
-        """ Subtract array B from array A=self, i.e. A-B. """
-
+    def __sub__(self, B: 'Assoc') -> 'Assoc':
+        """Subtract array B from array A=self, i.e. A-B."""
         A = self
         C = B.copy()
 
@@ -1363,9 +1321,8 @@ class Assoc:
         return D
 
     # Overload matrix multiplication
-    def __mul__(self, B):
-        """
-            Array multiplication of A and B, with A's column indices matched up with B's row indices
+    def __mul__(self, B: Union[float, 'Assoc']) -> 'Assoc':
+        """Array multiplication of A and B, with A's column indices matched up with B's row indices
                 Usage:
                     A * B
                 Input:
@@ -1376,7 +1333,6 @@ class Assoc:
                 Note:
                     - When either A or B are non-numerical the .logical() method is run on them.
         """
-
         A = self
         # If either A=self or B are not numerical, replace with logical()
         if not isinstance(A.val, float):
@@ -1389,8 +1345,7 @@ class Assoc:
         B_sparse = B.adj.tocsr()
 
         # Intersect A.col and B.row
-        intersection, index_map_1, index_map_2 = sorted_intersect(A.col, B.row,
-                                                                  return_index=True)
+        intersection, index_map_1, index_map_2 = sorted_intersect(A.col, B.row, return_index=True)
 
         # Get appropriate sub-matrices
         A_sparse = A_sparse[:, index_map_1]
@@ -1409,9 +1364,8 @@ class Assoc:
         return AB
 
     # element-wise multiplication
-    def multiply(self, B):
-        """
-            Element-wise multiplication of self and B, matched up by row and column indices.
+    def multiply(self, B: 'Assoc') -> 'Assoc':
+        """Element-wise multiplication of self and B, matched up by row and column indices.
                 Usage:
                     A.multiply(B)
                 Input:
@@ -1443,8 +1397,13 @@ class Assoc:
 
         return C
 
-    def transpose(self, copy=True):
-        """ Transpose array, switching self.row and self.col and transposing self.adj. """
+    def transpose(self, copy: Optional[bool] = None) -> 'Assoc':
+        """Transpose array, switching self.row and self.col and transposing self.adj."""
+        if copy is None:
+            copy = True
+        else:
+            copy = False
+
         if copy:
             A = Assoc([], [], [])
             A.row = self.col.copy()
@@ -1465,7 +1424,7 @@ class Assoc:
         return A
 
     # Remove row/col indices that do not appear in the data
-    def condense(self):
+    def condense(self) -> 'Assoc':
         """Remove items from self.row and self.col which do not correspond to values, according to self.adj.
                 Usage:
                     A.condense()
@@ -1499,7 +1458,7 @@ class Assoc:
         return self
 
     # extension of condense() which also removes unused values
-    def deepcondense(self):
+    def deepcondense(self) -> 'Assoc':
         """Remove values from self.val which are not reflected in self.adj."""
 
         # If numerical, do nothing (no unused values)
@@ -1528,8 +1487,8 @@ class Assoc:
             return self
 
     # Eliminate columns
-    def nocol(self, copy=True):
-        """ Eliminate columns.
+    def nocol(self, copy: Optional[bool] = None) -> 'Assoc':
+        """Eliminate columns.
             Usage:
                 A.nocol()
                 A.nocol(copy=False)
@@ -1540,6 +1499,11 @@ class Assoc:
                             The i-th row of A.nocol() is 1 only when the i-th row of A had a non-zero entry.
                 A.nocol(copy=False) = in-place version
         """
+        if copy is None:
+            copy = True
+        else:
+            copy = False
+
         if copy:
             A = self.copy()
         else:
@@ -1554,8 +1518,8 @@ class Assoc:
         return A
 
     # Eliminate rows
-    def norow(self, copy=True):
-        """ Eliminate rows.
+    def norow(self, copy: Optional[bool] = None):
+        """Eliminate rows.
             Usage:
                 A.norow()
                 A.norow(copy=False)
@@ -1566,6 +1530,11 @@ class Assoc:
                             The i-th col of A.norow() is 1 only when the i-th col of A had a non-zero entry.
                 A.norow(copy=False) = in-place version
         """
+        if copy is None:
+            copy = True
+        else:
+            copy = False
+
         if copy:
             A = self.copy()
         else:
@@ -1580,9 +1549,8 @@ class Assoc:
         return A
 
     # element-wise division -- for division by zero, replace with 0 (and remove)
-    def divide(self, B):
-        """
-            Element-wise division of self and B, matched up by row and column indices.
+    def divide(self, B: 'Assoc') -> 'Assoc':
+        """Element-wise division of self and B, matched up by row and column indices.
                 Usage:
                     A.divide(B)
                 Input:
@@ -1603,9 +1571,8 @@ class Assoc:
         return C
 
     # element-wise And
-    def __and__(self, B):
-        """
-            Element-wise logical AND of self and B, matched up by row and column indices.
+    def __and__(self, B: 'Assoc') -> 'Assoc':
+        """Element-wise logical AND of self and B, matched up by row and column indices.
                 Usage:
                     A & B
                 Input:
@@ -1622,9 +1589,8 @@ class Assoc:
         return C
 
     # element-wise or
-    def __or__(self, B):
-        """
-            Element-wise logical OR of self and B, matched up by row and column indices.
+    def __or__(self, B: 'Assoc') -> 'Assoc':
+        """Element-wise logical OR of self and B, matched up by row and column indices.
                 Usage:
                     A | B
                 Input:
@@ -1641,18 +1607,17 @@ class Assoc:
         C = C.logical(copy=False)
         return C
 
-    def sqin(self):
+    def sqin(self) -> 'Assoc':
         """ self.transpose() * self """
         return self.transpose() * self
 
-    def sqout(self):
+    def sqout(self) -> 'Assoc':
         """ self * self.transpose() """
         return self * self.transpose()
 
     # CatKeyMul
-    def catkeymul(self, B, delimiter=None):
-        """
-            Computes the array product, but values are delimiter-separated string list of
+    def catkeymul(self, B: 'Assoc', delimiter: Optional[str] = None) -> 'Assoc':
+        """Computes the array product, but values are delimiter-separated string list of
                 the row/column indices which contribute to the value in the product
                 Usage:
                     A.catkeymul(B)
@@ -1709,9 +1674,8 @@ class Assoc:
 
         return D
 
-    def catvalmul(self, B, pair_delimiter=None, delimiter=None):
-        """
-            Computes the array product, but values are delimiter-separated string list of
+    def catvalmul(self, B: 'Assoc', pair_delimiter: Optional[str] = None, delimiter: Optional[str] = None) -> 'Assoc':
+        """Computes the array product, but values are delimiter-separated string list of
                 the values of A and B which contribute to the value in the product
                 Usage:
                     A.catvalmul(B)
@@ -1745,8 +1709,8 @@ class Assoc:
         # Create dictionaries for faster lookups
         row_ind = {C.row[index]: index for index in range(np.size(C.row))}
         col_ind = {C.col[index]: index for index in range(np.size(C.col))}
-        A_dict = A.dict()
-        B_dict = B.dict()
+        A_dict = A.to_dict()
+        B_dict = B.to_dict()
 
         rows = Alog.adj.tolil().rows
         cols = Blog.adj.transpose().tolil().rows
@@ -1776,9 +1740,73 @@ class Assoc:
 
         return D
 
-    def __eq__(self, other):
-        """
-            Element-wise equality comparison between self and other.
+    def compare(self, other: Union['Assoc', KeyVal], comparator: Callable[[KeyVal, KeyVal], bool]) -> 'Assoc':
+        """Generic element-wise comparison with another associative array or a single value according to comparator."""
+        warnings.warn('Comparisons are made only with explicitly stored entries of the associative array(s).')
+
+        self_triples = self.triples()
+        self_keys = {(triple[0], triple[1]) for triple in self_triples}
+
+        compared_row, compared_col = list(), list()
+
+        if isinstance(other, Assoc):
+            other_triples = other.triples()
+            other_keys = {(triple[0], triple[1]) for triple in other_triples}
+            other_dict = other.to_dict2()
+
+            for triple in self_triples:
+                row_key, col_key, value = triple
+                key = (row_key, col_key)
+                if key in other_keys:
+                    other_value = other_dict[key]
+                else:
+                    if isinstance(value, str):
+                        other_value = ''
+                    else:
+                        other_value = 0
+                try:
+                    comparison = comparator(value, other_value)
+                except TypeError:
+                    raise TypeError("Comparator does not support comparison between " + str(value)
+                                    + " and " + str(other_value) + ".")
+                if comparison:
+                    compared_row.append(row_key)
+                    compared_col.append(col_key)
+
+            for triple in other_triples:
+                row_key, col_key, value = triple
+                key = (row_key, col_key)
+                if key in self_keys:
+                    pass
+                else:
+                    if isinstance(value, str):
+                        self_value = ''
+                    else:
+                        self_value = 0
+                    try:
+                        comparison = comparator(self_value, value)
+                    except TypeError:
+                        raise TypeError("Comparator does not support comparison between " + str(self_value)
+                                        + " and " + str(value) + ".")
+                    if comparison:
+                        compared_row.append(row_key)
+                        compared_col.append(col_key)
+        else:
+            for triple in self_triples:
+                row_key, col_key, value = triple
+                try:
+                    comparison = comparator(value, other)
+                except TypeError:
+                    raise TypeError("Comparator does not support comparison between " + str(value)
+                                    + " and " + str(other) + ".")
+                if comparison:
+                    compared_row.append(row_key)
+                    compared_col.append(col_key)
+
+        return Assoc(compared_row, compared_col, 1)
+
+    def __eq__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise equality comparison between self and other.
                 Usage:
                     A == B
                 Input:
@@ -1788,405 +1816,176 @@ class Assoc:
                     A == B = An associative array such that for row and column labels r and c, resp., such that
                             (A == B)(r,c) = 1 if and only if...
                                 (Case 1) A(r,c) == B(r,c) (when B is another associative array
-                                    and assuming A(r,c) and B(r,c) are not null)
+                                    and assuming at least one of A(r,c) and B(r,c) is not null)
                                 (Case 2) A(r,c) == B (when B is not another associative array)
                             otherwise (A == B)(r,c) = null.
                 Notes:
-                    Returns an error if other is null (0, '', or None)
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-        null = [0, '', None]
+        def KeyVal_eq(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 == value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 == value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return False
+            else:
+                raise TypeError
 
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
+        return self.compare(other, comparator=KeyVal_eq)
 
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                if key in otherkeys:
-                    if selfdict[key] not in null and otherdict[key] not in null and selfdict[key] == otherdict[key]:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        elif other not in null:
-            for key in selfkeys:
-                if selfdict[key] == other:
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-        else:
-            raise ValueError("Comparison with a null value")
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
-
-    def __ne__(self, other):
+    def __ne__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise inequality comparison between self and other.
+                Usage:
+                    A != B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A != B = An associative array such that for row and column labels r and c, resp., such that
+                            (A != B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) != B(r,c) (when B is another associative array
+                                        and at least one of A(r,c) and B(r,c) are not null)
+                                (Case 2) A(r,c) != B (when B is not another associative array)
+                            otherwise (A != B)(r,c) = null.
+                Notes:
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-                    Element-wise inequality comparison between self and other.
-                        Usage:
-                            A != B
-                        Input:
-                            A = Associative Array
-                            B = other object, e.g., another associative array, a number, or a string
-                        Output:
-                            A != B = An associative array such that for row and column labels r and c, resp., such that
-                                    (A != B)(r,c) = 1 if and only if...
-                                        (Case 1) A(r,c) != B(r,c) (when B is another associative array
-                                                and at least one of A(r,c) and B(r,c) are not null)
-                                        (Case 2) A(r,c) != B (when B is not another associative array)
-                                    otherwise (A != B)(r,c) = null.
+        def KeyVal_ne(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 != value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 != value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return True
+            else:
+                raise TypeError
+
+        return self.compare(other, comparator=KeyVal_ne)
+
+    def __lt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise strictly less than comparison between self and other.
+                Usage:
+                    A < B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A < B = An associative array such that for row and column labels r and c, resp., such that
+                            (A < B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) < B(r,c) (when B is another associative array)
+                                (Case 2) A(r,c) < B (when B is not another associative array)
+                            otherwise (A < B)(r,c) = null.
+                Notes:
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-        null = [0, '', None]
+        def KeyVal_lt(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 < value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 < value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return False
+            else:
+                raise TypeError
 
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
+        return self.compare(other, comparator=KeyVal_lt)
 
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                selfval = selfdict[key]
-
-                if key in otherkeys:
-                    otherval = otherdict[key]
-
-                    if (otherval not in null and selfval in null) \
-                            or (otherval in null and selfval not in null) \
-                            or (otherval not in null and selfval not in null and
-                                selfval != otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-            for key in otherkeys:
-                otherval = otherdict[key]
-
-                if otherval not in null:
-                    if key in selfkeys:
-                        continue  # Already addressed
-                    else:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        elif other not in null:
-            for key in selfkeys:
-                if selfdict[key] != other:
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-        else:
-            for key in selfkeys:
-                if selfdict[key] not in null:
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
-
-    def __lt__(self, other):
+    def __gt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise strictly greater than comparison between self and other.
+                Usage:
+                    A > B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A > B = An associative array such that for row and column labels r and c, resp., such that
+                            (A > B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) > B(r,c) (when B is another associative array)
+                                (Case 2) A(r,c) > B (when B is not another associative array)
+                            otherwise (A > B)(r,c) = null.
+                Notes:
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-                    Element-wise strictly less than comparison between self and other.
-                        Usage:
-                            A < B
-                        Input:
-                            A = Associative Array
-                            B = other object, e.g., another associative array, a number, or a string
-                        Output:
-                            A < B = An associative array such that for row and column labels r and c, resp., such that
-                                    (A < B)(r,c) = 1 if and only if...
-                                        (Case 1) A(r,c) < B(r,c) (when B is another associative array)
-                                        (Case 2) A(r,c) < B (when B is not another associative array)
-                                    otherwise (A < B)(r,c) = null.
-                        Notes:
-                            - Only numeric and string data types are supported.
-                            - Any non-null string is always greater than null.
-                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
-                            (e.g., if the former is a non-null number and the latter is a non-null string)
-                            then an error is raised.
+        def KeyVal_gt(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 > value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 > value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return False
+            else:
+                raise TypeError
+
+        return self.compare(other, comparator=KeyVal_gt)
+
+    def __le__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise less than or equal comparison between self and other.
+                Usage:
+                    A <= B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A <= B = An associative array such that for row and column labels r and c, resp., such that
+                            (A <= B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) <= B(r,c) (when B is another associative array)
+                                (Case 2) A(r,c) <= B (when B is not another associative array)
+                            otherwise (A <= B)(r,c) = null.
+                Notes:
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-        null = [0, '', None]
+        def KeyVal_le(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 <= value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 <= value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return False
+            else:
+                raise TypeError
 
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
+        return self.compare(other, comparator=KeyVal_le)
 
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                selfval = selfdict[key]
-                if key in otherkeys:
-                    otherval = otherdict[key]
-
-                    # Check if selfval and otherval have compatible types and whether selfval < otherval,
-                    # where selfval and otherval are interpreted appropriately if null
-                    if (selfval in null and ((is_numeric(otherval) and otherval > 0)
-                                             or (isinstance(otherval, str) and otherval not in null)))\
-                            or (otherval in null and is_numeric(selfval) and selfval < 0)\
-                            or (is_numeric(otherval) and is_numeric(selfval) and selfval < otherval)\
-                            or (isinstance(selfval, str) and isinstance(otherval, str) and selfval < otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-                else:
-                    if is_numeric(selfval) and selfval < 0:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-            for key in otherkeys:
-                otherval = otherdict[key]
-
-                if key in selfkeys:
-                    continue  # Already addressed
-                else:
-                    if (isinstance(otherval, str) and otherval not in null) or (is_numeric(otherval) and 0 < otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        else:
-            for key in selfkeys:
-                selfval = selfdict[key]
-
-                # Check if selfval and other have compatible types and whether selfval < other,
-                # where selfval and other are interpreted appropriately if null
-                if (selfval in null and ((is_numeric(other) and other > 0)
-                    or (isinstance(other, str) and other not in null)))\
-                    or (other in null and is_numeric(selfval) and selfval < 0)\
-                    or (is_numeric(other) and is_numeric(selfval) and selfval < other)\
-                        or (isinstance(other, str) and isinstance(selfval, str) and selfval < other):
-
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
-
-    def __gt__(self, other):
+    def __ge__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+        """Element-wise greater than or equal comparison between self and other.
+                Usage:
+                    A >= B
+                Input:
+                    A = Associative Array
+                    B = other object, e.g., another associative array, a number, or a string
+                Output:
+                    A >= B = An associative array such that for row and column labels r and c, resp., such that
+                            (A >= B)(r,c) = 1 if and only if...
+                                (Case 1) A(r,c) >= B(r,c) (when B is another associative array)
+                                (Case 2) A(r,c) >= B (when B is not another associative array)
+                            otherwise (A >= B)(r,c) = null.
+                Notes:
+                    - Only numeric and string data types are supported.
+                Warnings:
+                    - Only compares values corresponding to keys explicitly stored in self or other.
         """
-                    Element-wise strictly greater than comparison between self and other.
-                        Usage:
-                            A > B
-                        Input:
-                            A = Associative Array
-                            B = other object, e.g., another associative array, a number, or a string
-                        Output:
-                            A > B = An associative array such that for row and column labels r and c, resp., such that
-                                    (A > B)(r,c) = 1 if and only if...
-                                        (Case 1) A(r,c) > B(r,c) (when B is another associative array)
-                                        (Case 2) A(r,c) > B (when B is not another associative array)
-                                    otherwise (A > B)(r,c) = null.
-                        Notes:
-                            - Only numeric and string data types are supported.
-                            - Any non-null string is always greater than null.
-                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
-                            (e.g., if the former is a non-null number and the latter is a non-null string)
-                            then an error is raised.
-        """
-        null = [0, '', None]
+        def KeyVal_ge(value_1, value_2):
+            if isinstance(value_1, str) and isinstance(value_2, str):
+                return value_1 >= value_2
+            elif is_numeric(value_1) and is_numeric(value_2):
+                return value_1 >= value_2
+            elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
+                return False
+            else:
+                raise TypeError
 
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
-
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                selfval = selfdict[key]
-                if key in otherkeys:
-                    otherval = otherdict[key]
-
-                    # Check if selfval and otherval have compatible types and whether selfval > otherval,
-                    # where selfval and otherval are interpreted appropriately if null
-                    if (selfval in null and is_numeric(otherval) and otherval < 0)\
-                            or (otherval in null and ((is_numeric(selfval) and selfval > 0)
-                                                      or (isinstance(selfval, str) and selfval not in null)))\
-                            or (is_numeric(otherval) and is_numeric(selfval) and selfval > otherval)\
-                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval > otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-                else:
-                    if (is_numeric(selfval) and selfval > 0) or (isinstance(selfval, str) and selfval not in null):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-            for key in otherkeys:
-                otherval = otherdict[key]
-
-                if key in selfkeys:
-                    continue  # Already addressed
-                else:
-                    if is_numeric(otherval) and 0 > otherval:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        else:
-            for key in selfkeys:
-                selfval = selfdict[key]
-
-                # Check if selfval and other have compatible types and whether selfval > other,
-                # where selfval and other are interpreted appropriately if null
-                if (selfval in null and is_numeric(other) and other < 0) \
-                    or (other in null and ((is_numeric(selfval) and selfval > 0)
-                        or (isinstance(selfval, str) and selfval not in null))) \
-                    or (is_numeric(other) and is_numeric(selfval) and selfval > other) \
-                        or (isinstance(other, str) and isinstance(other, str) and selfval > other):
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
-
-    def __le__(self, other):
-        """
-                    Element-wise less than or equal comparison between self and other.
-                        Usage:
-                            A <= B
-                        Input:
-                            A = Associative Array
-                            B = other object, e.g., another associative array, a number, or a string
-                        Output:
-                            A <= B = An associative array such that for row and column labels r and c, resp., such that
-                                    (A <= B)(r,c) = 1 if and only if...
-                                        (Case 1) A(r,c) <= B(r,c) (when B is another associative array)
-                                        (Case 2) A(r,c) <= B (when B is not another associative array)
-                                    otherwise (A <= B)(r,c) = null.
-                        Notes:
-                            - Only numeric and string data types are supported.
-                            - Any non-null string is always greater than null.
-                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
-                            (e.g., if the former is a non-null number and the latter is a non-null string)
-                            then an error is raised.
-        """
-        null = [0, '', None]
-
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
-
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                selfval = selfdict[key]
-                if key in otherkeys:
-                    otherval = otherdict[key]
-
-                    # Check if selfval and otherval have compatible types and whether selfval <= otherval,
-                    # where selfval and otherval are interpreted appropriately if null
-                    if (selfval in null and ((is_numeric(otherval) and otherval >= 0)
-                                             or isinstance(otherval, str)))\
-                            or (otherval in null and is_numeric(selfval) and selfval <= 0)\
-                            or (is_numeric(otherval) and is_numeric(selfval) and selfval <= otherval)\
-                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval <= otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-                else:
-                    if is_numeric(selfval) and selfval <= 0:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-            for key in otherkeys:
-                otherval = otherdict[key]
-
-                if key in selfkeys:
-                    continue  # Already addressed
-                else:
-                    if isinstance(otherval, str) or (is_numeric(otherval) and 0 <= otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        else:
-            for key in selfkeys:
-                selfval = selfdict[key]
-
-                # Check if selfval and other have compatible types and whether selfval <= other,
-                # where selfval and other are interpreted appropriately if null
-                if (selfval in null and ((is_numeric(other) and other >= 0)
-                                         or isinstance(other, str))) \
-                        or (other in null and is_numeric(selfval) and selfval <= 0) \
-                        or (is_numeric(other) and is_numeric(selfval) and selfval <= other) \
-                        or (isinstance(other, str) and isinstance(other, str) and selfval <= other):
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
-
-    def __ge__(self, other):
-        """
-                    Element-wise greater than or equal comparison between self and other.
-                        Usage:
-                            A >= B
-                        Input:
-                            A = Associative Array
-                            B = other object, e.g., another associative array, a number, or a string
-                        Output:
-                            A >= B = An associative array such that for row and column labels r and c, resp., such that
-                                    (A >= B)(r,c) = 1 if and only if...
-                                        (Case 1) A(r,c) >= B(r,c) (when B is another associative array)
-                                        (Case 2) A(r,c) >= B (when B is not another associative array)
-                                    otherwise (A >= B)(r,c) = null.
-                        Notes:
-                            - Only numeric and string data types are supported.
-                            - Any non-null string is always greater than null.
-                            - If A(r,c) and B (or B(r,c) if B is another associative array) are incomparable
-                            (e.g., if the former is a non-null number and the latter is a non-null string)
-                            then an error is raised.
-        """
-        null = [0, '', None]
-
-        selfdict = self.dict()
-        selfkeys = self.dict().keys()
-        goodrows = list()
-        goodcols = list()
-
-        if isinstance(other, Assoc):
-            otherdict = other.dict()
-            otherkeys = otherdict.keys()
-
-            for key in selfkeys:
-                selfval = selfdict[key]
-                if key in otherkeys:
-                    otherval = otherdict[key]
-
-                    # Check if selfval and otherval have compatible types and whether selfval >= otherval,
-                    # where selfval and otherval are interpreted appropriately if null
-                    if (selfval in null and is_numeric(otherval) and otherval <= 0)\
-                            or (otherval in null and ((is_numeric(selfval) and selfval >= 0)
-                                                      or isinstance(selfval, str)))\
-                            or (is_numeric(otherval) and is_numeric(selfval) and selfval >= otherval)\
-                            or (isinstance(otherval, str) and isinstance(otherval, str) and selfval >= otherval):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-                else:
-                    if (is_numeric(selfval) and selfval >= 0) or isinstance(selfval, str):
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-            for key in otherkeys:
-                otherval = otherdict[key]
-
-                if key in selfkeys:
-                    continue  # Already addressed
-                else:
-                    if is_numeric(otherval) and 0 > otherval:
-                        goodrows.append(key[0])
-                        goodcols.append(key[1])
-        else:
-            for key in selfkeys:
-                selfval = selfdict[key]
-
-                # Check if selfval and other have compatible types and whether selfval >= other,
-                # where selfval and other are interpreted appropriately if null
-                if (selfval in null and is_numeric(other) and other <= 0) \
-                        or (other in null and ((is_numeric(selfval) and selfval >= 0)
-                            or isinstance(selfval, str))) \
-                        or (is_numeric(other) and is_numeric(selfval) and selfval >= other) \
-                        or (isinstance(other, str) and isinstance(other, str) and selfval >= other):
-                    goodrows.append(key[0])
-                    goodcols.append(key[1])
-
-        A = Assoc(goodrows, goodcols, 1)
-        return A
+        return self.compare(other, comparator=KeyVal_ge)
 
 
 def val2col(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
@@ -2236,10 +2035,11 @@ def col2type(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
     row, col, _ = array_.find()
 
     # Split column keys according to splitSep
+    column_splits = list()
     try:
         column_splits = [column_key.split(separator) for column_key in col]
-    except:
-        raise ValueError('Input column keys not of correct form.')
+    except ValueError:
+        print('Input column keys not of correct form.')
 
     # Extract column types and values
     column_types = [split_column_key[0] for split_column_key in column_splits]
