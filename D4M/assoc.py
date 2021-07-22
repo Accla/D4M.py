@@ -3,7 +3,6 @@
 
 from scipy import sparse
 import numpy as np
-import pandas as pd
 import matplotlib.pyplot as plt
 
 import random
@@ -747,17 +746,6 @@ class Assoc:
 
     # print tabular form
     def printfull(self) -> None:
-        """Print associative array in tabular form."""
-        df = pd.DataFrame(self.to_dict())
-        df = df.transpose()  # Transpose it to get correct order of rows/cols
-
-        # Replace NaN's with empty string
-        df.fillna('', inplace=True)
-
-        print(df)
-        return None
-
-    def printfullalt(self) -> None:
         """Print associative array in tabular form (non-pandas implementation)."""
         if (isinstance(self.val, float) and np.size(self.adj.data) == 0) or np.size(self.val) == 0:
             print('Empty associative array.')
@@ -765,11 +753,11 @@ class Assoc:
             terminal_col, terminal_row = shutil.get_terminal_size()
 
             # Determine if all rows fit in terminal window (with col labels and array size footer)
-            cutoff = False
+            cutoff_row = False
             if np.size(self.row) <= terminal_row - 3:
                 max_array_rows = np.size(self.row)
             else:
-                cutoff = True
+                cutoff_row = True
                 max_array_rows = terminal_row - 5  # Include space for vertical ellipses and final row
 
             rel_array = self[0:max_array_rows, :]  # Disregard rows outside range
@@ -792,7 +780,7 @@ class Assoc:
             rel_dict.update(self[-1, :].to_dict())  # Add in final row (may already be present)
             formatted_rows = list()
             row_indices = list(range(max_array_rows))
-            if cutoff:
+            if cutoff_row:
                 row_indices.append(-1)
             for row_index in row_indices:
                 current_row = list()
@@ -803,7 +791,7 @@ class Assoc:
                         row_item = ''
                     current_row.append(('  {:>' + str(col_widths[col_index]) + '}').format(row_item))
                 formatted_rows.append(current_row)
-            if cutoff:
+            if cutoff_row:
                 vellipses = list()
                 for col_index in np.arange(np.size(self.col)):
                     vellipses.append(('  {:>' + str(col_widths[col_index]) + '}').format(':'))  # ⋮
@@ -819,7 +807,7 @@ class Assoc:
             row_labels = list()
             for row_index in row_indices:
                 row_labels.append(('{:<' + str(row_label_width) + '}').format(str(self.row[row_index])))
-            if cutoff:
+            if cutoff_row:
                 row_labels.insert(-1, ('{:<' + str(row_label_width) + '}').format(':'))
 
             # Determine how many columns fit in terminal window and print
@@ -872,7 +860,7 @@ class Assoc:
                 too_wide = True
 
             # Report dimensions if either horizontally or vertically cut off
-            if cutoff or too_wide:
+            if cutoff_row or too_wide:
                 print('\n' + '[' + str(np.size(self.row)) + ' rows x ' + str(np.size(self.col)) + ' columns]')
 
         return None
@@ -1199,7 +1187,6 @@ class Assoc:
                     A.sum() = sum of all entries in A (or A.nnz() if A has non-numerical entries)
                     A.sum(axis) = Associative array resulting from summing over indicated axis
         """
-
         # If any of the values are strings, convert to logical
         # In this case, the adjacency array is the desired sparse matrix to sum over
         if not isinstance(self.val, float):
@@ -1266,10 +1253,6 @@ class Assoc:
                     - If one argument is non-numerical and the other is, the non-numerical array has .logical() called
                         prior to addition. This may produce undesired results!
         """
-        # self_row, self_col, self_val = self.find()
-        # other_row, other_col, other_val = B.find()
-        # return Assoc(np.append(self_row, other_row), np.append(self_col, other_col), np.append(self_val, other_val),
-        #              arg='add')
         A = self
 
         if isinstance(A.val, float) and isinstance(B.val, float):
