@@ -303,7 +303,7 @@ def sanitize(object_: Any, prevent_upcasting: Optional[bool] = None, convert: Op
 def unique(iterable: Sequence, return_index: Optional[bool] = None,
            return_inverse: Optional[bool] = None)\
         -> Union[Sequence, Tuple[Sequence, list[int]], Tuple[Sequence, list[int], list[int]]]:
-    """Uniquiefy and sorts an iterable, optionally providing index maps."""
+    """Uniqueify and sorts an iterable, optionally providing index maps."""
     if return_index is None:
         return_index = False
     if return_inverse is None:
@@ -423,6 +423,51 @@ def aggregate(row: Sequence, col: Sequence, val: Sequence,
     new_col = np.array([item[1] for item in list(aggregate_dict.keys())])
     new_val = np.array(list(aggregate_dict.values()))
     return new_row, new_col, new_val
+
+
+def update_indices(array_of_indices: np.ndarray, sorted_bad_indices: list[int], size: int,
+                   offset: Optional[int] = None, mark: Optional[int] = None) -> np.ndarray:
+    """Given a numpy array of indices of an understood sequence of values and a list of indices of that sequence which
+    are to be removed, update array of indices to be with respect to post-deletion sequence.
+        Inputs:
+            array_of_indices = numpy array of indices (with possible offset) of an understood sequence
+            sorted_bad_indices = sorted list of indices of understood sequence to be deleted/removed
+            size = length/size of understood sequence (i.e., must be at least as large as the largest
+                                                        index encountered + 1)
+            offset = (Optional, default 0) represents amount that indices are offset from being 0-indexed;
+                    e.g., if array_of_indices = [1, 3, 2, 5] and offset = 1, then those offset indices
+                    refer to sequence[0], sequence[2], sequence[1], sequence[4]
+            mark = (Optional, default None) controls how bad indices present in array_of_indices are handled:
+                    if mark is None, they are deleted; otherwise they are set to mark
+        Output:
+            update_indices(array_of_indices, sorted_bad_indices, offset=offset) = new array of indices (with possible
+                    offset) referring to post-deletion sequence; bad indices present in array_of_indices are either
+                    deleted (if mark is None) or set to mark (otherwise)
+    """
+    if offset is None:
+        offset = 0
+    if mark is None:
+        delete = True
+        mark = offset - 1
+    else:
+        delete = False
+
+    # Instantiate new_indices to map old indices to
+    new_indices = np.arange(offset, size + offset)
+
+    # Pad sorted_bad_indices to create partition of new_indices
+    padded_bad_indices = [0] + sorted_bad_indices + [size]
+
+    # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
+    for index in range(len(padded_bad_indices) - 1):
+        new_indices[padded_bad_indices[index]: padded_bad_indices[index + 1]] -= index
+        if index > 0:
+            new_indices[padded_bad_indices[index]] = mark  # Mark bad indices
+    updated_array = new_indices[array_of_indices - np.full(len(array_of_indices), offset)]
+    if delete:
+        present_bad_indices = [index for index in range(len(updated_array)) if updated_array[index] == offset-1]
+        updated_array = np.delete(updated_array, present_bad_indices)
+    return updated_array
 
 
 def add(object_1: Any, object_2: Any) -> Any:
@@ -1120,38 +1165,45 @@ class Assoc:
             A.condense()
         # Otherwise, manually remove and remake Assoc instance
         else:
+            assert(isinstance(self.val, np.ndarray))
             if not copy:
                 A = self
             else:
-                A = Assoc([], [], [])
+                A = self.copy()
 
-            row, col, val = self.find()
+            null_val_indices = [index for index in range(len(self.val)) if self.val[index] in Assoc.null_values]
+            new_data = update_indices(self.adj.data, null_val_indices, len(self.val), offset=1, mark=0)
+            if len(null_val_indices) == len(self.val):
+                return Assoc([], [], [])
+            else:
+                A.val = np.delete(A.val, null_val_indices)
 
-            # Determine which values are non-zero
-            good_indices = [value not in Assoc.null_values for value in val]
+            adj_triples = zip(self.adj.row, self.adj.col, new_data)
+            good_row_keys = set()
+            good_col_keys = set()
+            for triple in adj_triples:
+                row_key, col_key, value = triple
+                if value != 0:
+                    good_row_keys.add(row_key)
+                    good_col_keys.add(col_key)
 
-            # Remove the row/col/val triples that correspond to a zero value
-            row = row[good_indices]
-            col = col[good_indices]
-            val = val[good_indices]
+            null_row_indices = [index for index in range(len(self.row)) if index not in good_row_keys]
+            if len(null_row_indices) == len(self.row):
+                return Assoc([], [], [])
+            else:
+                new_row_indices = update_indices(self.adj.row, null_row_indices, len(self.row), mark=0)
+                A.row = np.delete(A.row, null_row_indices)
 
-            # Get unique sorted row and column indices
-            A.row, from_row = np.unique(row, return_inverse=True)
-            A.col, from_col = np.unique(col, return_inverse=True)
-            A.val, from_val = np.unique(val, return_inverse=True)
+            null_col_indices = [index for index in range(len(self.col)) if index not in good_col_keys]
+            if len(null_col_indices) == len(self.col):
+                return Assoc([], [], [])
+            else:
+                new_col_indices = update_indices(self.adj.col, null_col_indices, len(self.col), mark=0)
+                A.col = np.delete(A.col, null_col_indices)
 
-            # Fix empty results
-            if np.size(A.row) == 0:
-                A.row = np.array([])
-            if np.size(A.col) == 0:
-                A.col = np.array([])
-            if np.size(A.val) == 0:
-                A.val = 1.0
-
-            # Make adjacency array
-            val_indices = from_val + np.ones(np.size(from_val))
-            A.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int,
-                                      shape=(np.size(A.row), np.size(A.col)))
+            A.adj = sparse.coo_matrix((new_data, (new_row_indices, new_col_indices)), dtype=int,
+                                      shape=(len(A.row), len(A.col)))
+            A.adj.eliminate_zeros()
 
         return A
 

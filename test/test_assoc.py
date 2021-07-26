@@ -569,18 +569,86 @@ def test_nnz(test_assoc, exp_nnz):
     assert test_assoc.nnz() == exp_nnz
 
 
-@pytest.mark.parametrize("test_assoc,exp_assoc",
-                         [(D4M.assoc.Assoc('a,b,', 'A,B,', [2, 0]), D4M.assoc.Assoc('a,', 'A,', [2])),
-                          (D4M.assoc.Assoc('a,b,', 'A,B,', [0, 2]), D4M.assoc.Assoc('b,', 'B,', [2])),
-                          (D4M.assoc.Assoc('a,b,c,', 'A,B,C,', [2, 0, 2]), D4M.assoc.Assoc('a,c,', 'A,C,', 2)),
-                          (D4M.assoc.Assoc('a,b,', 'A,B,', 2), D4M.assoc.Assoc('a,b,', 'A,B,', 2)),
-                          (D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,'), D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
-                          (D4M.assoc.Assoc('amber,ash,birch,', 'color,color,color,', 'amber,,white,'),
+@pytest.mark.parametrize("test_row,test_col,test_val,test_adj,exp_assoc",
+                         [(np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([2, 0], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,', 'A,', [2])),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([0, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('b,', 'B,', [2])),
+                          (np.array(['a', 'b', 'c']), np.array(['A', 'B', 'C']), 1.0,
+                           sp.coo_matrix(([2, 0, 2], ([0, 1, 2], [0, 1, 2]))), D4M.assoc.Assoc('a,c,', 'A,C,',
+                                                                                               [2, 2])),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([2, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,b,', 'A,B,', 2)),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), np.array(['aA', 'bB']),
+                           sp.coo_matrix(([1, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (np.array(['a', 'b', 'c']), np.array(['A', 'B', 'C']), np.array(['', 'aA', 'bB']),
+                           sp.coo_matrix(([2, 3, 1], ([0, 1, 2], [0, 1, 2]))),
+                           D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (np.array(['amber', 'ash', 'birch']), np.array(['color']), np.array(['', 'amber', 'white']),
+                           sp.coo_matrix(([2, 1, 3], ([0, 1, 2], [0, 0, 0]))),
                            D4M.assoc.Assoc('amber,birch,', 'color,color,', 'amber,white,')),
-                          (D4M.assoc.Assoc('a,', 'A,', ['']), D4M.assoc.Assoc([], [], []))
+                          (np.array(['a']), np.array(['A']), np.array(['']), sp.coo_matrix(([1], ([0], [0]))),
+                           D4M.assoc.Assoc([], [], []))
                           ])
-def test_dropzeros(test_assoc, exp_assoc):
+def test_dropzeros(test_row, test_col, test_val, test_adj, exp_assoc):
+    test_assoc = D4M.assoc.Assoc([], [], [])  # Make empty array to modify
+    test_assoc.row, test_assoc.col, test_assoc.val, test_assoc.adj = test_row, test_col, test_val, test_adj
+    print(str(test_assoc))
+    test_assoc.printfull()
+    exp_assoc.printfull()
     new_assoc = test_assoc.dropzeros(copy=True)
+    test_assoc.printfull()
+    new_assoc.printfull()
+    exp_assoc.printfull()
+    assert array_equal(new_assoc, exp_assoc)
+
+
+@pytest.mark.parametrize("array_of_indices,sorted_bad_indices,size,offset,mark,exp_array",
+                         [(np.array([0, 1, 2, 3]), [2], 4, None, -1, np.array([0, 1, -1, 2])),
+                          (np.array([0, 1, 2, 3]), [2], 4, None, None, np.array([0, 1, 2])),
+                          (np.array([0, 2, 4, 6]), [1], 7, None, -1, np.array([0, 1, 3, 5])),
+                          (np.array([0, 2, 4, 6]), [1], 7, None, None, np.array([0, 1, 3, 5])),
+                          (np.array([0, 2, 4, 6]), [1, 3], 7, None, -1, np.array([0, 1, 2, 4])),
+                          (np.array([0, 2, 4, 6]), [1, 3], 7, None, None, np.array([0, 1, 2, 4])),
+                          (np.array([1, 2, 3, 4]), [2], 4, 1, 0, np.array([1, 2, 0, 3])),
+                          (np.array([1, 2, 3, 4]), [2], 4, 1, None, np.array([1, 2, 3])),
+                          (np.array([1, 3, 5, 7]), [1], 7, 1, 0, np.array([1, 2, 4, 6])),
+                          (np.array([-1, 1, 3, 5]), [1, 3], 7, -1, -2, np.array([-1, 0, 1, 3])),
+                          (np.array([3, 2, 5, 1]), [1, 3], 5, 1, 0, np.array([2, 0, 3, 1]))
+                          ])
+def test_update_indices(array_of_indices, sorted_bad_indices, size, offset, mark, exp_array):
+    updated_array = D4M.assoc.update_indices(array_of_indices, sorted_bad_indices, size, offset=offset, mark=mark)
+    assert np.array_equal(updated_array, exp_array)
+
+
+@pytest.mark.parametrize("test_row,test_col,test_val,test_adj,exp_assoc",
+                         [(np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([2, 0], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,', 'A,', [2])),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([0, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('b,', 'B,', [2])),
+                          (np.array(['a', 'b', 'c']), np.array(['A', 'B', 'C']), 1.0,
+                           sp.coo_matrix(([2, 0, 2], ([0, 1, 2], [0, 1, 2]))), D4M.assoc.Assoc('a,c,', 'A,C,',
+                                                                                               [2, 2])),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), 1.0,
+                           sp.coo_matrix(([2, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,b,', 'A,B,', 2)),
+                          (np.array(['a', 'b']), np.array(['A', 'B']), np.array(['aA', 'bB']),
+                           sp.coo_matrix(([1, 2], ([0, 1], [0, 1]))), D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (np.array(['a', 'b', 'c']), np.array(['A', 'B', 'C']), np.array(['', 'aA', 'bB']),
+                           sp.coo_matrix(([2, 3, 1], ([0, 1, 2], [0, 1, 2]))),
+                           D4M.assoc.Assoc('a,b,', 'A,B,', 'aA,bB,')),
+                          (np.array(['amber', 'ash', 'birch']), np.array(['color']), np.array(['', 'amber', 'white']),
+                           sp.coo_matrix(([2, 1, 3], ([0, 1, 2], [0, 0, 0]))),
+                           D4M.assoc.Assoc('amber,birch,', 'color,color,', 'amber,white,')),
+                          (np.array(['a']), np.array(['A']), np.array(['']), sp.coo_matrix(([1], ([0], [0]))),
+                           D4M.assoc.Assoc([], [], []))
+                          ])
+def test_dropzerosalt(test_row, test_col, test_val, test_adj, exp_assoc):
+    test_assoc = D4M.assoc.Assoc([], [], [])  # Make empty array to modify
+    test_assoc.row, test_assoc.col, test_assoc.val, test_assoc.adj = test_row, test_col, test_val, test_adj
+    print(str(test_assoc))
+    test_assoc.printfull()
+    exp_assoc.printfull()
+    new_assoc = test_assoc.dropzerosalt(copy=True)
     test_assoc.printfull()
     new_assoc.printfull()
     exp_assoc.printfull()
