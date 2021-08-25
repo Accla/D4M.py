@@ -3,7 +3,10 @@
 /.idea
 /dist
 /venv
+/venv6
+/venv7
 /D4M/__pycache__
 /__pycache__
 /.pytest_cache
+/Examples/3Scaling/AssocPerformance/*.txt
 **/*.pyc

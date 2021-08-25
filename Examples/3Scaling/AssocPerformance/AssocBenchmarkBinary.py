@@ -1,25 +1,34 @@
 from D4M.assoc import *
+import D4M.util as util
 import time
 import matplotlib.pyplot as plt
 
-num = 1  # Number of lines of equal length
+num = 10  # Number of lines of equal length
 comparison = True  # Whether two functions are being compared against each other
 numerical = True  # Whether data is numerical or not (determines if conversion from strings to numbers occurs)
 
 # Instantiate test data
 
 rows, cols, vals = list(), list(), list()
+rows2, cols2, vals2 = list(), list(), list()
 
 if numerical:
     row_filename = "benchmarking_num_rows.txt"
     col_filename = "benchmarking_num_cols.txt"
     val_filename = "benchmarking_num_vals.txt"
+    row2_filename = "benchmarking_num_rows2.txt"
+    col2_filename = "benchmarking_num_cols2.txt"
+    val2_filename = "benchmarking_num_vals2.txt"
 else:
     row_filename = "benchmarking_string_rows.txt"
     col_filename = "benchmarking_string_cols.txt"
     val_filename = "benchmarking_string_vals.txt"
+    row2_filename = "benchmarking_string_rows2.txt"
+    col2_filename = "benchmarking_string_cols2.txt"
+    val2_filename = "benchmarking_string_vals2.txt"
 
-filename_dict = {row_filename: rows, col_filename: cols, val_filename: vals}
+filename_dict = {row_filename: rows, col_filename: cols, val_filename: vals,
+                 row2_filename: rows2, col2_filename: cols2, val2_filename: vals2}
 
 for filename in filename_dict.keys():
     with open(filename, 'r') as out_file:
@@ -47,9 +56,10 @@ assoc_time_alt = np.zeros(np.size(n))
 for i in range(np.size(n)):
     for j in range(num):
         A = Assoc(rows[num * i + j], cols[num * i + j], vals[num * i + j], convert_val=numerical)
+        B = Assoc(rows2[num * i + j], cols2[num * i + j], vals2[num * i + j], convert_val=numerical)
         start = time.time()
-        # Insert unary operation
-        B = Assoc([], [], [])  # Filler
+        # Insert binary operation
+        C = Assoc([], [], [])  # Filler
         stop = time.time()
 
         assoc_time[i] += stop - start
@@ -60,15 +70,16 @@ for i in range(np.size(n)):
 
         if comparison:
             A_alt = Assoc(rows[num * i + j], cols[num * i + j], vals[num * i + j], convert_val=numerical)
+            B_alt = Assoc(rows2[num * i + j], cols2[num * i + j], vals2[num * i + j], convert_val=numerical)
             start_alt = time.time()
-            # Insert alternative unary operation to test against
-            B_alt = Assoc([], [], [])  # Filler
+            # Insert alternative binary operation to test against
+            C_alt = Assoc([], [], [])  # Filler
             stop_alt = time.time()
 
-            if not assoc_equal(B, B_alt):
-                B.printfull()
-                B_alt.printfull()
-                assoc_equal(B, B_alt, return_info=True)
+            if not assoc_equal(C, C_alt):
+                C.printfull()
+                C_alt.printfull()
+                assoc_equal(C, C_alt, return_info=True)
                 raise AssertionError
 
             assoc_time_alt[i] += stop_alt - start_alt

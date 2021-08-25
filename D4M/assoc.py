@@ -1,515 +1,24 @@
 # Import packages
-# from __future__ import print_function, division  # Python 2.7 no longer supported.
-
+from __future__ import annotations
 from scipy import sparse
 import numpy as np
 import matplotlib.pyplot as plt
-
-import random
-import string
 import csv
 import shutil
 import warnings
+import copy as cpy
 from numbers import Number
-from typing import Any, Union, Tuple, Optional
-from collections.abc import Callable, Sequence
+from typing import Union, Tuple, Optional, Callable, Sequence, List, Dict
+# Use List & Dict for backwards (<3.9) compatibility
 
+import D4M.util as util
+
+operation_dict = util.operation_dict()
 
 KeyVal = Union[str, Number]
 StrList = Union[str, Sequence[str]]
-
-
-# Auxiliary/Helper functions
-
-def string_gen(length_: int) -> str:
-    """Create randomly-generated string of given length."""
-    rand_string = ''
-    for _ in range(length_):
-        rand_string += random.SystemRandom().choice(string.ascii_letters)
-    return rand_string
-
-
-def num_string_gen(length_: int, upper_bound: int) -> str:
-    """Create string list of integers <= upper_bound of given length."""
-    rand_string = [str(random.randint(0, upper_bound)) for _ in range(length_)] + ['']
-    rand_string = ','.join(rand_string)
-    return rand_string
-
-
-def is_numeric(object_: Any) -> bool:
-    """ Check if object_ is numeric (int, float, complex, etc) or not. """
-    return isinstance(object_, Number)
-
-
-def sorted_union(array_1: np.ndarray, array_2: np.ndarray, return_index: Optional[bool] = None) \
-        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Return the union of two sorted numpy arrays with index maps (if return_index=True).
-        Usage:
-            union = sorted_union(array_1, array_2)
-        Input:
-            array_1 = sorted numpy array of values with no duplicates
-            array_2 = sorted numpy array of values with no duplicates
-            return_index = boolean
-        Output:
-            union = sorted array of values coming from either array_1 or array_2
-            index_map_1 = list of indices of the elements of array_1 in union
-            index_map_2 = list of indices of the elements of array_2 in union
-        Example:
-            sorted_union(np.array([0,1,4,6]), np.array([0,4,7]), return_index = True)
-                = np.array([0,1,4,6,7]), [0,1,2,3], [0,2,4]
-            sorted_union(np.array([0,1,4,6]), np.array([0,4,7]))
-                = np.array([0,1,4,6,7])
-    """
-    if return_index is None:
-        return_index = False
-
-    union = list()
-    index_map_1 = list()
-    index_map_2 = list()
-    index_1 = 0
-    index_2 = 0
-
-    size_1 = np.size(array_1)
-    size_2 = np.size(array_2)
-    union_size = 0
-
-    while index_1 < size_1 or index_2 < size_2:
-        if index_1 >= size_1:
-            if return_index:
-                index_map_2.append(union_size)
-            union.append(array_2[index_2])
-            union_size += 1
-            index_2 += 1
-        elif index_2 >= size_2:
-            if return_index:
-                index_map_1.append(union_size)
-            union.append(array_1[index_1])
-            union_size += 1
-            index_1 += 1
-        elif array_1[index_1] == array_2[index_2]:
-            if return_index:
-                index_map_1.append(union_size)
-                index_map_2.append(union_size)
-            union.append(array_1[index_1])
-            union_size += 1
-            index_1 += 1
-            index_2 += 1
-        elif array_1[index_1] < array_2[index_2]:
-            if return_index:
-                index_map_1.append(union_size)
-            union.append(array_1[index_1])
-            union_size += 1
-            index_1 += 1
-        else:
-            if return_index:
-                index_map_2.append(union_size)
-            union.append(array_2[index_2])
-            union_size += 1
-            index_2 += 1
-
-    union = np.array(union)
-
-    if return_index:
-        index_map_1 = np.array(index_map_1)
-        index_map_2 = np.array(index_map_2)
-        return union, index_map_1, index_map_2
-    else:
-        return union
-
-
-def sorted_intersect(array_1: np.ndarray, array_2: np.ndarray, return_index: Optional[bool] = None,
-                     return_index_1: Optional[bool] = None, return_index_2: Optional[bool] = None) \
-        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """Return the intersection of two sorted numpy arrays with index maps
-    (if return_index, return_index_1, or return_index_2 are True).
-        Usage:
-            intersection = sorted_intersection(array_1, array_2)
-        Input:
-            array_1 = sorted numpy array of values with no duplicates
-            array_2 = sorted numpy array of values with no duplicates
-            return_index = boolean
-        Output:
-            intersection = sorted array of values coming from both array_1 and array_2
-            index_map_1 = list of indices of elements of intersection in array_1
-            index_map_2 = list of indices of elements of intersection in array_2
-        Example:
-            sorted_intersect(np.array([0,1,4]), np.array([0,4,7]), return_index = True)
-                = np.array([0,4]), [0,2], [0,1]
-            sorted_intersect(np.array([0,1,4]), np.array([0,4,7]))
-                = np.array([0,4])
-    """
-    if return_index is None:
-        return_index = False
-    if return_index_1 is None:
-        return_index_1 = False
-    if return_index_2 is None:
-        return_index_2 = False
-
-    set_2 = set(array_2)
-    intersection = [item for item in array_1 if item in set_2]
-
-    if return_index or return_index_1:
-        array_1_index = {array_1[index]: index for index in range(len(array_1))}
-        index_map_1 = [array_1_index[x] for x in intersection]
-    else:
-        index_map_1 = None
-
-    if return_index or return_index_2:
-        array_2_index = {array_2[index]: index for index in range(len(array_2))}
-        index_map_2 = [array_2_index[x] for x in intersection]
-    else:
-        index_map_2 = None
-
-    if return_index:
-        return np.array(intersection), np.array(index_map_1), np.array(index_map_2)
-    elif return_index_1:
-        return np.array(intersection), np.array(index_map_1)
-    elif return_index_2:
-        return np.array(intersection), np.array(index_map_2)
-    else:
-        return np.array(intersection)
-
-
-def contains(substrings: StrList) -> Callable[[StrList], list[int]]:
-    """Return callable which accepts a list of strings and returns the list of indices
-    of those strings which contain some element of substrings.
-        Usage:
-            contains("a,b,")
-            contains(['a','b'])
-        Inputs:
-            substrings = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-        Outputs:
-            func(string_list) = returns a list of indices of the strings in string_list which have some element of
-                substrings as a substring
-    """
-    substrings = sanitize(substrings)
-
-    def func(string_list):
-        string_list = sanitize(string_list)
-        good_string_list = list()
-        for index in range(len(string_list)):
-            item = string_list[index]
-            for substring in substrings:
-                if substring in item:
-                    good_string_list.append(index)
-                    break
-        return good_string_list
-
-    return func
-
-
-def startswith(prefixes: StrList) -> Callable[[StrList], list[int]]:
-    """Return callable which accepts a list of strings and returns the list of indices
-    of those strings which have some element of prefixes as a prefix.
-        Usage:
-            startswith("a,b,")
-            startswith(['a','b'])
-        Inputs:
-            prefixes = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-        Outputs:
-            func(string_list) = returns a list of indices of the strings in string_list which have some element of
-                prefixes as a prefix
-    """
-    prefixes = sanitize(prefixes)
-
-    def func(string_list):
-        string_list = sanitize(string_list)
-        good_string_list = list()
-
-        for index in range(len(string_list)):
-            item = string_list[index]
-            for prefix in prefixes:
-                if item.startswith(prefix):
-                    good_string_list.append(index)
-                    break
-        return good_string_list
-
-    return func
-
-
-def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, Number]:
-    """Convert string to float if possible, otherwise return original object with optionally appended delimiter."""
-    if isinstance(object_, str):
-        try:
-            object_ = int(object_)
-        except ValueError:
-            try:
-                object_ = float(object_)
-            except ValueError:
-                if delimiter is not None:
-                    object_ += delimiter
-    return object_
-
-
-def num_to_str(array: np.ndarray) -> np.ndarray:
-    """Convert array of numbers to array of strings."""
-    stringified_array = array.astype('str')
-    return stringified_array
-
-
-def sanitize(object_: Any, prevent_upcasting: Optional[bool] = None, convert: Optional[bool] = None) -> np.ndarray:
-    """Convert
-        * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
-        * iterables into numpy arrays, and
-        * all other objects into a numpy array having that object.
-        Usage:
-            sanitized list = sanitize(obj)
-        Inputs:
-            object_ = string of (delimiter separated) values (delimiter is last character)
-                or iterable of values of length n or single value
-            convert = Boolean indicating whether strings which represent numbers should
-                be replaced with numbers
-        Outputs:
-            list of values
-        Examples:
-            sanitize("a,b,") = np.array(['a', 'b'])
-            sanitize("1,1,") = np.array([1, 1])
-            sanitize([10, 3]) = np.array([10, 3])
-            sanitize(1) = np.array([1])
-    """
-    if convert is None:
-        convert = False
-    if prevent_upcasting is None:
-        prevent_upcasting = False
-
-    # Convert delimiter-separated string list by splitting using last character
-    try:
-        delimiter = object_[-1]
-        object_ = object_.split(delimiter)
-        object_.pop()  # Get rid of empty strings
-
-        # Convert to numbers if requested
-        if convert:
-            object_ = [str_to_num(item) for item in object_]  # Convert applicable items to numbers
-    except (AttributeError, IndexError, TypeError):
-        pass
-
-    # Convert to numpy array
-    if not isinstance(object_, np.ndarray):
-        if hasattr(object_, '__iter__'):
-            # Only make dtype=object if necessary
-            if prevent_upcasting and len({type(item) for item in object_}) > 1:
-                object_ = np.array(object_, dtype=object)
-            else:
-                object_ = np.array(object_)  # Possible silent upcasting
-        else:
-            object_ = np.array([object_])
-
-    return object_
-
-
-def unique(iterable: Sequence, return_index: Optional[bool] = None,
-           return_inverse: Optional[bool] = None)\
-        -> Union[Sequence, Tuple[Sequence, list[int]], Tuple[Sequence, list[int], list[int]]]:
-    """Uniqueify and sorts an iterable, optionally providing index maps."""
-    if return_index is None:
-        return_index = False
-    if return_inverse is None:
-        return_inverse = False
-
-    if isinstance(iterable, np.ndarray):
-        return np.unique(iterable, return_index=return_index, return_inverse=return_inverse)
-    else:  # Assume iterable is a list
-
-        # If no index maps needed, extract unique items in iterable and sort
-        if not (return_index or return_inverse):
-            return sorted(list(dict.fromkeys(iterable)))
-
-        # If both index maps are needed, loop to extract unique items and build partial maps, then sort
-        elif return_index and return_inverse:
-            sorted_unique = list()
-            seen = dict()
-            index_map_unique = list()
-            index_map_unique_inverse = list()
-            latest = 0
-            for index in range(len(iterable)):
-                item = iterable[index]
-                if item in seen.keys():
-                    index_map_unique_inverse.append(seen[item])
-                else:
-                    index_map_unique_inverse.append(latest)
-                    index_map_unique.append(index)
-                    seen[item] = latest
-                    latest += 1
-                    sorted_unique.append(item)
-
-            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
-            sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
-            sorted_unique = [sorted_unique[index] for index in sorting_map]
-
-            index_map = [index_map_unique[index] for index in sorting_map]
-            index_map_inverse = [sorting_map_inverse[index] for index in index_map_unique_inverse]
-
-            return sorted_unique, index_map, index_map_inverse
-
-        # Same as above but do not build index_map_inverse
-        elif return_index and not return_inverse:
-            sorted_unique = list()
-            seen = set()
-            index_map_unique = list()
-            for index in range(len(iterable)):
-                item = iterable[index]
-                if item not in seen:
-                    seen.add(item)
-                    index_map_unique.append(index)
-                    sorted_unique.append(item)
-
-            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
-            sorted_unique = [sorted_unique[index] for index in sorting_map]
-
-            index_map = [index_map_unique[index] for index in sorting_map]
-
-            return sorted_unique, index_map
-
-        # Same as above, but do not build index_map
-        else:
-            sorted_unique = list()
-            seen = dict()
-            index_map_unique_inverse = list()
-            latest = 0
-            for index in range(len(iterable)):
-                item = iterable[index]
-                if item in seen.keys():
-                    index_map_unique_inverse.append(seen[item])
-                else:
-                    index_map_unique_inverse.append(latest)
-                    seen[item] = latest
-                    latest += 1
-                    sorted_unique.append(item)
-
-            sorting_map = sorted(range(len(sorted_unique)), key=lambda k: sorted_unique[k])
-            sorting_map_inverse = list(np.arange(len(sorting_map))[np.argsort(sorting_map)])
-            sorted_unique = [sorted_unique[index] for index in sorting_map]
-
-            index_map_inverse = [sorting_map_inverse[index] for index in index_map_unique_inverse]
-
-            return sorted_unique, index_map_inverse
-
-
-def aggregate(row: Sequence, col: Sequence, val: Sequence,
-              func: Callable[[KeyVal, KeyVal], KeyVal]) \
-        -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Aggregate (row[i], col[i], val[i]) triples using func as collision function.
-            Usage:
-                aggregate(row, col, val, func)
-            Inputs:
-                row = numpy array of length n
-                col = numpy array of length n
-                val = numpy array of length n
-                func = collision function (e.g. add, times, max, min, first, last)
-            Output:
-                new_row, new_col, new_val = subarrays of row, col, val in which pairs (r, c) = (new_row[i], new_col[i])
-                                            are unique and new_val[i] is the resulting of iteratively
-                                            applying func to the values corresponding to triples
-                                            (r, c, value) = (row[j], col[j], val[j])
-            Example:
-                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], add) = ['a', 'b'], ['A', 'B'], [3, 3]
-                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], first) = ['a', 'b'], ['A', 'B'], [1, 3]
-                aggregate(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], last) = ['a', 'b'], ['A', 'B'], [2, 3]
-                aggregate(['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min)
-                        = ['a', 'b'], ['A', 'B'], [0, 3]
-                (where lists are stand-ins for the corresponding numpy arrays)
-    """
-    aggregate_dict = dict()
-    for index in range(len(row)):
-        if (row[index], col[index]) not in aggregate_dict:
-            aggregate_dict[(row[index], col[index])] = val[index]
-        else:
-            aggregate_dict[(row[index], col[index])] = func(aggregate_dict[(row[index], col[index])], val[index])
-
-    new_row = np.array([item[0] for item in list(aggregate_dict.keys())])
-    new_col = np.array([item[1] for item in list(aggregate_dict.keys())])
-    new_val = np.array(list(aggregate_dict.values()))
-    return new_row, new_col, new_val
-
-
-def update_indices(array_of_indices: np.ndarray, sorted_bad_indices: list[int], size: int,
-                   offset: Optional[int] = None, mark: Optional[int] = None) -> np.ndarray:
-    """Given a numpy array of indices of an understood sequence of values and a list of indices of that sequence which
-    are to be removed, update array of indices to be with respect to post-deletion sequence.
-        Inputs:
-            array_of_indices = numpy array of indices (with possible offset) of an understood sequence
-            sorted_bad_indices = sorted list of indices of understood sequence to be deleted/removed
-            size = length/size of understood sequence (i.e., must be at least as large as the largest
-                                                        index encountered + 1)
-            offset = (Optional, default 0) represents amount that indices are offset from being 0-indexed;
-                    e.g., if array_of_indices = [1, 3, 2, 5] and offset = 1, then those offset indices
-                    refer to sequence[0], sequence[2], sequence[1], sequence[4]
-            mark = (Optional, default None) controls how bad indices present in array_of_indices are handled:
-                    if mark is None, they are deleted; otherwise they are set to mark
-        Output:
-            update_indices(array_of_indices, sorted_bad_indices, offset=offset) = new array of indices (with possible
-                    offset) referring to post-deletion sequence; bad indices present in array_of_indices are either
-                    deleted (if mark is None) or set to mark (otherwise)
-    """
-    if offset is None:
-        offset = 0
-    if mark is None:
-        delete = True
-        mark = offset - 1
-    else:
-        delete = False
-
-    # Instantiate new_indices to map old indices to
-    new_indices = np.arange(offset, size + offset)
-
-    # Pad sorted_bad_indices to create partition of new_indices
-    padded_bad_indices = [0] + sorted_bad_indices + [size]
-
-    # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
-    for index in range(len(padded_bad_indices) - 1):
-        new_indices[padded_bad_indices[index]: padded_bad_indices[index + 1]] -= index
-        if index > 0:
-            new_indices[padded_bad_indices[index]] = mark  # Mark bad indices
-    updated_array = new_indices[array_of_indices - np.full(len(array_of_indices), offset)]
-    if delete:
-        present_bad_indices = [index for index in range(len(updated_array)) if updated_array[index] == offset-1]
-        updated_array = np.delete(updated_array, present_bad_indices)
-    return updated_array
-
-
-def add(object_1: Any, object_2: Any) -> Any:
-    """Binary addition (including string concatenation or other implementations of __add__)."""
-    return object_1 + object_2
-
-
-def times(object_1: Any, object_2: Any) -> Any:
-    """Binary multiplication (and other implementations of __mult__)."""
-    return object_1 * object_2
-
-
-def first(object_1: Any, _: Any) -> Any:
-    """Binary projection onto first coordinate (Return first argument)."""
-    return object_1
-
-
-def last(_: Any, object_2: Any) -> Any:
-    """Binary projection onto last coordinate (Return last argument)."""
-    return object_2
-
-
-# Aliases for valid binary operations
-operation_dict = {'add': add, 'plus': add, 'sum': add, 'addition': add,
-                  'times': times, 'multiply': times, 'product': times, 'multiplication': times, 'prod': times,
-                  'min': min, 'minimum': min, 'minimize': min,
-                  'max': max, 'maximum': max, 'maximize': max,
-                  'first': first,
-                  'last': last}
-
-
-def catstr(str_array_1: np.ndarray, str_array_2: np.ndarray, separator: Optional[str] = None) -> np.ndarray:
-    """Concatenate arrays of strings/numbers str_array_1 and str_array_2 with separator sep between them."""
-    if separator is None:
-        separator = '|'
-
-    str_array_1 = num_to_str(str_array_1)
-    str_array_2 = num_to_str(str_array_2)
-    separator_array = np.full(1, separator)
-    str_array_1_separator = np.char.add(str_array_1, separator_array)
-    concatenation = np.char.add(str_array_1_separator, str_array_2)
-    return concatenation
+ArrayLike = Union[KeyVal, Sequence[KeyVal], np.ndarray]
+Selectable = Union[ArrayLike, slice, Callable]
 
 
 # Main class and methods
@@ -517,61 +26,58 @@ def catstr(str_array_1: np.ndarray, str_array_2: np.ndarray, separator: Optional
 # noinspection PyPep8Naming
 class Assoc:
     """Associative arrays, supporting basic sparse linear algebra on sparse matrices with
-    values of variable (string or numerical) type, variable operations (plus-times, max-min, etc)
-    and row and column indices of variable (string or numerical) type.
-
+        values of variable (string or numerical) type, variable operations (plus-times, max-min, etc)
+        and row and column indices of variable (string or numerical) type.
     Structure:
         row = sorted array of strings/numbers (row indices)
         col = sorted array of strings/numbers (column indices)
         val = sorted array of values
-                or 1.0 to indicate that all the values are numerical and stored in adj
+            or 1.0 to indicate that all the values are numerical and stored in adj
         adj = adjacency array implemented as sparse matrix (COO format)
             if val==1.0 then adj is a sparse matrix containing the actual numerical values
             otherwise
             adj[row_id,col_id] = (index of corresponding value in val) + 1, or 0 if empty
-
     Note: Associative arrays are assumed to contain no explicit null values ('', 0, None).
     """
 
     null_values = {'', 0, None}
 
-    def __init__(self, row: Union[KeyVal, Sequence[KeyVal]],
-                 col: Union[KeyVal, Sequence[KeyVal]],
-                 val: Union[KeyVal, Sequence[KeyVal]],
-                 arg: Optional[Union[sparse.spmatrix, Callable[[KeyVal, KeyVal], KeyVal], str]] = None,
-                 prevent_upcasting: Optional[bool] = None,
-                 convert_val: Optional[bool] = None):
+    def __init__(self,
+                 row: ArrayLike,
+                 col: ArrayLike,
+                 val: ArrayLike,
+                 adj: Optional[sparse.spmatrix] = None,
+                 aggregate: Union[Callable[[KeyVal, KeyVal], KeyVal], str] = min,
+                 prevent_upcasting: bool = False,
+                 convert_val: bool = False):
         """Construct an associative array either from an existing sparse matrix (scipy.sparse.spmatrix) or
         from row, column, and value triples.
             Usage:
                 A = Assoc(row,col,val)
-                A = Assoc(row,col,val,func)
-                A = Assoc(row,col,number,func)
-                A = Assoc(row,col,val,sparse_matrix)
+                A = Assoc(row,col,val,aggregate=func)
+                A = Assoc(row,col,number,aggregate=func)
+                A = Assoc(row,col,val,adj=sparse_matrix)
             Inputs:
-                row = string of (delimiter separated) values (delimiter is last character)
-                    or list of values of length n
-                col = string of (delimiter separated) values (delimiter is last character)
-                    or list of values of length n
-                val = string of (delimiter separated) values (delimiter is last character)
-                    or list of values of length n
-                    or 1.0 (which signals arg to be a sparse matrix)
-                    or other single value
-                arg = (Optional, default is min) either
-                        a sparse matrix (to be used as the adjacency array) where
-                            - if val=1.0, then arg is expected to contain the _actual_ values
-                            - otherwise, val is expected to be a list of _actual_ values;
-                                unique sorted entries in row, col, val are extracted
-                                and the row/column indices and values of arg are assumed to match
-                                up with the resulting row, col, val
-                        or a two-input callable compatible with values,
-                        or a string representing collision function, e.g., 'add', 'first', 'last', 'min', 'max'
-                        or 'unique' which assumes there are no collisions
+                row, col, val = each either:
+                    - a string of (delimiter separated) values/keys (last character is taken as the delimiter), or
+                    - a sequence of string or numerical values/keys
+                adj = (Optional, default is None) a sparse matrix to be used as the adjacency array, where:
+                    - if val == 1.0, then the entries of adj are the values of the associative array, with row and
+                        column indices with respect to unique sorted entries in row and col, resp.
+                    - otherwise, then the entries of adj are the (1-indexed) indices with respect to unique sorted
+                        entries in val, with row and column indices with respect to unique sorted entries in row and
+                        col, resp.
+                aggregate = (Optional, default is min) aggregate function to handle (row_key, col_key) collisions,
+                    either:
+                        - two-input callable compatible with supplied values,
+                        - string representing a supported function (e.g. 'add', 'first', 'last', 'min', 'max')
+                        - 'unique', indicating no collisions; when adj is supplied, indicates that row, col, val
+                            are already sorted and unique
                 prevent_upcasting = (Optional, not fully implemented, default is False) Boolean indicating if
-                        row/col/val entries should keep their types (e.g., [1, 2.5] won't be upcast to [1.0, 2.5])
-                        [at the cost of potential loss of performance]
+                    row/col/val entries should keep their types (e.g., [1, 2.5] won't be upcast to [1.0, 2.5])
+                    [at the cost of potential loss of performance]
                 convert = (Optional, not fully implemented, default is False) Boolean indicating if values should be
-                        converted to numerical data when possible
+                    converted to numerical data when possible
             Outputs:
                 A = Associative array made from the triples row, col, and val
             Examples:
@@ -580,65 +86,55 @@ class Assoc:
                 A = Assoc('1,', 'c1,', np.array([3]))
                 A = Assoc('r1,r2,', 'c1,c2,', 1.0, [sparse_matrix])
             Notes:
-                - If expected data is numerical, arg=add gives slight speed-up
-                - If val == 1.0 and optional sparse matrix is supplied, it will be used as the adjacency array
-                    where the row and column indices of the sparse matrix will be assumed to correspond
-                    to the ordered row and col. Will throw an error if they aren't of the appropriate sizes.
-                - To determine whether the data is numerical, values are sorted and the last element is examined.
-                    From testing, Numpy appears to sort all non-numerical data types (strings, arrays, lists,
-                    dicts, tuples, sets) to come after numerical data, so this should indicate whether there is
-                    any non-numerical data.
+                - If both adj and aggregate are supplied, if aggregate is not 'unique', then its value is ignored.
+                - If adj is supplied, it must have shape compatible with the number of unique entries in row and col.
+                - To determine whether data is numerical or not, val is sorted. If the last entry is numerical, then
+                    all entries are assumed numerical. (Last entry is chosen as Python previously sorted mixed data
+                    types by putting numerical data types before non-numerical data types. Currently, mixed data types
+                    are not directly supported.)
         """
-        if arg is None:
-            arg = min
-        elif sparse.issparse(arg) or callable(arg) or arg == 'unique':
-            pass
-        elif arg in operation_dict.keys():
-            arg = operation_dict[arg]
-        else:
-            raise ValueError('Optional arg not supported.')
-
-        if convert_val is None:
-            convert_val = False
-        if prevent_upcasting is None:
-            prevent_upcasting = False
+        if aggregate in operation_dict.keys():
+            aggregate = operation_dict[aggregate]
 
         # Sanitize
-        row = sanitize(row, prevent_upcasting=prevent_upcasting)
-        col = sanitize(col, prevent_upcasting=prevent_upcasting)
+        row = util.sanitize(row, prevent_upcasting=prevent_upcasting)
+        col = util.sanitize(col, prevent_upcasting=prevent_upcasting)
 
-        row_size = np.size(row)
-        col_size = np.size(col)
+        row_size, col_size = len(row), len(col)
 
-        # Short-circuit if empty assoc
         if row_size == 0 or col_size == 0 or np.size(val) == 0:
+            # Short-circuit if empty assoc
             self.row = np.empty(0)
             self.col = np.empty(0)
             self.val = 1.0  # Considered numerical
             self.adj = sparse.coo_matrix(([], ([], [])), shape=(0, 0))  # Empty sparse matrix
+        elif adj is not None and aggregate == 'unique':
+            # Assume everything is already done, except possible sanitization of val
+            self.row = row
+            self.col = col
+            if not isinstance(val, float) or val != 1.0:
+                val = util.sanitize(val, convert=convert_val)
+            self.val = val
+            self.adj = adj.tocoo()
         else:
-            # Handle data
-
-            if sparse.issparse(arg):
-                arg.eliminate_zeros()
+            if adj is not None:
+                adj.eliminate_zeros()
 
                 if isinstance(val, float) and val == 1.0:
                     is_float = True
-                    arg.sum_duplicates()
-                    val = arg.data
+                    adj.sum_duplicates()
+                    val = adj.data
                 else:
                     is_float = False
-                    val = sanitize(val, convert=True)
+                    val = util.sanitize(val, convert=convert_val)
 
-                (row_dim, col_dim) = arg.shape
+                (row_dim, col_dim) = adj.shape
 
-                unique_row = np.unique(row)
-                unique_col = np.unique(col)
-                unique_val = np.unique(val)
+                unique_row, unique_col, unique_val = np.unique(row), np.unique(col), np.unique(val)
 
                 error_message = 'Invalid input:'
                 good_params = [np.size(unique_row) >= row_dim, np.size(unique_col) >= col_dim,
-                               np.size(unique_val) >= np.size(np.unique(arg.data))]
+                               np.size(unique_val) >= np.size(np.unique(adj.data))]
                 param_type = ['row indices', 'col indices', 'values']
                 for index in range(3):
                     if index > 0 and False in good_params[0:index] and not good_params[index]:
@@ -649,27 +145,22 @@ class Assoc:
                 if False in good_params:
                     raise ValueError(error_message)
 
-                new_row = unique_row[arg.row]
-                new_col = unique_col[arg.col]
-                new_val = 0
+                new_row, new_col, new_val = unique_row[adj.row], unique_col[adj.col], 0
 
                 if is_float:
-                    new_val = arg.data
+                    new_val = adj.data
                 else:
                     try:
-                        new_val = unique_val[arg.data - np.ones(np.size(arg.data), dtype=int)]
+                        new_val = unique_val[adj.data - np.ones(np.size(adj.data), dtype=int)]
                     except (TypeError, IndexError):
                         print('Values in sparse matrix must correspond to elements of val (after sorting and removing '
                               'duplicates)')
 
-                row = new_row
-                row_size = np.size(row)
-                col = new_col
-                col_size = np.size(col)
-                val = new_val
-                arg = min
+                row, col, val = new_row, new_col, new_val
+                row_size, col_size = len(row), len(col)
+                aggregate = min
 
-            val = sanitize(val, prevent_upcasting=prevent_upcasting, convert=convert_val)
+            val = util.sanitize(val, prevent_upcasting=prevent_upcasting, convert=convert_val)
             val_size = np.size(val)
             max_size = max([row_size, col_size, val_size])
             if row_size == 1:
@@ -685,12 +176,10 @@ class Assoc:
             if min([row_size, col_size, val_size]) < max_size:
                 raise ValueError("Invalid input: row, col, val must have compatible lengths.")
 
-            row, col, val = aggregate(row, col, val, arg)
+            row, col, val = util.aggregate_triples(row, col, val, aggregate)
 
             null_indices = [index for index in range(np.size(val)) if val[index] in Assoc.null_values]
-            row = np.delete(row, null_indices)
-            col = np.delete(col, null_indices)
-            val = np.delete(val, null_indices)
+            row, col, val = np.delete(row, null_indices), np.delete(col, null_indices), np.delete(val, null_indices)
 
             # Array possibly empty after deletion of null values
             if row_size == 0 or col_size == 0 or np.size(val) == 0:
@@ -706,7 +195,7 @@ class Assoc:
 
                 # Check if numerical; numpy sorts numerical values to front, so only check last entry
                 assert isinstance(self.val, np.ndarray)
-                if is_numeric(self.val[-1]):
+                if util.is_numeric(self.val[-1]):
                     if prevent_upcasting:
                         self.adj = sparse.coo_matrix((val, (from_row, from_col)),
                                                      shape=(np.size(self.row), np.size(self.col)))
@@ -719,18 +208,431 @@ class Assoc:
                     val_indices = from_val + np.ones(np.size(from_val))
                     self.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int)
 
+    def is_canonical(self) -> bool:
+        """Determine if self is in canonical form. I.e.:
+            - No stored null entries.
+            - Every row (resp., col) key corresponds to a nonempty row (resp., column) in self.adj.
+            - self.row and self.col are sorted np.ndarrays and contain no duplicate values.
+            - self.adj is a sparse matrix in coo form with appropriate shape and dtype.
+            - self.val is either an np.ndarray or 1.0.
+        Moreover, if self is non-numerical, then additionally:
+            - Every value in self.val corresponds to an entry in self.adj.
+            - self.val is sorted and contains no duplicate values.
+            - Every datum in self.adj.data corresponds to an entry in self.val (i.e., self.adj.data only contains
+                elements of {1, 2, 3,..., len(self.val)}.
+        """
+        canonical = True
+
+        if not (isinstance(self.val, np.ndarray) or self.val == 1.0):
+            print('* self.val is not of valid type (np.ndarray or float).')
+            canonical = False
+        if not (isinstance(self.row, np.ndarray) and isinstance(self.col, np.ndarray)):
+            print('* self.row and/or self.col are not of valid type (np.ndarray).')
+            canonical = False
+        if not isinstance(self.adj, sparse.coo_matrix):
+            print('* self.adj is not of valid type (scipy.sparse.coo_matrix).')
+            canonical = False
+
+        # Check if self.row and self.col are sorted
+        if not util.np_sorted(self.row) or not util.np_sorted(self.col):
+            print('* self.row and/or self.col are not properly sorted.')
+            canonical = False
+
+        # Check if self.row or self.col have duplicate elements
+        row_set, col_set = set(self.row), set(self.col)
+        row_num, col_num = len(row_set), len(col_set)
+        if row_num != len(self.row) or col_num != len(self.col):
+            print('* self.row and/or self.col contain duplicate elements.')
+            canonical = False
+
+        # Check if self.adj has appropriate shape
+        if (row_num, col_num) != self.adj.shape:
+            print('* self.adj does not have shape matching self.row and self.col.')
+            canonical = False
+        if isinstance(self.adj, sparse.coo_matrix):
+            adj_row_set = set(self.adj.row)
+            adj_col_set = set(self.adj.col)
+            if row_num != len(adj_row_set) or col_num != len(adj_col_set):
+                print('* Empty rows or columns present in self.adj.')
+                canonical = False
+
+        # Check values for null values
+        if isinstance(self.val, float):
+            if np.isin(0, self.adj.data):
+                print('* Explicit zeros stored in self.adj.')
+                canonical = False
+        else:
+            assert isinstance(self.val, np.ndarray)
+            for null_value in Assoc.null_values:
+                if np.any(np.isin(null_value, self.val)):
+                    print('* Explicit null values stored in self.val (' + str(null_value) + ').')
+                    canonical = False
+
+            # Check if self.val is sorted
+            if not util.np_sorted(self.val):
+                print('* self.val is not properly sorted.')
+                canonical = False
+
+            # Check if self.val has duplicate elements
+            val_set = set(self.val)
+            val_num = len(val_set)
+            if val_num != len(self.val):
+                print('* self.val contains duplicate elements.')
+                canonical = False
+
+            # Check if self.adj contains appropriate data, i.e., integers between 1 and val_num
+            adj_min = self.adj.data.min()
+            adj_max = self.adj.data.max()
+            if self.adj.dtype != int or adj_min < 1 or adj_max > val_num:
+                print('dtype=' + str(self.adj.dtype) + '; min=' + str(adj_min) + '; max=' + str(adj_max))
+                print('* Values in self.adj are not all (1-indexed) indices of elements of self.val.')
+                canonical = False
+
+            # Check that every element of self.val arises
+            adj_val_set = set(self.adj.data)
+            if val_num != len(adj_val_set):
+                print('* Elements present in self.val which are not reflected in self.adj.')
+                canonical = False
+
+        return canonical
+
+    def dropzeros(self, copy: bool = False) -> Assoc:
+        """Return copy of Assoc without null values recorded.
+            Usage:
+                self.dropzeros()
+                self.dropzeros(copy=True)
+            Inputs:
+                copy = (Optional, default False) Boolean indicating whether operation is 'in-place' or if a copy of the
+                    Assoc instance is made for which the null values are dropped.
+            Outputs:
+                Associative subarray of self consisting only of non-null values
+            Notes:
+                - Null values include 0, '', and None
+        """
+        # If numerical, just use scipy.sparse's eliminate_zeros() and condense
+        if isinstance(self.val, float):
+            if not copy:
+                A = self
+            else:
+                A = self.deepcopy()
+
+            # Remove zeros and update row and col appropriately
+            A.adj.eliminate_zeros()
+            A.condense()
+        # Otherwise, manually remove and remake Assoc instance
+        else:
+            assert(isinstance(self.val, np.ndarray))
+            if not copy:
+                A = self
+            else:
+                A = self.deepcopy()
+
+            null_val_indices = [index for index in range(len(self.val)) if self.val[index] in Assoc.null_values]
+
+            # If there are no null values, immediately return original/copied associative array
+            if len(null_val_indices) == 0:
+                return A
+
+            new_data = util.update_indices(self.adj.data, null_val_indices, len(self.val), offset=1, mark=0)
+            if len(null_val_indices) == len(self.val):
+                return Assoc([], [], [])
+            else:
+                A.val = np.delete(A.val, null_val_indices)
+
+            adj_triples = zip(self.adj.row, self.adj.col, new_data)
+            good_row_keys = set()
+            good_col_keys = set()
+            for triple in adj_triples:
+                row_key, col_key, value = triple
+                if value != 0:
+                    good_row_keys.add(row_key)
+                    good_col_keys.add(col_key)
+
+            null_row_indices = [index for index in range(len(self.row)) if index not in good_row_keys]
+            if len(null_row_indices) == len(self.row):
+                return Assoc([], [], [])
+            else:
+                new_row_indices = util.update_indices(self.adj.row, null_row_indices, len(self.row), mark=0)
+                A.row = np.delete(A.row, null_row_indices)
+
+            null_col_indices = [index for index in range(len(self.col)) if index not in good_col_keys]
+            if len(null_col_indices) == len(self.col):
+                return Assoc([], [], [])
+            else:
+                new_col_indices = util.update_indices(self.adj.col, null_col_indices, len(self.col), mark=0)
+                A.col = np.delete(A.col, null_col_indices)
+
+            A.adj = sparse.coo_matrix((new_data, (new_row_indices, new_col_indices)), dtype=int,
+                                      shape=(len(A.row), len(A.col)))
+            A.adj.eliminate_zeros()
+
+        return A
+
+    # Remove row/col indices that do not appear in the data
+    def condense(self) -> Assoc:
+        """Remove items from self.row and self.col which do not correspond to values, according to self.adj.
+            Usage:
+                self.condense()
+            Output:
+                self = self.condense() = Associative array which removes all elements of self.row and self.col
+                        which are not associated with some (nonzero) value.
+            Notes:
+                - In-place operation.
+                - Elements of self.row or self.col which correspond to rows or columns of all 0's
+                    (but not '' or None) are removed.
+        """
+        row, col, _ = self.find()
+
+        # First do row, determine which indices in self.row show up in row, get index map, and select
+        present_row = np.isin(self.row, row)
+        index_map = np.nonzero(present_row)[0]
+
+        self.row = self.row[present_row]
+        self.adj = self.adj.tocsr()[index_map, :].tocoo()  # Removes indices corresponding to zero rows
+
+        # Col
+        present_col = np.isin(self.col, col)
+        index_map = np.nonzero(present_col)[0]
+
+        self.col = self.col[present_col]
+        self.adj = self.adj.tocsr()[:, index_map].tocoo()  # Removes indices corresponding to zero cols
+
+        # If self.row or self.col are now empty, make associative array empty
+        if np.size(self.row) == 0 or np.size(self.col) == 0:
+            self.row = np.array([])
+            self.col = np.array([])
+            self.val = 1.0
+            self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+
+        return self
+
+    # extension of condense() which also removes unused values
+    def deepcondense(self) -> Assoc:
+        """Remove values from self.val which are not reflected in self.adj."""
+
+        # If numerical, do nothing (no unused values)
+        if isinstance(self.val, float):
+            return self
+        else:
+            assert isinstance(self.val, np.ndarray)
+            used_values = set([self.val[datum - 1] for datum in self.adj.data])
+            unused_indices = [index for index in range(len(self.val)) if self.val[index] not in used_values]
+            self.adj.data = util.update_indices(self.adj.data, unused_indices, len(self.val), offset=1)
+            self.val = np.delete(self.val, unused_indices)
+
+            # If self.val is now empty, make associative array empty
+            if np.size(self.val) == 0:
+                self.row = np.array([])
+                self.col = np.array([])
+                self.val = 1.0
+                self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+
+            return self
+
+    def set_row(self, new_row: ArrayLike) -> Assoc:
+        """Replace current sorted array of row keys with new row keys. (in-place)
+            Usage:
+                self.set_row(new_row)
+            Input:
+                new_row = sequence of string or numerical values
+            Output:
+                self = Associative array with self.row replaced by np.unique(new_row) if new_row is compatible with
+                    the shape of self.adj
+            Notes:
+                - new_row is compatible with (row_dim, col_dim) = self.adj.shape if row_dim is at most the number of
+                    unique elements in new_row
+        """
+        new_row = util.sanitize(new_row)
+
+        row_dim, _ = self.adj.shape
+        true_row_size = len(set(new_row))
+        if true_row_size < row_dim:
+            raise ValueError('new_row is incompatible with the shape of self.adj.')
+        if true_row_size == len(new_row) and util.np_sorted(new_row):
+            self.row = new_row
+        else:
+            self.row = np.unique(new_row)
+
+        # Remove unused row keys, column keys, and values
+        self.condense()
+        self.deepcondense()
+
+        return self
+
+    def set_col(self, new_col: ArrayLike) -> Assoc:
+        """Replace current sorted array of column keys with new column keys. (in-place)
+            Usage:
+                self.set_col(new_col)
+            Input:
+                new_col = sequence of string or numerical values
+            Output:
+                self = Associative array with self.col replaced by np.unique(new_col) if new_col is compatible with
+                    the shape of self.adj
+            Notes:
+                - new_col is compatible with (row_dim, col_dim) = self.adj.shape if col_dim is at most the number of
+                    unique elements in new_col
+        """
+        new_col = util.sanitize(new_col)
+
+        _, col_dim = self.adj.shape
+        true_col_size = len(set(new_col))
+        if true_col_size < col_dim:
+            raise ValueError('new_col is incompatible with the shape of self.adj.')
+        if true_col_size == len(new_col) and util.np_sorted(new_col):
+            self.col = new_col
+        else:
+            self.col = np.unique(new_col)
+
+        # Remove unused row keys, column keys, and values
+        self.condense()
+        self.deepcondense()
+
+        return self
+
+    def set_val(self, new_val: ArrayLike) -> Assoc:
+        """Replace current sorted array of unique values with new values. (in-place)
+            Usage:
+                self.set_val(new_val)
+            Input:
+                new_val = value or sequence of values
+            Output:
+                self = Associative array with np.unique(new_val) replacing self.val if non-numerical or self.adj.data
+                    if numerical, where self.adj.data is treated as indices used to select from np.unique(new_val)
+            Notes:
+                - self.adj.data is converted to dtype=int to treat as indices
+        """
+        if new_val in Assoc.null_values:
+            self.row = np.array([])
+            self.col = np.array([])
+            self.val = 1.0
+            self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+            return self
+        else:
+            new_val = util.sanitize(new_val)
+
+            # Remove any null values from new_val
+            for null_value in Assoc.null_values:
+                if np.issubdtype(new_val.dtype, type(null_value)):
+                    new_val = new_val[np.where(new_val != null_value)]
+
+        self.adj.eliminate_zeros()
+        if len(new_val) == 1:
+            triple_num = len(self.adj.data)
+            if np.issubdtype(new_val.dtype, int) or np.issubdtype(new_val.dtype, float):
+                self.val = 1.0
+                self.adj = sparse.coo_matrix((np.full(triple_num, new_val[0]), (self.adj.row, self.adj.col)),
+                                             dtype=float)
+            else:
+                self.val = new_val
+                self.adj = sparse.coo_matrix((np.ones(triple_num), (self.adj.row, self.adj.col)), dtype=int)
+        else:
+            # Treat self.adj as containing indices of entries in new_val
+            true_val_size = len(set(new_val))
+            data_indices = self.adj.data.astype(int) - 1
+            min_index, max_index = data_indices.min(), data_indices.max()
+            if not (0 <= min_index and max_index < true_val_size):
+                raise ValueError('new_val is incompatible with the data in self.adj.')
+
+            if true_val_size != len(new_val) or not util.np_sorted(new_val):
+                new_val = np.unique(new_val)
+
+            if np.issubdtype(new_val.dtype, int) or np.issubdtype(new_val.dtype, float):
+                self.val = 1.0
+                self.adj = sparse.coo_matrix((new_val[data_indices], (self.adj.row, self.adj.col)), dtype=float)
+            else:
+                self.val = new_val[0:max_index+1]
+                self.adj = sparse.coo_matrix((data_indices + 1, (self.adj.row, self.adj.col)), dtype=int)
+
+        # Remove unused row keys, column keys, and values
+        print(self)
+        self.condense()
+        self.deepcondense()
+
+        return self
+
+    def set_adj(self, new_adj: sparse.spmatrix, numerical: bool = True) -> Assoc:
+        """Replace current adjacency array with new adjacency array. (in-place)
+            Usage:
+                self.set_adj(new_adj)
+            Input:
+                new_adj = A sparse matrix whose dimensions are at most that of self.adj
+                numerical = (Optional, default True) Boolean indicating if the resulting associative array
+                    should be treated as numerical, with new_adj containing the new (numerical) values. If
+                    numerical is set to False, then the values of new_adj are treated as indices of the actual
+                    values, stored in self.val, in which case floats are converted to ints as needed.
+            Output:
+                self = Associative array with given sparse matrix as adjacency array
+                    and row and column values cut down to fit the dimensions of the
+                    new adjacency array
+        """
+        if numerical is None:
+            numerical = True
+
+        row_size, col_size = new_adj.shape
+        if len(self.row) < row_size or len(self.col) < col_size:
+            raise ValueError('The shape of new_adj is incompatible with the sizes of self.row and/or self.col.')
+
+        if numerical:
+            self.val = 1.0
+            self.adj = new_adj.tocoo()
+        else:
+            self.adj = new_adj.astype(int)
+
+        # Remove unused row keys, column keys, and values
+        self.condense()
+        self.deepcondense()
+
+        return self
+
+    putrow, putcol, putval, putadj = set_row, set_col, set_val, set_adj
+    put_row, put_col, put_val, put_adj = set_row, set_col, set_val, set_adj
+
+    def __setitem__(self, key: Tuple[KeyVal, KeyVal], value: KeyVal) -> None:
+        """Add the triple (row_key, col_key, value) to associative array."""
+        row_key, col_key = key
+        if len(self.row) == 0:
+            # Handle empty associative array case
+            self.row = np.array([row_key])
+            self.col = np.array([col_key])
+
+            if util.is_numeric(value):
+                self.val = 1.0
+                self.adj = sparse.coo_matrix((np.array([value]), (np.array([0]), np.array([0]))))
+            else:
+                self.val = np.array([value])
+                self.adj = sparse.coo_matrix((np.array([1]), (np.array([0]), np.array([0]))), dtype=int)
+
+            return None
+        else:
+            self.row, new_adj_row = util.sorted_append(row_key, self.row, self.adj.row,
+                                                       new_entry_name='row_key', sorted_array_name='self.row')
+            self.col, new_adj_col = util.sorted_append(col_key, self.col, self.adj.col,
+                                                       new_entry_name='col_key', sorted_array_name='self.col')
+
+            # Reconstruct self.adj so shape and dtype are correct
+            if isinstance(self.val, float) and isinstance(value, Number):
+                new_adj_data = np.append(self.adj.data, value).astype(float)
+                self.adj = sparse.coo_matrix((new_adj_data, (new_adj_row, new_adj_col)))
+            else:
+                adjusted_data = self.adj.data - 1  # Decrement so indices are properly zero-indexed
+                self.val, new_adj_data = util.sorted_append(value, self.get_val(), adjusted_data,
+                                                            new_entry_name='value', sorted_array_name='self values')
+                new_adj_data += 1  # Increment indices to one-index
+                self.adj = sparse.coo_matrix((new_adj_data, (new_adj_row, new_adj_col)), dtype=int)
+
+            return None
+
     def find(self, ordering: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Get row, col, and val arrays that would generate the Assoc (reverse constructor).
-                Usage:
-                    self.find()
-                Input:
-                    self = Associative Array
-                    ordering = optional parameter to control the ordering of result.
-                                if 0, then order by row first, then column
-                                if 1, then order by column first, then row
-                                if None, no particular order is guaranteed
-                Output:
-                    row,col,val = numpy arrays for which self = Assoc(row, col, val)
+            Usage:
+                self.find()
+            Input:
+                ordering = (Optional, default None)
+                    - if 0, then order by row first, then column
+                    - if 1, then order by column first, then row
+                    - if None, no particular order is guaranteed
+            Output:
+                row,col,val = numpy arrays for which self = Assoc(row, col, val)
         """
         # Use self.adj to extract row, col, and val
         if ordering == 0:  # Order by row first, then column
@@ -763,7 +665,12 @@ class Assoc:
 
         return row, col, val
 
-    def to_dict(self) -> dict[KeyVal, dict[KeyVal, KeyVal]]:
+    def triples(self, ordering: Optional[int] = None) -> List[Tuple[KeyVal, KeyVal, KeyVal]]:
+        """Return list of triples of form (row_label,col_label,value)."""
+        row, col, val = self.find(ordering=ordering)
+        return list(zip(row, col, val))
+
+    def to_dict(self) -> Dict[KeyVal, Dict[KeyVal, KeyVal]]:
         """Return a dictionary satisfying self.to_dict[row_key][col_key] = value if and only if row_key col_key,
         value correspond to an entry of self."""
         row, col, val = self.find()
@@ -777,51 +684,48 @@ class Assoc:
 
         return adjacency_dict
 
-    def to_dict2(self) -> dict[Tuple[KeyVal, KeyVal], KeyVal]:
+    def to_dict2(self) -> Dict[Tuple[KeyVal, KeyVal], KeyVal]:
         """Return a dictionary satisfying self.to_dict2[(row_key, col_key)] = value if and only if row_key, col_key,
         value correspond to an entry of self."""
         row, col, val = self.find()
         return dict(zip(zip(row, col), val))
 
-    def getval(self) -> np.ndarray:
+    def get_row(self) -> np.ndarray:
+        return self.row
+
+    def get_col(self) -> np.ndarray:
+        return self.col
+
+    def get_val(self) -> np.ndarray:
         """Return numpy array of unique values."""
         if isinstance(self.val, float):
             return np.unique(self.adj.data)
         else:
             assert(isinstance(self.val, np.ndarray))
             return self.val
+        
+    def get_adj(self) -> sparse.coo_matrix:
+        return self.adj
 
-    def triples(self, ordering: Optional[int] = None) -> list[Tuple[KeyVal, KeyVal, KeyVal]]:
-        """Return list of triples of form (row_label,col_label,value)."""
-        row, col, val = self.find(ordering=ordering)
-        return list(zip(row, col, val))
-
-    def getvalue(self, row_key: KeyVal, col_key: KeyVal, indices: Optional[bool] = None,
-                 row_index: Optional[bool] = None, col_index: Optional[bool] = None) -> KeyVal:
+    def get_value(self, row_key: KeyVal, col_key: KeyVal, indices: bool = False,
+                  row_index: bool = False, col_index: bool = False) -> KeyVal:
         """Get the value in self corresponding to given row_key and col_key, otherwise return 0.
             Usage:
-                v = A.getvalue('a', 'B')
+                v = self.getvalue('a', 'B')
             Inputs:
-                A = self = Associative Array
                 row_key = row key (or index, see optional argument 'indices' below)
                 col_key = column key (or index, see optional argument 'indices' below)
                 indices = (Optional, default False) Boolean indicating whether row_key and col_key should be
-                            interpreted as indices instead of *actual* row and column keys, respectively.
+                    interpreted as indices instead of *actual* row and column keys, respectively.
                 row_index = (Optional, default False) 'indices', but only affecting the interpretation of row_key
                 col_index = (Optional, default False) 'indices', but only affecting the interpretation of col_key
             Output:
-                v = value of A corresponding to the pair (row_key, col_key),
-                    i.e., (row_key, col_key, v) is in A.triples()
+                v = value of self corresponding to the pair (row_key, col_key),
+                    i.e., (row_key, col_key, v) is in self.triples()
             Note:
                 'indices' supersedes 'row_index' and 'col_index', so if indices=True, then row_index and col_index are
-                set to True, regardless of if/how those latter optional arguments were set.
+                    set to True, regardless of if/how those latter optional arguments were set.
         """
-        if indices is None:
-            indices = False
-        if row_index is None:
-            row_index = False
-        if col_index is None:
-            col_index = False
         if indices:
             row_index = True
             col_index = True
@@ -855,128 +759,67 @@ class Assoc:
             return self.val[value_index]
 
     # Overload getitem; allows for subsref
-    def __getitem__(self, selection: Tuple[Union[str, int, slice, Callable, list[str], list[int]],
-                                           Union[str, int, slice, Callable, list[str], list[int]]]) -> 'Assoc':
+    def __getitem__(self, selection: Tuple[Selectable, Selectable]) -> Assoc:
         """Returns a sub-associative array of self according to object1 and object2 or corresponding value
             Usage:
-                B = A[row_select, col_select]
+                B = self[row_select, col_select]
             Inputs:
-                A = Associative Array
                 selection = tuple (row_select, col_select) where
-                    row_select = string of (delimiter separate) values (delimiter is last character)
+                    row_select = string of (delimiter separated) values (delimiter is last character)
                         or iterable or int or slice object or function
-                    col_select = string of (delimiter separate) values (delimiter is last character)
+                    col_select = string of (delimiter separated) values (delimiter is last character)
                         or iterable or int or slice object or function
-                        e.g., "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"),
-                            "a *,"
+                        e.g., "a,:,b,", "a,b,c,d,", ['a',':','b'], 3, [1,2], 1:2, startswith("a,b,"), :, ':,c,'
             Outputs:
-                B = sub-associative array of A whose row indices are selected by row_select and whose
+                B = sub-associative array of self whose row indices are selected by row_select and whose
                     column indices are selected by col_select, assuming not both of row_select, col_select are single
                     indices
-                B = value of A corresponding to single indices of row_select and col_select
+                B = value of self corresponding to single indices of row_select and col_select
             Examples:
-                A['a,:,b,', ['0', '1']]
-                A[1:2:1, 1]
+                self['a,:,b,', ['0', '1']]
+                self[1:2:1, 1]
             Note:
                 - Regular slices are NOT right end-point inclusive
-                - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e. includes b)
-                - Integer row_select or col_select, and by extension slices, do not reference A.row or A.col,
-                    but the induced indexing of the rows and columns
-                    e.g., A[:, 0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
-                        A[:, 0] will give the subarray consisting of the 0-th column
-                        A[2, 4] will give the value in the 2-nd row and 4-th column
+                - 'Slices' of the form "a,:,b," ARE right end-point inclusive (i.e., includes b)
+                - Integer row_select or col_select, and by extension slices, do not reference actual entries in
+                    self.row or self.col, but the induced indexing of the rows and columns
+                    e.g., self[:, 0:2] will give the subarray consisting of all rows and the columns col[0], col[1],
+                    self[:, 0] will give the subarray consisting of the 0-th column
+                    self[2, 4] will give the value in the 2-nd row and 4-th column
         """
-        keys = [self.row, self.col]
         row_select, col_select = selection
-        selection = [row_select, col_select]
+        new_row, row_index_map = util.select_items(row_select, self.row, return_indices=True)
+        new_col, col_index_map = util.select_items(col_select, self.col, return_indices=True)
 
-        # For each object, replace with corresponding array of row/col keys
-        for index in [0, 1]:
-            i_select = selection[index]
-            # If object is a single integer, replace with corresponding row/col key
-            if isinstance(i_select, int):
-                selection[index] = [keys[index][i_select]]
-                continue
-
-            # If object is an iterable of integers, replace with corresponding row/col keys
-            all_integers = True
-            if hasattr(i_select, '__iter__'):
-                for item in i_select:
-                    if not isinstance(item, int):
-                        all_integers = False
-                        break
-            else:
-                all_integers = False
-
-            if all_integers:
-                selection[index] = keys[index][i_select]
-                continue
-
-            # If object is a function on iterables returning list of indices, apply it
-            if callable(i_select):
-                selection[index] = keys[index][i_select(keys[index])]
-                continue
-
-            # If object is a slice object, convert to appropriate list of keys
-            if isinstance(i_select, slice):
-                selection[index] = keys[index][i_select]
-                continue
-
-            # If object is of form ":", convert to appropriate list of keys
-            if isinstance(i_select, str):
-                if i_select == ":":
-                    selection[index] = keys[index]
-                    continue
-
-            # Then, or otherwise, sanitize to get appropriate list of keys
-            i_select = sanitize(i_select)
-
-            # If resulting object is 'slice-like', replace with appropriate list of keys,
-            # getting all keys where i_select[0] <= element <= i_select[2]
-            # so find first index of key with i_select[0] <= key and first index of key with
-            # i_select[2] < key (so all earlier keys are <= i_select[2]).
-
-            if len(i_select) == 3 and i_select[1] == ":":
-                start_compare = (keys[index] >= i_select[0])
-                stop_compare = (keys[index] > i_select[2])
-                try:
-                    start_index = np.argwhere(start_compare)[0][0]
-                except IndexError:
-                    start_index = np.size(keys[index])
-                try:
-                    stop_index = np.argwhere(stop_compare)[0][0]
-                except IndexError:
-                    stop_index = np.size(keys[index])
-                selection[index] = keys[index][start_index:stop_index]
-
-            selection[index] = i_select
-
-        row_select, col_select = selection  # Now everything is a list of row/col keys
-
-        # Create new row, col, val triple to construct sub-assoc array
-        row_select = np.sort(row_select)
-        col_select = np.sort(col_select)
-
-        new_row, row_index_map = sorted_intersect(self.row, row_select, return_index_1=True)
-        new_col, col_index_map = sorted_intersect(self.col, col_select, return_index_1=True)
-
-        subarray = Assoc([], [], [])
-        subarray.row = np.array(new_row)
-        subarray.col = np.array(new_col)
-        subarray.val = self.val
-        subarray.adj = self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo()
-
+        subarray = Assoc(np.array(new_row), np.array(new_col), self.val,
+                         self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo(), aggregate='unique')
         subarray = subarray.condense()
         subarray = subarray.deepcondense()
 
         return subarray
 
-    def __setitem__(self, col_index: KeyVal, row_index: KeyVal, value: KeyVal):
-        return NotImplemented
+    def size(self) -> Tuple[int, int]:
+        """Returns dimensions of self."""
+        size1 = np.size(self.row)
+        size2 = np.size(self.col)
+        return size1, size2
+
+    def nnz(self) -> int:
+        """Count number of non-null entries."""
+        num_nonzero = self.adj.count_nonzero()
+        return num_nonzero
+
+    def __str__(self) -> str:
+        """Print formatted attributes."""
+        print_string = "Row indices: " + str(self.row) + "\n"
+        print_string += "Column indices: " + str(self.col) + "\n"
+        print_string += "Values: " + str(self.val) + "\n"
+        print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
+        return print_string
 
     # print tabular form
     def printfull(self) -> None:
-        """Print associative array in tabular form (non-pandas implementation)."""
+        """Print in tabular form."""
         if (isinstance(self.val, float) and np.size(self.adj.data) == 0) or np.size(self.val) == 0:
             print('Empty associative array.')
         else:
@@ -1095,169 +938,182 @@ class Assoc:
 
         return None
 
-    def spy(self) -> None:
+    def spy(self, rename_axes: bool = False, **pyplot_spy_kwargs) -> plt.Line2D:
         """Print spy plot of self.adj"""
-        plt.spy(self.adj, markersize=0.2, aspect='auto')
+        def bounded_interpolator(x, min_point, max_point):
+            x0, y0 = min_point
+            x1, y1 = max_point
+            return min(max(((y1 - y0)/(x1 - x0)) * (x - x0) + y0, y0), y1)
+
+        marker_size = bounded_interpolator(max(len(self.row), len(self.col)), (1000, .1), (1, 3))
+
+        assoc_spy = plt.spy(self.adj, markersize=marker_size, aspect='auto', **pyplot_spy_kwargs)
+
+        if rename_axes:
+            row_font_size = bounded_interpolator(len(self.row), (1000, .1), (1, 10))
+            col_font_size = bounded_interpolator(len(self.col), (1000, .1), (1, 10))
+
+            plt.xticks(range(len(self.row)), self.row, fontsize=row_font_size, rotation=45)
+            plt.yticks(range(len(self.col)), self.col, fontsize=col_font_size)
+
         plt.show()
-        return None
+        return assoc_spy
 
-    # Overload print
-    def __str__(self) -> str:
-        """Print the attributes of associative array."""
-        print_string = "Row indices: " + str(self.row) + "\n"
-        print_string += "Column indices: " + str(self.col) + "\n"
-        print_string += "Values: " + str(self.val) + "\n"
-        print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
-        return print_string
+    def copy(self) -> Assoc:
+        """Create a shallow copy of self."""
+        assoc_copy = Assoc(cpy.copy(self.row), cpy.copy(self.col), cpy.copy(self.val), self.adj.copy(),
+                           aggregate='unique')
+        return assoc_copy
 
-    def copy(self) -> 'Assoc':
-        """Create a copy of self."""
-        array_copy = Assoc([], [], [])
-        array_copy.row = self.row.copy()
-        array_copy.col = self.col.copy()
-        if isinstance(self.val, float):
-            array_copy.val = 1.0
+    def __copy__(self) -> Assoc:
+        return self.copy()
+
+    def deepcopy(self) -> Assoc:
+        """Create a deep copy of self."""
+        assoc_deepcopy = Assoc(cpy.deepcopy(self.row), cpy.deepcopy(self.col), cpy.deepcopy(self.val),
+                               cpy.deepcopy(self.adj), aggregate='unique')
+        return assoc_deepcopy
+
+    def __deepcopy__(self) -> Assoc:
+        return self.deepcopy()
+
+    def diag(self):
+        """Extract the diagonal of self as an associative array."""
+        # Get intersection of self.row and self.col
+        diagonal_keys, row_map, col_map = util.sorted_intersect(self.row, self.col, return_index=True)
+
+        # Build sub-matrix of self.adj by element-wise multiplying by 0,1-valued sparse matrix picking out true diagonal
+        dim = len(row_map)
+        if dim == 0:
+            return Assoc([], [], [])
         else:
-            assert isinstance(self.val, np.ndarray)
-            array_copy.val = self.val.copy()
-        array_copy.adj = self.adj.copy()
+            offset_diagonal = sparse.coo_matrix((np.ones(dim), (row_map, col_map)), dtype=int)
+            offset_square = self.adj.multiply(offset_diagonal).tocoo()
+            offset_square.eliminate_zeros()  # Just to be safe
 
-        return array_copy
+            # Extract the row and col indices that actually appear among diagonal entries
+            square_row, index_map = np.unique(offset_square.row, return_index=True)
+            square_col = offset_square.col[index_map]  # Same index_map works for offset_square.col & offset_square.data
+            if isinstance(self.val, float):
+                square_data = offset_square.data[index_map]
+                diag_val = 1.0
+                diag_dtype = float
+            else:
+                assert isinstance(self.val, np.ndarray)
+                square_data = index_map + 1
+                diag_val = np.unique(self.val[offset_square.data[index_map] - 1])
+                diag_dtype = int
 
-    def size(self) -> Tuple[int, int]:
-        """Returns dimensions of self."""
-        size1 = np.size(self.row)
-        size2 = np.size(self.col)
-        return size1, size2
+            dim = len(square_row)
+            diag_row, diag_col = self.row[square_row], self.col[square_col]  # Extract used row & column keys
+            diag_adj = sparse.coo_matrix((square_data, (np.arange(dim), np.arange(dim))), dtype=diag_dtype,
+                                         shape=(dim, dim))
 
-    def nnz(self) -> int:
-        """Count number of non-null entries."""
-        nnz = self.adj.count_nonzero()
-        return nnz
+            return Assoc(diag_row, diag_col, diag_val, diag_adj, aggregate='unique')
 
-    # Remove zeros/empty strings/None from being recorded
-    def dropzeros(self, copy: Optional[bool] = None) -> 'Assoc':
-        """Return copy of Assoc without null values recorded.
+    # replace all non-zero values with ones
+    def logical(self, copy: bool = True) -> Assoc:
+        """Replaces every non-zero value with 1.0
             Usage:
-                A.dropzeros()
-                A.dropzeros(copy=True)
-            Inputs:
-                self = Associative array
-                copy = (Optional, default False) Whether operation is 'in-place' or if a copy of the Assoc instance
-                    is made for which the null values are dropped.
-            Outputs:
-                Associative subarray of A consisting only of non-null values
-            Notes:
-                - Null values include 0, '', and None
+                self.logical()
+                self.logical(copy=False)
+            Input:
+                copy = (Optional, default True) Boolean indicating whether the operation is in-place or not
+            Output:
+                self.logical() = a copy of self with all non-zero values replaced with 1.0
+                self.logical(copy=False) = self with all non-zero values replaced with 1.0
         """
-        if copy is None:
-            copy = False
-
-        # If numerical, just use scipy.sparse's eliminate_zeros()
-        if isinstance(self.val, float):
-            if not copy:
-                A = self
-            else:
-                A = self.copy()
-
-            # Remove zeros and update row and col appropriately
-            A.adj.eliminate_zeros()
-            A.condense()
-        # Otherwise, manually remove and remake Assoc instance
-        else:
-            assert(isinstance(self.val, np.ndarray))
-            if not copy:
-                A = self
-            else:
-                A = self.copy()
-
-            null_val_indices = [index for index in range(len(self.val)) if self.val[index] in Assoc.null_values]
-            new_data = update_indices(self.adj.data, null_val_indices, len(self.val), offset=1, mark=0)
-            if len(null_val_indices) == len(self.val):
-                return Assoc([], [], [])
-            else:
-                A.val = np.delete(A.val, null_val_indices)
-
-            adj_triples = zip(self.adj.row, self.adj.col, new_data)
-            good_row_keys = set()
-            good_col_keys = set()
-            for triple in adj_triples:
-                row_key, col_key, value = triple
-                if value != 0:
-                    good_row_keys.add(row_key)
-                    good_col_keys.add(col_key)
-
-            null_row_indices = [index for index in range(len(self.row)) if index not in good_row_keys]
-            if len(null_row_indices) == len(self.row):
-                return Assoc([], [], [])
-            else:
-                new_row_indices = update_indices(self.adj.row, null_row_indices, len(self.row), mark=0)
-                A.row = np.delete(A.row, null_row_indices)
-
-            null_col_indices = [index for index in range(len(self.col)) if index not in good_col_keys]
-            if len(null_col_indices) == len(self.col):
-                return Assoc([], [], [])
-            else:
-                new_col_indices = update_indices(self.adj.col, null_col_indices, len(self.col), mark=0)
-                A.col = np.delete(A.col, null_col_indices)
-
-            A.adj = sparse.coo_matrix((new_data, (new_row_indices, new_col_indices)), dtype=int,
-                                      shape=(len(A.row), len(A.col)))
-            A.adj.eliminate_zeros()
-
+        A = self.dropzeros(copy=copy)
+        A.val = 1.0
+        A.adj.data[:] = 1.0
         return A
 
-    # Redefine adjacency array
-    def setadj(self, new_adj: sparse.spmatrix) -> 'Assoc':
-        """Replace the adjacency array of self with new_adj. (in-place)
-                Usage:
-                    A.setadj(new_adj)
-                Input:
-                    self = Associative array
-                    new_adj = A sparse matrix whose dimensions are at least that of self.
-                Output:
-                    self = Associative array with given sparse matrix as adjacency array
-                        and row and column values cut down to fit the dimensions of the
-                        new adjacency array
+    def transpose(self, copy: bool = True) -> Assoc:
+        """Transpose array, switching self.row and self.col and transposing self.adj."""
+        if copy:
+            transposed = Assoc(cpy.copy(self.col), cpy.copy(self.row), cpy.copy(self.val),
+                               self.adj.transpose().copy(), aggregate='unique')
+        else:
+            self.row, self.col = self.col, self.row
+            self.adj = self.adj.transpose()
+            transposed = self
+        return transposed
+
+    # Eliminate columns
+    def nocol(self, copy: bool = True) -> Assoc:
+        """Eliminate columns.
+            Usage:
+                self.nocol()
+                self.nocol(copy=False)
+            Input:
+                copy = (Optional, default True) Boolean indicating whether operation should be in-place
+            Output:
+                self.nocol() = Associative array with same row indices as self and single column index 0.
+                            The i-th row of self.nocol() is 1 only when the i-th row of self had a non-zero entry.
+                self.nocol(copy=False) = in-place version
         """
-        self.val = 1.0
-
-        # Get shape of new_adj and cut down self.row/self.col to size
-        (row_size, col_size) = new_adj.shape
-
-        if np.size(self.row) < row_size or np.size(self.col) < col_size:
-            raise ValueError("new_adj is too large for existing row and column indices.")
+        if copy:
+            self_ = self.deepcopy()
         else:
-            self.row = self.row[0:row_size]
-            self.col = self.col[0:col_size]
-            self.adj = new_adj.tocoo()
+            self_ = self
 
-        return self
+        # Condense and extract remaining row keys
+        self_.dropzeros()
+        self_.condense()
+        if len(self_.row) == 0 or len(self_.col) == 0:
+            return Assoc([], [], [])
 
-    # Get diagonal; output as a numpy array
-    def diag(self):
-        """ Output the diagonal of self.arg as a numpy array. """
-        enc_diag = self.adj.diagonal()
-        if isinstance(self.val, float):
-            diag = enc_diag
+        length = len(self_.row)
+        self_.col = np.array([0])
+        self_.val = 1.0
+        self_.adj = sparse.coo_matrix((np.ones(length),
+                                       (np.arange(0, length, dtype=int), np.zeros(length, dtype=int))))
+
+        return self_
+
+    # Eliminate rows
+    def norow(self, copy: bool = True):
+        """Eliminate rows.
+            Usage:
+                self.norow()
+                self.norow(copy=False)
+            Input:
+                copy = (Optional, default True) Boolean indicating whether operation should be in-place
+            Output:
+                self.norow() = Associative array with same col indices as self and single row index 0.
+                            The i-th col of self.norow() is 1 only when the i-th col of self had a non-zero entry.
+                self.norow(copy=False) = in-place version
+        """
+        if copy:
+            self_ = self.deepcopy()
         else:
-            # Append 0 to the start of self.val so that indices of enc_diag match up
-            inc_val = np.append(np.zeros(1), self.val)
-            diag = inc_val[enc_diag]
-        return diag
+            self_ = self
 
-    def sum(self, axis: Optional[int] = None) -> Union[float, 'Assoc']:
+        # Condense and extract remaining row keys
+        self_.dropzeros()
+        self_.condense()
+        if len(self_.row) == 0 or len(self_.col) == 0:
+            return Assoc([], [], [])
+
+        length = len(self_.col)
+        self_.row = np.array([0])
+        self_.val = 1.0
+        self_.adj = sparse.coo_matrix((np.ones(length),
+                                       (np.zeros(length, dtype=int), np.arange(0, length, dtype=int))))
+
+        return self_
+
+    def sum(self, axis: Optional[int] = None) -> Union[float, Assoc]:
         """Sum over the given axis or over whole array if None.
-                Usage:
-                    A.sum()
-                    A.sum(0)
-                    A.sum(1)
-                Input:
-                    self = Associative array
-                    axis = 0 if summing down columns, 1 if summing across rows, and None if over whole array
-                Output:
-                    A.sum() = sum of all entries in A (or A.nnz() if A has non-numerical entries)
-                    A.sum(axis) = Associative array resulting from summing over indicated axis
+            Usage:
+                self.sum()
+                self.sum(0)
+                self.sum(1)
+            Input:
+                axis = 0 if summing down columns, 1 if summing across rows, and None if over whole array
+            Output:
+                self.sum() = sum of all entries in self (or self.nnz() if self has non-numerical entries)
+                self.sum(axis) = Associative array resulting from summing over indicated axis
         """
         # If any of the values are strings, convert to logical
         # In this case, the adjacency array is the desired sparse matrix to sum over
@@ -1272,822 +1128,919 @@ class Assoc:
 
         # Depending on axis, build associative array
         if axis is None:
-            A = summed_sparse
+            return summed_sparse
         elif axis == 1:
-            A = Assoc([], [], [])
-            A.row = self.row.copy()
-            A.col = np.array([0])
-            A.val = 1.0
-            A.adj = sparse.coo_matrix(summed_sparse)
-
+            A = Assoc(self.row.copy(), np.array([0]), 1.0, sparse.coo_matrix(summed_sparse), aggregate='unique')
         elif axis == 0:
-            A = Assoc([], [], [])
-            A.row = np.array([0])
-            A.col = self.col.copy()
-            A.val = 1.0
-            A.adj = sparse.coo_matrix(summed_sparse)
+            A = Assoc(np.array([0]), self.col.copy(), 1.0, sparse.coo_matrix(summed_sparse), aggregate='unique')
         else:
             A = None
 
+        A.condense()
+        A.deepcondense()
+
         return A
 
-    # replace all non-zero values with ones
-    def logical(self, copy: Optional[bool] = None):
-        """Replaces every non-zero value with 1.0
-                Usage:
-                    A.logical()
-                    A.logical(copy=False)
-                Input:
-                    self = Associative array
-                    copy = boolean indicating whether the operation is in-place or not
-                Output:
-                    self.logical() = a copy of self with all non-zero values replaced with 1.0
-                    self.logical(copy=False) = self with all non-zero values replaced with 1.0
+    def combine(self, other: Assoc, binary_op: Callable[[KeyVal, KeyVal], KeyVal],
+                right_zero: bool = False, left_zero: bool = False, zero: Optional[KeyVal] = None) -> Assoc:
+        """Generic method for combining two associative arrays according to a given binary operation binary_op.
+            Inputs:
+                other = associative array
+                binary_op = binary operation compatible with the entries in self & other
+                right_zero = (Optional, default False) Boolean indicating whether the operation
+                    'binary_op(value, 0)' must occur for values corresponding to entries in self
+                left_zero = (Optional, default False) Boolean indicating whether the operation
+                    'binary_op(0, value)' must occur for values corresponding to entries in other
+                zero = (Optional, default None) modifies the computations in right_zero and/or left_zero to
+                    'binary_op(value, zero)' and/or 'binary_op(zero, value)', respectively. E.g., zero = ''. If
+                    zero is None, then the value of None is inferred from the dtypes of self and other.
+            Output:
+                self.combine(other, binary_op) = associative array combining entries from both associative arrays
+                    according to the binary operation binary_op, with optional added support for handling
+                    entries of self or other which do not have corresponding entries in other or self, resp.
+            Notes:
+                - If the optional Booleans right_zero and/or left_zero are utilized, binary_op must support the
+                    computations 'binary_op(value, zero)' and/or 'binary_op(zero, value)', respectively, where zero is
+                    inferred from the dtypes of self.val and other.val (zero='' if strings, 0 if numerical) if not
+                    explicitly given.
+                - If one of self.val and other.val has string data while the other has numerical data, the numerical
+                    data is automatically converted into string data.
         """
-        A = self.dropzeros(copy=copy)
-        A.val = 1.0
-        A.adj.data[:] = 1.0
-        return A
+        self_row, self_col, self_val = self.find()
+        other_row, other_col, other_val = other.find()
+        if (np.issubdtype(self_row.dtype, other_row.dtype) or np.issubdtype(other_row.dtype, self_row.dtype)) \
+                and (np.issubdtype(self_col.dtype, other_col.dtype) or np.issubdtype(other_col.dtype, self_col.dtype)) \
+                and (np.issubdtype(self_val.dtype, other_val.dtype) or np.issubdtype(other_val.dtype, self_val.dtype)):
+            pass
+        else:
+            warnings.warn('Combining associative arrays whose rows, cols, or vals have incompatible dtypes may result'
+                          'in silent upcasting, e.g., float + str -> str.')
+        new_row = np.append(self_row, other_row)
+        new_col = np.append(self_col, other_col)
+        new_val = np.append(self_val, other_val)
+
+        if zero is None:
+            if np.issubdtype(new_val.dtype, np.number):
+                zero = 0
+            else:
+                zero = ''
+
+        if right_zero or left_zero:
+            self_dict = self.to_dict2()
+            other_dict = other.to_dict2()
+            if right_zero:
+                # Post-append triples from self (with no corresponding triple in other) with values set to 0
+                self_zero_keys = [key_pair for key_pair in self_dict.keys() if key_pair not in other_dict.keys()]
+                self_zero_row = np.array([key_pair[0] for key_pair in self_zero_keys])
+                self_zero_col = np.array([key_pair[1] for key_pair in self_zero_keys])
+                new_row = np.append(new_row, self_zero_row)
+                new_col = np.append(new_col, self_zero_col)
+                new_val = np.append(new_val, np.full(len(self_zero_keys), zero))
+            if left_zero:
+                # Pre-append triples from other (with no corresponding triple in self) with values set to 0
+                other_zero_keys = [key_pair for key_pair in other_dict.keys() if key_pair not in self_dict.keys()]
+                other_zero_row = np.array([key_pair[0] for key_pair in other_zero_keys])
+                other_zero_col = np.array([key_pair[1] for key_pair in other_zero_keys])
+                new_row = np.append(other_zero_row, new_row)
+                new_col = np.append(other_zero_col, new_col)
+                new_val = np.append(np.full(len(other_zero_keys), zero), new_val)
+
+        return Assoc(new_row, new_col, new_val, aggregate=binary_op)
+
+    def semiring_prod(self, other: Assoc, semi_add: Callable[[KeyVal, KeyVal], KeyVal],
+                      semi_mult: Callable[[KeyVal, KeyVal], KeyVal]) -> Assoc:
+        """Array multiplication taken with respect to given semiring addition and semiring multiplication operations.
+            Note:
+                - semi_add and semi_mult are assumed to obey the semiring axioms, i.e., semi_add is assumed to be
+                    commutative, associative, has abstract null as identity; semi_mult is assumed to be associative,
+                    has abstract null as annihilator, and distributes over semi_add.
+        """
+        # Not fully implemented
+        # TODO: Decide how to handle semi_add's identity not being considered null w.r.t. semi_mult computations.
+
+        # Intersect self.col and other.row
+        intersection, index_map_1, index_map_2 = util.sorted_intersect(self.col, other.row, return_index=True)
+        self_trimmed = self[:, index_map_1]
+        other_trimmed = other[index_map_2, :]
+        self_trimmed_adj = self_trimmed.adj.tocsr()
+        other_trimmed_adj = other_trimmed.adj.tocsc()
+
+        row_size = len(self_trimmed.row)
+        col_size = len(other_trimmed.col)
+
+        rows = [self_trimmed_adj.indices[self_trimmed_adj.indptr[row_index]:
+                                         self_trimmed_adj.indptr[row_index+1]]
+                for row_index in range(row_size)]
+        cols = [other_trimmed_adj.indices[other_trimmed_adj.indptr[col_index]:
+                                          other_trimmed_adj.indptr[col_index+1]]
+                for col_index in range(col_size)]
+
+        row_sets = [set(row) for row in rows]
+        col_sets = [set(col) for col in cols]
+
+        new_row = list()
+        new_col = list()
+        new_val = list()
+
+        for row_index in range(row_size):
+            for col_index in range(col_size):
+                intersect = row_sets[row_index].intersection(col_sets[col_index])
+                if len(intersect) != 0:
+                    indices = np.intersect1d(rows[row_index], cols[col_index], assume_unique=True)
+                    sum_prod = 0
+                    for i in range(len(indices)):
+                        inter_index = indices[i]
+
+                        if isinstance(self_trimmed.val, float):
+                            row_value = self_trimmed_adj[row_index, inter_index]
+                        else:
+                            assert isinstance(self_trimmed.val, np.ndarray)
+                            row_value = self_trimmed.val[self_trimmed_adj[row_index, inter_index]-1]
+
+                        if isinstance(other_trimmed.val, float):
+                            col_value = other_trimmed_adj[inter_index, col_index]
+                        else:
+                            assert isinstance(other_trimmed.val, np.ndarray)
+                            col_value = other_trimmed.val[other_trimmed_adj[inter_index, col_index]-1]
+
+                        sum_prod = semi_add(sum_prod, semi_mult(row_value, col_value))
+
+                    new_row.append(self_trimmed.row[row_index])
+                    new_col.append(other_trimmed.col[col_index])
+                    new_val.append(sum_prod)
+                else:
+                    pass
+
+        return Assoc(new_row, new_col, new_val)
 
     # Overload element-wise addition
-    def __add__(self, B: 'Assoc') -> 'Assoc':
-        """Element-wise addition of self and B, matched up by row and column indices.
-                Usage:
-                    A + B
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A + B =
-                        * element-wise sum of A and B (if both A and B are numerical)
-                        * element-wise concatenation of entries of A and B (if neither A nor B are numerical)
-                Note:
-                    - If one argument is non-numerical and the other is, the non-numerical array has .logical() called
-                        prior to addition. This may produce undesired results!
+    def __add__(self, other: Assoc) -> Assoc:
+        """Element-wise addition of self and other, matched up by row and column indices.
+            Usage:
+                self + other
+            Input:
+                other = Associative array
+            Output:
+                self + other =
+                    - element-wise sum of self and other (if both are numerical)
+                    - element-wise concatenation of entries of self and other (if neither are numerical)
+            Note:
+                - If one argument is non-numerical and the other is, the non-numerical array has .logical() called
+                    prior to addition. This may produce undesired results!
         """
-        A = self
-
-        if isinstance(A.val, float) and isinstance(B.val, float):
+        if isinstance(self.val, float) and isinstance(other.val, float):
             # Take union of rows and cols while keeping track of indices
-            row_union, row_index_A, row_index_B = sorted_union(A.row, B.row, return_index=True)
-            col_union, col_index_A, col_index_B = sorted_union(A.col, B.col, return_index=True)
+            row_union, row_index_self, row_index_other = util.sorted_union(self.row, other.row, return_index=True)
+            col_union, col_index_self, col_index_other = util.sorted_union(self.col, other.col, return_index=True)
 
-            row = np.append(row_index_A[A.adj.row], row_index_B[B.adj.row])
-            col = np.append(col_index_A[A.adj.col], col_index_B[B.adj.col])
-            val = np.append(A.adj.data, B.adj.data)
+            row = np.append(row_index_self[self.adj.row], row_index_other[other.adj.row])
+            col = np.append(col_index_self[self.adj.col], col_index_other[other.adj.col])
+            val = np.append(self.adj.data, other.adj.data)
 
             # Make sparse matrix and sum duplicates
-            C = Assoc([], [], [])
-            C.row = row_union
-            C.col = col_union
-            C.val = 1.0
-            C.adj = sparse.coo_matrix((val, (row, col)),
-                                      shape=(np.size(row_union), np.size(col_union)))
-            C.adj.sum_duplicates()
-            C.dropzeros()
+            summed = Assoc(row_union, col_union, 1.0,
+                           sparse.coo_matrix((val, (row, col)), shape=(len(row_union), len(col_union))),
+                           aggregate='unique')
+            summed.adj.sum_duplicates()
+            summed.dropzeros()
         else:
-            # Take union of rows, cols, and vals
-            rowA, colA, valA = A.find()
-            rowB, colB, valB = B.find()
-            row = np.append(rowA, rowB)
-            col = np.append(colA, colB)
-            val = np.append(valA, valB)
+            # If one associative array is numerical (and the other is necessarily not), convert other via .logical()
+            warning_message = 'When adding numerical and non-numerical associative arrays, the latter is converted' \
+                              + 'via .logical(). This may produce undesired results!'
+            self_ = self
+            if isinstance(self.val, float) and len(self.row) > 0:  # Check numerical AND nonempty
+                other = other.logical(copy=True)
+                warnings.warn(warning_message)
+            if isinstance(other.val, float) and len(other.row) > 0:
+                self_ = self.logical(copy=True)
+                warnings.warn(warning_message)
 
-            # Construct with min as collision function
-            C = Assoc(row, col, val, 'add')
+            summed = self_.combine(other, util.add)
+        return summed
 
-        return C
+    def __sub__(self, other: Assoc) -> Assoc:
+        """Take arithmetic difference of numerical associative arrays and set difference otherwise."""
+        # If both associative arrays are numerical, compute the element-wise arithmetic difference.
+        if isinstance(self.val, float) and isinstance(other.val, float):
+            other = other.deepcopy()
+            other.adj.data = -other.adj.data
 
-    def __sub__(self, B: 'Assoc') -> 'Assoc':
-        """Subtract array B from array A=self, i.e. A-B."""
-        A = self
-        C = B.copy()
+            return self + other
+        else:
+            # Otherwise, delete from self any entries having a corresponding non-null entry in other
+            def _minus(object_1, object_2):
+                if object_1 not in Assoc.null_values and object_2 in Assoc.null_values:
+                    return object_1
+                else:
+                    # Try to pick the 'correct' null value
+                    if util.is_numeric(object_1):
+                        return 0
+                    elif isinstance(object_1, str):
+                        return ''
+                    else:
+                        return None
 
-        # If not numerical, convert to logical
-        if not isinstance(A.val, float):
-            A = A.logical(copy=True)
-        if not isinstance(B.val, float):
-            C = C.logical(copy=True)
-
-        # Negate second array argument's numerical data
-        C.adj.data = -C.adj.data
-
-        D = A + C
-        return D
+            return self.combine(other, _minus, right_zero=True, left_zero=True)
 
     # Overload matrix multiplication
-    def __mul__(self, B: Union[float, 'Assoc']) -> 'Assoc':
+    def __mul__(self, other: Union[int, float, Assoc]) -> Assoc:
         """Array multiplication of A and B, with A's column indices matched up with B's row indices
-                Usage:
-                    A * B
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A * B = array multiplication of A and B
-                Note:
-                    - When either A or B are non-numerical the .logical() method is run on them.
-        """
-        A = self
-        # If either A=self or B are not numerical, replace with logical()
-        if not isinstance(A.val, float):
-            A = A.logical()
-        if not isinstance(B.val, float):
-            B = B.logical()
-
-        # Convert to CSR format for better performance
-        A_sparse = A.adj.tocsr()
-        B_sparse = B.adj.tocsr()
-
-        # Intersect A.col and B.row
-        intersection, index_map_1, index_map_2 = sorted_intersect(A.col, B.row, return_index=True)
-
-        # Get appropriate sub-matrices
-        A_sparse = A_sparse[:, index_map_1]
-        B_sparse = B_sparse[index_map_2, :]
-
-        # Multiply sparse matrices
-        AB_sparse = A_sparse * B_sparse
-
-        # Construct Assoc array
-        AB = Assoc([], [], [])  # Construct empty array
-        AB.row = A.row
-        AB.col = B.col
-        AB.val = 1.0
-        AB.adj = AB_sparse.tocoo()
-
-        return AB
-
-    # element-wise multiplication
-    def multiply(self, B: 'Assoc') -> 'Assoc':
-        """Element-wise multiplication of self and B, matched up by row and column indices.
-                Usage:
-                    A.multiply(B)
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A + B = element-wise product of A and B
-                Note:
-                    - When either A or B are non-numerical the .logical() method is run on them.
-        """
-
-        A = self
-        # Only multiply if both numerical, so logical() as appropriate
-        if not isinstance(B.val, float):
-            B = B.logical()
-        if not isinstance(A.val, float):
-            A = A.logical()
-
-        row_int, row_index_A, row_index_B = sorted_intersect(A.row, B.row, return_index=True)
-        col_int, col_index_A, col_index_B = sorted_intersect(A.col, B.col, return_index=True)
-
-        C = Assoc([], [], [])
-        C.row = row_int
-        C.col = col_int
-        C.val = 1.0
-        Asub = A.adj.tocsr()[:, col_index_A][row_index_A, :]
-        Bsub = B.adj.tocsr()[:, col_index_B][row_index_B, :]
-        C.adj = Asub.multiply(Bsub).tocoo()
-
-        return C
-
-    def transpose(self, copy: Optional[bool] = None) -> 'Assoc':
-        """Transpose array, switching self.row and self.col and transposing self.adj."""
-        if copy is None:
-            copy = True
-        else:
-            copy = False
-
-        if copy:
-            A = Assoc([], [], [])
-            A.row = self.col.copy()
-            A.col = self.row.copy()
-            if isinstance(self.val, float):
-                A.val = 1.0
-            else:
-                assert isinstance(self.val, np.ndarray)
-                A.val = self.val.copy()
-            A.adj = self.adj.copy().transpose()
-        else:
-            A = self
-            temp = self.row.copy()
-            self.row = self.col
-            self.col = temp
-            self.adj = self.adj.transpose()
-
-        return A
-
-    # Remove row/col indices that do not appear in the data
-    def condense(self) -> 'Assoc':
-        """Remove items from self.row and self.col which do not correspond to values, according to self.adj.
-                Usage:
-                    A.condense()
-                    B = A.condense()
-                Input:
-                    self = Associative array
-                Output:
-                    self = self.condense() = Associative array which removes all elements of self.row and self.col
-                            which are not associated with some (nonzero) value.
-                Notes:
-                    - In-place operation.
-                    - Elements of self.row or self.col which correspond to rows or columns of all 0's
-                        (but not '' or None) are removed.
-        """
-        row, col, _ = self.find()
-
-        # First do row, determine which indices in self.row show up in row, get index map, and select
-        present_row = np.isin(self.row, row)
-        index_map = np.where(present_row)[0]
-
-        self.row = self.row[present_row]
-        self.adj = self.adj.tocsr()[index_map, :].tocoo()  # Removes indices corresponding to zero rows
-
-        # Col
-        present_col = np.isin(self.col, col)
-        index_map = np.where(present_col)[0]
-
-        self.col = self.col[present_col]
-        self.adj = self.adj.tocsr()[:, index_map].tocoo()  # Removes indices corresponding to zero cols
-
-        return self
-
-    # extension of condense() which also removes unused values
-    def deepcondense(self) -> 'Assoc':
-        """Remove values from self.val which are not reflected in self.adj."""
-
-        # If numerical, do nothing (no unused values)
-        if isinstance(self.val, float):
-            return self
-        else:
-            # Otherwise, re-run corresponding part of constructor
-
-            # Get actually-used row,col,val
-            row, col, val = self.find()
-
-            # Get unique sorted row, column indices and values
-            self.row, from_row = np.unique(row, return_inverse=True)
-            self.col, from_col = np.unique(col, return_inverse=True)
-            self.val, from_val = np.unique(val, return_inverse=True)
-
-            # Remake adjacency array
-            val_indices = from_val + np.ones(np.size(from_val))
-            self.adj = sparse.coo_matrix((val_indices, (from_row, from_col)), dtype=int,
-                                         shape=(np.size(self.row), np.size(self.col)))
-
-            # If self.val is now empty, replace with 1.0
-            if np.size(self.val) == 0:
-                self.val = 1.0
-
-            return self
-
-    # Eliminate columns
-    def nocol(self, copy: Optional[bool] = None) -> 'Assoc':
-        """Eliminate columns.
             Usage:
-                A.nocol()
-                A.nocol(copy=False)
+                self * other
             Input:
-                copy = boolean indicating whether operation should be in-place
+                other = Associative array
             Output:
-                A.nocol() = Associative array with same row indices as A and single column index 0.
-                            The i-th row of A.nocol() is 1 only when the i-th row of A had a non-zero entry.
-                A.nocol(copy=False) = in-place version
+                self * other = array multiplication of self and other
+            Note:
+                - When either self or other are non-numerical the .logical() method is run on them.
         """
-        if copy is None:
-            copy = True
-        else:
-            copy = False
-
-        if copy:
-            A = self.copy()
-        else:
-            A = self
-
-        # Take logical, sum over rows, then logical again
-        A.logical(copy=False)
-        A = A.sum(1)
-        A.logical(copy=False)
-        A.col = np.array([0])
-
-        return A
-
-    # Eliminate rows
-    def norow(self, copy: Optional[bool] = None):
-        """Eliminate rows.
-            Usage:
-                A.norow()
-                A.norow(copy=False)
-            Input:
-                copy = boolean indicating whether operation should be in-place
-            Output:
-                A.norow() = Associative array with same col indices as A and single row index 0.
-                            The i-th col of A.norow() is 1 only when the i-th col of A had a non-zero entry.
-                A.norow(copy=False) = in-place version
-        """
-        if copy is None:
-            copy = True
-        else:
-            copy = False
-
-        if copy:
-            A = self.copy()
-        else:
-            A = self
-
-        # Take logical, sum over cols, then logical again
-        A.logical(copy=False)
-        A = A.sum(0)
-        A.logical(copy=False)
-        A.row = np.array([0])
-
-        return A
-
-    # element-wise division -- for division by zero, replace with 0 (and remove)
-    def divide(self, B: 'Assoc') -> 'Assoc':
-        """Element-wise division of self and B, matched up by row and column indices.
-                Usage:
-                    A.divide(B)
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A.divide(B) = element-wise quotient of A by B
-                Note:
-                    - Removes all explicit zeros and ignores division by zero
-                    - Implicitly runs .logical() method on non-numerical arrays
-        """
-
-        Binv = B.dropzeros(copy=True)
-        Binv.adj.data = np.reciprocal(Binv.adj.data.astype(float, copy=False))
-
-        C = self.multiply(Binv)
-
-        return C
-
-    # element-wise And
-    def __and__(self, B: 'Assoc') -> 'Assoc':
-        """Element-wise logical AND of self and B, matched up by row and column indices.
-                Usage:
-                    A & B
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A & B = element-wise logical AND of A.logical() and B.logical()
-        """
-
-        A = self.logical(copy=True)
-        B = B.logical(copy=True)
-
-        C = A.multiply(B)
-        return C
-
-    # element-wise or
-    def __or__(self, B: 'Assoc') -> 'Assoc':
-        """Element-wise logical OR of self and B, matched up by row and column indices.
-                Usage:
-                    A | B
-                Input:
-                    A = self = Associative array
-                    B = Associative array
-                Output:
-                    A | B = element-wise logical OR of A.logical() and B.logical()
-        """
-
-        A = self.logical(copy=True)
-        B = B.logical(copy=True)
-
-        C = A + B
-        C = C.logical(copy=False)
-        return C
-
-    def sqin(self) -> 'Assoc':
-        """ self.transpose() * self """
-        return self.transpose() * self
-
-    def sqout(self) -> 'Assoc':
-        """ self * self.transpose() """
-        return self * self.transpose()
-
-    # CatKeyMul
-    def catkeymul(self, B: 'Assoc', delimiter: Optional[str] = None) -> 'Assoc':
-        """Computes the array product, but values are delimiter-separated string list of
-                the row/column indices which contribute to the value in the product
-                Usage:
-                    A.catkeymul(B)
-                    A.catkeymul(B,delimiter)
-                Input:
-                    A = Associative array
-                    B = Associative Array
-                    delimiter = optional delimiter to separate the row/column indices. Default is semi-colon ';'
-                Output:
-                    A.catkeymul(B) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
-                        of A.logical() * B.logical()  is not null, in which case that entry is the string list of
-                        the k-indices for which A[i,k] and B[k,j] were non-zero.
-        """
-        A = self
-        intersection = sorted_intersect(A.col, B.row)
-
-        Alog = A[:, intersection].logical()
-        Blog = B[intersection, :].logical()
-        C = Alog * Blog
-
-        intersection = np.array([str(item) for item in intersection])
-
-        row, col, val = C.find()
-        catval = np.zeros(np.size(row), dtype=object)
-
-        if delimiter is None:
-            delimiter = ';'
-
-        # Create dictionaries for faster lookups
-        row_ind = {C.row[index]: index for index in range(np.size(C.row))}
-        col_ind = {C.col[index]: index for index in range(np.size(C.col))}
-
-        rows = Alog.adj.tolil().rows
-        cols = Blog.adj.transpose().tolil().rows
-
-        # Enumerate all the row/col key lists to be intersected
-        row_keys = {r: intersection[rows[row_ind[r]]] for r in C.row}
-        col_keys = {c: set(intersection[cols[col_ind[c]]]) for c in C.col}  # Use set for O(1) lookup
-
-        # Instantiate dictionary to hold already-calculated intersections
-        cat_inters = dict()
-
-        for i in range(np.size(row)):
-            r = row[i]
-            c = col[i]
-            if (r, c) in cat_inters:
-                catval[i] = cat_inters[(r, c)]
-            else:
-                catval[i] = delimiter.join([item for item in row_keys[r]
-                                            if item in col_keys[c]]) + delimiter
-                cat_inters[(r, c)] = catval[i]
-
-        D = Assoc(row, col, catval, add)
-
-        return D
-
-    def catvalmul(self, B: 'Assoc', pair_delimiter: Optional[str] = None, delimiter: Optional[str] = None) -> 'Assoc':
-        """Computes the array product, but values are delimiter-separated string list of
-                the values of A and B which contribute to the value in the product
-                Usage:
-                    A.catvalmul(B)
-                    A.catvalmul(B,pair_delimiter=given1,delimiter=given2)
-                Input:
-                    A = Associative array
-                    B = Associative Array
-                    pair_delimiter = optional delimiter to separate the values in A and B. Default is comma ','
-                    delimiter = optional delimiter to separate the value pairs. Default is semi-colon ';'
-                Output:
-                    A.catvalmul(B) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
-                        of A.logical() * B.logical()  is not null, in which case that entry is the string list of
-                        the non-trivial value pairs 'A[i,k],B[k,j],'.
-        """
-        A = self
-
-        intersection = sorted_intersect(A.col, B.row)
-
-        Alog = A[:, intersection].logical()
-        Blog = B[intersection, :].logical()
-        C = Alog * Blog
-
-        row, col, val = C.find()
-        catval = np.zeros(np.size(row), dtype=object)
-
-        if delimiter is None:
-            delimiter = ';'
-        if pair_delimiter is None:
-            pair_delimiter = ','
-
-        # Create dictionaries for faster lookups
-        row_ind = {C.row[index]: index for index in range(np.size(C.row))}
-        col_ind = {C.col[index]: index for index in range(np.size(C.col))}
-        A_dict = A.to_dict()
-        B_dict = B.to_dict()
-
-        rows = Alog.adj.tolil().rows
-        cols = Blog.adj.transpose().tolil().rows
-
-        # Enumerate all the row/col key lists to be intersected
-        row_keys = {r: intersection[rows[row_ind[r]]] for r in C.row}
-        col_keys = {c: set(intersection[cols[col_ind[c]]]) for c in C.col}  # Use set for O(1) lookup
-
-        # Instantiate dictionary to hold already-calculated intersections
-        cat_inters = dict()
-
-        for i in range(np.size(row)):
-            r = row[i]
-            c = col[i]
-            if (r, c) in cat_inters:
-                catval[i] = cat_inters[(r, c)]
-            else:
-                rc_keys = [item for item in row_keys[r] if item in col_keys[c]]
-                rc_val_pairs = [str(A_dict[r][key])
-                                + pair_delimiter
-                                + str(B_dict[key][c])
-                                + pair_delimiter for key in rc_keys]
-                catval[i] = delimiter.join(rc_val_pairs) + delimiter
-                cat_inters[(r, c)] = catval[i]
-
-        D = Assoc(row, col, catval, add)
-
-        return D
-
-    def compare(self, other: Union['Assoc', KeyVal], comparator: Callable[[KeyVal, KeyVal], bool]) -> 'Assoc':
-        """Generic element-wise comparison with another associative array or a single value according to comparator."""
-        warnings.warn('Comparisons are made only with explicitly stored entries of the associative array(s).')
-
-        self_triples = self.triples()
-        self_keys = {(triple[0], triple[1]) for triple in self_triples}
-
-        compared_row, compared_col = list(), list()
+        self_ = self
+        if not isinstance(self.val, float):
+            self_ = self.logical(copy=True)
 
         if isinstance(other, Assoc):
-            other_triples = other.triples()
-            other_keys = {(triple[0], triple[1]) for triple in other_triples}
-            other_dict = other.to_dict2()
+            other_ = other
+            if not isinstance(other.val, float):
+                other_ = other.logical(copy=True)
 
-            for triple in self_triples:
-                row_key, col_key, value = triple
-                key = (row_key, col_key)
-                if key in other_keys:
-                    other_value = other_dict[key]
-                else:
-                    if isinstance(value, str):
-                        other_value = ''
-                    else:
-                        other_value = 0
-                try:
-                    comparison = comparator(value, other_value)
-                except TypeError:
-                    raise TypeError("Comparator does not support comparison between " + str(value)
-                                    + " and " + str(other_value) + ".")
-                if comparison:
-                    compared_row.append(row_key)
-                    compared_col.append(col_key)
+            # Convert adjacency arrays to CSR format for better performance
+            self_sparse = self_.adj.tocsr()
+            other_sparse = other_.adj.tocsr()
 
-            for triple in other_triples:
-                row_key, col_key, value = triple
-                key = (row_key, col_key)
-                if key in self_keys:
-                    pass
-                else:
-                    if isinstance(value, str):
-                        self_value = ''
-                    else:
-                        self_value = 0
-                    try:
-                        comparison = comparator(self_value, value)
-                    except TypeError:
-                        raise TypeError("Comparator does not support comparison between " + str(self_value)
-                                        + " and " + str(value) + ".")
-                    if comparison:
-                        compared_row.append(row_key)
-                        compared_col.append(col_key)
+            # Intersect A.col and B.row
+            intersection, index_map_1, index_map_2 = util.sorted_intersect(self_.col, other_.row, return_index=True)
+
+            # Get appropriate sub-matrices and multiply
+            self_sparse = self_sparse[:, index_map_1]
+            other_sparse = other_sparse[index_map_2, :]
+            product_sparse = self_sparse * other_sparse
+
+            product = Assoc(self_.row, other_.col, 1.0, product_sparse.tocoo(), aggregate='unique')
+
+            # Remove empty rows and columns
+            product.condense()
+            return product
         else:
-            for triple in self_triples:
-                row_key, col_key, value = triple
+            assert isinstance(other, float) or isinstance(other, int)
+            if other == 0:
+                return Assoc([], [], [])
+            else:
+                self_.adj.data = self_.adj.data * other
+                return self_
+
+    # element-wise multiplication
+    def multiply(self, other: Assoc) -> Assoc:
+        """Element-wise multiplication of self and B, matched up by row and column indices.
+            Usage:
+                self.multiply(other)
+            Input:
+                other = Associative array
+            Output:
+                self.multiply(other) = element-wise product of self and other if both are numerical, and otherwise
+                    self.multiply(other) is the associative array whose triples are those triples
+                    (row_key, col_key, value) of self for which (row_key, col_key) corresponds with a nonempty
+                    entry in other.
+            Note:
+                - In the case where at least one of self and other are non-numerical, it may not be (and often
+                    isn't) the case that self.multiply(other) equals other.multiply(self). I.e., when allowing
+                    non-numerical associative arrays, commutativity of (self, other) -> self.multiply(other) is not
+                    guaranteed.
+        """
+        self_ = self.dropzeros(copy=True)
+        other_ = other.dropzeros(copy=True)
+
+        # Only multiply if both numerical, so logical() as appropriate
+        if not (isinstance(self_.val, float) and isinstance(other_.val, float)):
+            other_ = other_.logical(copy=False)
+            warnings.warn('If A or B are non-numerical, then A.multiply(B) returns the associative array with triples'
+                          + 'from A whose corresponding entries in B are non-null.'
+                          + 'This may produce undesired results!')
+
+        row_int, row_index_self, row_index_other = util.sorted_intersect(self_.row, other_.row, return_index=True)
+        col_int, col_index_self, col_index_other = util.sorted_intersect(self_.col, other_.col, return_index=True)
+
+        self_sub = self_.adj.tocsr()[:, col_index_self][row_index_self, :]
+        other_sub = other_.adj.tocsr()[:, col_index_other][row_index_other, :]
+        multiplied_adj = self_sub.multiply(other_sub).tocoo()
+
+        if isinstance(self_.val, float) and isinstance(other_.val, float):
+            multiplied_val = 1.0
+        else:
+            multiplied_val = self_.val
+            multiplied_adj = multiplied_adj.astype(int)
+
+        multiplied = Assoc(row_int, col_int, multiplied_val, multiplied_adj, aggregate='unique')
+        multiplied.condense()
+        multiplied.deepcondense()
+
+        return multiplied
+
+    # element-wise division -- for division by zero, treat as null
+    def divide(self, other: Union[Assoc, Number]) -> Assoc:
+        """Element-wise division of self and B, matched up by row and column indices.
+            Usage:
+                self.divide(other)
+            Input:
+                other = Associative array or number
+            Output:
+                self.divide(other) = element-wise quotient of self by other
+            Note:
+                - Removes all explicit zeros and only takes division of non-null entries in self and other (if an
+                    associative array), effectively ignoring division by zero
+                - Implicitly runs .logical() method on non-numerical associative arrays
+        """
+        if not isinstance(self.val, float):
+            self_ = self.logical(copy=True)
+        else:
+            self_ = self.dropzeros(copy=True)
+
+        if isinstance(other, Assoc):
+            if not isinstance(other.val, float):
+                other_inv = other.logical(copy=True)
+            else:
+                other_inv = other.dropzeros(copy=True)
+
+            other_inv.adj.data = np.reciprocal(other_inv.adj.data.astype(float, copy=False))
+
+            return self_.multiply(other_inv)
+        else:
+            assert isinstance(other, float) or isinstance(other, int)
+            try:
+                other = 1 / other
+                return self_ * other
+            except ValueError:
+                raise ValueError('Division by 0.')
+
+    def min(self, other: Union[Assoc, KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
+            -> Assoc:
+        """Element-wise minimum between associative arrays. Supports optional comparison function."""
+        if sort_key is None:
+            comp_min = min
+        else:
+            def comp_min(x, y):
                 try:
-                    comparison = comparator(value, other)
+                    if sort_key(x, y):
+                        return x
+                    elif sort_key(y, x):
+                        return y
+                    elif x == y:
+                        return y
+                    else:
+                        raise ValueError(str(x) + ' and ' + str(y) + ' are incomparable with respect to sort_key '
+                                         + 'function; minimum cannot be resolved.')
                 except TypeError:
-                    raise TypeError("Comparator does not support comparison between " + str(value)
-                                    + " and " + str(other) + ".")
-                if comparison:
-                    compared_row.append(row_key)
-                    compared_col.append(col_key)
+                    raise TypeError("sort_key does not support comparison between " + str(x)
+                                    + " and " + str(y) + ".")
 
-        return Assoc(compared_row, compared_col, 1)
+        return self.combine(other, comp_min, right_zero=True, left_zero=True)
 
-    def __eq__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
+    def max(self, other: Union[Assoc, KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
+            -> Assoc:
+        """Element-wise maximum between associative arrays. Supports optional comparison function."""
+        if sort_key is None:
+            comp_max = max
+        else:
+            def comp_max(x, y):
+                try:
+                    if sort_key(x, y):
+                        return y
+                    elif sort_key(y, x):
+                        return x
+                    elif x == y:
+                        return y
+                    else:
+                        raise ValueError(str(x) + ' and ' + str(y) + ' are incomparable with respect to sort_key '
+                                         + 'function; maximum cannot be resolved.')
+                except TypeError:
+                    raise TypeError("sort_key does not support comparison between " + str(x)
+                                    + " and " + str(y) + ".")
+
+        return self.combine(other, comp_max, right_zero=True, left_zero=True)
+
+    def __and__(self, other: Assoc) -> Assoc:
+        """Element-wise logical AND of self and other, matched up by row and column indices.
+            Usage:
+                self & other
+            Input:
+                other = Associative array
+            Output:
+                self & other = element-wise logical AND (as a function {0,1} x {0,1} -> {0,1}) of self.logical() and
+                    other.logical()
+        """
+        # TODO: Should this take values of type bool?
+        self_, other_ = self.logical(copy=True), other.logical(copy=True)
+        return self_.multiply(other_)
+
+    def __or__(self, other: Assoc) -> Assoc:
+        """Element-wise logical OR (on {0,1}) of self and B, matched up by row and column indices.
+            Usage:
+                self | other
+            Input:
+                other = Associative array
+            Output:
+                self | other = element-wise logical OR (as a function {0,1} x {0,1} -> {0,1}) of self.logical() and
+                    other.logical()
+        """
+        # TODO: Should this take values of type bool?
+        self_, other_ = self.logical(copy=True), other.logical(copy=True)
+        return (self_ + other_).logical(copy=False)
+
+    def sqin(self) -> Assoc:
+        """self.transpose() * self"""
+        return self.transpose() * self
+
+    def sqout(self) -> Assoc:
+        """self * self.transpose()"""
+        return self * self.transpose()
+
+    def catkeymul(self, other: Assoc, delimiter: str = ';') -> Assoc:
+        """Computes the array product, but values are delimiter-separated string list of
+            the row/column indices which contribute to the value in the product
+            Usage:
+                self.catkeymul(other)
+                self.catkeymul(other, delimiter)
+            Input:
+                other = Associative Array
+                delimiter = (Optional, default ';') delimiter to separate the row/column indices
+            Output:
+                self.catkeymul(other) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
+                    of self.logical() * other.logical()  is not null, in which case that entry is the string list of
+                    the k-indices for which self[i,k] and other[k,j] were non-zero.
+        """
+        self_log, other_log = self.logical(), other.logical()
+        C = self_log * other_log
+
+        self_dict, other_dict = self_log.to_dict(), other_log.transpose().to_dict()
+        rows = {row_key: np.unique(list(self_dict[row_key].keys())) for row_key in self_dict.keys()}
+        cols = {col_key: np.unique(list(other_dict[col_key].keys())) for col_key in other_dict.keys()}
+
+        catkey_row, catkey_col, _ = C.find()
+        catkeys = list()
+
+        for index in range(len(catkey_row)):
+            row_key, col_key = catkey_row[index], catkey_col[index]
+            common_keys = util.sorted_intersect(rows[row_key], cols[col_key]).astype(str)
+            catkeys.append(delimiter.join(common_keys) + delimiter)
+
+        return Assoc(catkey_row, catkey_col, catkeys)
+
+    def catvalmul(self, other: Assoc, pair_delimiter: str = ',', delimiter: str = ';') -> Assoc:
+        """Computes the array product, but values are delimiter-separated string list of
+            the values of A and B which contribute to the value in the product
+            Usage:
+                self.catvalmul(other)
+            Input:
+                other = Associative Array
+                pair_delimiter = (Optional, default ',') delimiter to separate the values in A and B
+                delimiter = (Optional, default ';') delimiter to separate the value pairs
+            Output:
+                self.catvalmul(other) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
+                    of self.logical() * other.logical()  is not null, in which case that entry is the string list of
+                    the non-trivial value pairs 'self[i,k],other[k,j],'.
+        """
+        print(self)
+        self.printfull()
+        print(other)
+        other.printfull()
+        self_log, other_log = self.logical(copy=True), other.logical(copy=True)
+        C = self_log * other_log
+
+        self.printfull()
+        print(self)
+        other.printfull()
+        print(other)
+        C.printfull()
+        print(C)
+
+        self_dict, other_dict = self.to_dict(), other.transpose().to_dict()
+        rows = {row_key: np.unique(list(self_dict[row_key].keys())) for row_key in self_dict.keys()}
+        cols = {col_key: np.unique(list(other_dict[col_key].keys())) for col_key in other_dict.keys()}
+
+        catval_row, catval_col, _ = C.find()
+        catvals = list()
+
+        for index in range(len(catval_row)):
+            row_key, col_key = catval_row[index], catval_col[index]
+            print(row_key)
+            print(col_key)
+            common_keys = util.sorted_intersect(rows[row_key], cols[col_key])
+            print(common_keys)
+            catval = list()
+            for common_key in common_keys:
+                value_pair = [self_dict[row_key][common_key], other_dict[col_key][common_key]]
+                print(value_pair)
+                value_pair = util.num_to_str(value_pair)
+                catval.append(pair_delimiter.join(value_pair) + pair_delimiter)
+            print(catval)
+            catvals.append(delimiter.join(catval) + delimiter)
+
+        Assoc(catval_row, catval_col, catvals).printfull()
+
+        return Assoc(catval_row, catval_col, catvals)
+
+        # intersection = util.sorted_intersect(self.col, other.row)
+        #
+        # self_log = self[:, intersection].logical()
+        # other_log = other[intersection, :].logical()
+        # C = self_log * other_log
+        #
+        # row, col, val = C.find()
+        # catval = np.zeros(np.size(row), dtype=object)
+        #
+        # # Create dictionaries for faster lookups
+        # row_ind = {C.row[index]: index for index in range(np.size(C.row))}
+        # col_ind = {C.col[index]: index for index in range(np.size(C.col))}
+        # self_dict, other_dict = self.to_dict(), other.to_dict()
+        #
+        # rows = self_log.adj.tolil().rows
+        # cols = other_log.adj.transpose().tolil().rows
+        #
+        # # Enumerate all the row/col key lists to be intersected
+        # row_keys = {r: intersection[rows[row_ind[r]]] for r in C.row}
+        # col_keys = {c: set(intersection[cols[col_ind[c]]]) for c in C.col}  # Use set for O(1) lookup
+        #
+        # # Instantiate dictionary to hold already-calculated intersections
+        # cat_inters = dict()
+        #
+        # for i in range(np.size(row)):
+        #     r = row[i]
+        #     c = col[i]
+        #     if (r, c) in cat_inters:
+        #         catval[i] = cat_inters[(r, c)]
+        #     else:
+        #         rc_keys = [item for item in row_keys[r] if item in col_keys[c]]
+        #         rc_val_pairs = [str(self_dict[r][key])
+        #                         + pair_delimiter
+        #                         + str(other_dict[key][c])
+        #                         + pair_delimiter for key in rc_keys]
+        #         catval[i] = delimiter.join(rc_val_pairs) + delimiter
+        #         cat_inters[(r, c)] = catval[i]
+        #
+        # D = Assoc(row, col, catval, aggregate=util.add)
+        #
+        # return D
+
+    def compare(self, other: Union[Assoc, KeyVal], sort_key: Callable[[KeyVal, KeyVal], bool],
+                inverse: bool = False, include_inverse: bool = False) -> Union[Assoc, Tuple[Assoc, Assoc]]:
+        """Generic element-wise comparison with another associative array or a single value according to sort_key.
+            Usage:
+                self.compare(other, min)
+                self.compare(other, max, inverse=True)
+            Inputs:
+                other = Associative array or singular value
+                inverse = (Optional, default False) Boolean indicating whether the sort_key function should be
+                    inverted, as if pre-composing the sort_key function with transposition
+                include_inverse = (Optional, default False) Boolean indicating whether the result of
+                    self.compare(other, sort_key, inverse=True) should be included with
+                    self.compare(other, sort_key)
+            Outputs:
+                self.compare(other, sort_key) = Associative array whose triples are of the form
+                    (row_key, cold_key, 1) for (row_key, col_key) = (r, c) satisfying
+                    sort_key(self[r, c], other[r, c]) == True in the case where other is an associative array and
+                    self[r, c] or other[r, c] are possibly null (but not both), or
+                    sort_key(self[r, c], other) == True in the case where other is a singular value and self[r, c]
+                    is non-null.
+                self.compare(other, sort_key, inverse=True) = As above, but with 'True' replaced by 'False'
+                self.compare(other, sort_key, include_inverse=True) = the pair of self.compare(other, sort_key)
+                    and self.compare(other, sort_key, inverse=True)
+            Note:
+                - Comparisons are only made with explicitly stored entries of the associative array(s). E.g.,
+                    self.compare(1, <=) would only make comparisons between non-null entries of self with 1.
+                - When comparisons are made between non-null values and null, '' is used for string values and 0 is
+                    used for numerical values.
+                - If include_inverse=True, then the value of the Boolean inverse is ignored.
+        """
+        warnings.warn('Comparisons are made only with explicitly stored entries of the associative array(s).')
+
+        inverse = False if include_inverse else inverse
+        include_inverse = False if inverse else include_inverse
+
+        self_dict = self.to_dict2()
+        self_keys = set(self_dict.keys())
+        if isinstance(other, Assoc):
+            other_dict = other.to_dict2()
+            other_keys = set(other_dict.keys())
+            inter_keys = self_keys.intersection(other_keys)
+            self_only_keys, other_only_keys = self_keys.difference(inter_keys), other_keys.difference(self_keys)
+        else:
+            other_dict, other_keys = dict(), set()
+            inter_keys, self_only_keys, other_only_keys = self_keys, set(), set()
+
+        compared_row, compared_col = list(), list()
+        inv_compared_row, inv_compared_col = list(), list()
+
+        def _incompatible_message(x, y):
+            return "sort_key does not support comparison between " + str(x) + " and " + str(y) + "."
+
+        key_sets = [self_only_keys, inter_keys, other_only_keys]
+        for index in range(3):
+            for key in key_sets[index]:
+                if index == 0:
+                    self_value = self_dict[key]
+                    other_value = 0 if util.is_numeric(self_value) else ''
+                elif index == 1:
+                    self_value = self_dict[key]
+                    other_value = other_dict[key] if isinstance(other, Assoc) else other
+                else:
+                    other_value = other_dict[key]
+                    self_value = 0 if util.is_numeric(other_value) else ''
+
+                try:
+                    comparison = sort_key(self_value, other_value) if not inverse else sort_key(other_value, self_value)
+                    if comparison:
+                        compared_row.append(key[0])
+                        compared_col.append(key[1])
+                except TypeError:
+                    if inverse:
+                        self_value, other_value = other_value, self_value
+                    print(_incompatible_message(self_value, other_value))
+
+                if include_inverse:
+                    try:
+                        if sort_key(other_value, self_value):
+                            inv_compared_row.append(key[0])
+                            inv_compared_col.append(key[1])
+                    except TypeError:
+                        print(_incompatible_message(other_value, self_value))
+
+        if not include_inverse:
+            return Assoc(compared_row, compared_col, 1)
+        else:
+            return Assoc(compared_row, compared_col, 1), Assoc(inv_compared_row, inv_compared_col, 1)
+
+    def __eq__(self, other: Union[Assoc, KeyVal]) -> Assoc:
         """Element-wise equality comparison between self and other.
-                Usage:
-                    A == B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A == B = An associative array such that for row and column labels r and c, resp., such that
-                            (A == B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) == B(r,c) (when B is another associative array
-                                    and assuming at least one of A(r,c) and B(r,c) is not null)
-                                (Case 2) A(r,c) == B (when B is not another associative array)
-                            otherwise (A == B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+            Usage:
+                self == other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self == other = An associative array such that for row and column labels r and c, resp., such that
+                    (self == other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) == other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) == other (when other is not another associative array)
+                    otherwise (self == other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_eq(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 == value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 == value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return False
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_eq)
+        return self.compare(other, sort_key=KeyVal_eq)
 
-    def __ne__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
-        """Element-wise inequality comparison between self and other.
-                Usage:
-                    A != B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A != B = An associative array such that for row and column labels r and c, resp., such that
-                            (A != B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) != B(r,c) (when B is another associative array
-                                        and at least one of A(r,c) and B(r,c) are not null)
-                                (Case 2) A(r,c) != B (when B is not another associative array)
-                            otherwise (A != B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+    def __ne__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+        """Element-wise equality comparison between self and other.
+            Usage:
+                self != other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self != other = An associative array such that for row and column labels r and c, resp., such that
+                    (self != other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) != other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) != other (when other is not another associative array)
+                    otherwise (self != other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_ne(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 != value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 != value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return True
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_ne)
+        return self.compare(other, sort_key=KeyVal_ne)
 
-    def __lt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
-        """Element-wise strictly less than comparison between self and other.
-                Usage:
-                    A < B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A < B = An associative array such that for row and column labels r and c, resp., such that
-                            (A < B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) < B(r,c) (when B is another associative array)
-                                (Case 2) A(r,c) < B (when B is not another associative array)
-                            otherwise (A < B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+    def __lt__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+        """Element-wise equality comparison between self and other.
+            Usage:
+                self < other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self < other = An associative array such that for row and column labels r and c, resp., such that
+                    (self < other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) < other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) < other (when other is not another associative array)
+                    otherwise (self < other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_lt(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 < value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 < value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return False
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_lt)
+        return self.compare(other, sort_key=KeyVal_lt)
 
-    def __gt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
-        """Element-wise strictly greater than comparison between self and other.
-                Usage:
-                    A > B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A > B = An associative array such that for row and column labels r and c, resp., such that
-                            (A > B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) > B(r,c) (when B is another associative array)
-                                (Case 2) A(r,c) > B (when B is not another associative array)
-                            otherwise (A > B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+    def __gt__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+        """Element-wise equality comparison between self and other.
+            Usage:
+                self > other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self > other = An associative array such that for row and column labels r and c, resp., such that
+                    (self > other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) > other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) > other (when other is not another associative array)
+                    otherwise (self > other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_gt(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 > value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 > value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return False
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_gt)
+        return self.compare(other, sort_key=KeyVal_gt)
 
-    def __le__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
-        """Element-wise less than or equal comparison between self and other.
-                Usage:
-                    A <= B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A <= B = An associative array such that for row and column labels r and c, resp., such that
-                            (A <= B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) <= B(r,c) (when B is another associative array)
-                                (Case 2) A(r,c) <= B (when B is not another associative array)
-                            otherwise (A <= B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+    def __le__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+        """Element-wise equality comparison between self and other.
+            Usage:
+                self <= other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self <= other = An associative array such that for row and column labels r and c, resp., such that
+                    (self <= other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) <= other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) <= other (when other is not another associative array)
+                    otherwise (self <= other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_le(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 <= value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 <= value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return False
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_le)
+        return self.compare(other, sort_key=KeyVal_le)
 
-    def __ge__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
-        """Element-wise greater than or equal comparison between self and other.
-                Usage:
-                    A >= B
-                Input:
-                    A = Associative Array
-                    B = other object, e.g., another associative array, a number, or a string
-                Output:
-                    A >= B = An associative array such that for row and column labels r and c, resp., such that
-                            (A >= B)(r,c) = 1 if and only if...
-                                (Case 1) A(r,c) >= B(r,c) (when B is another associative array)
-                                (Case 2) A(r,c) >= B (when B is not another associative array)
-                            otherwise (A >= B)(r,c) = null.
-                Notes:
-                    - Only numeric and string data types are supported.
-                Warnings:
-                    - Only compares values corresponding to keys explicitly stored in self or other.
+    def __ge__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+        """Element-wise equality comparison between self and other.
+            Usage:
+                self >= other
+            Input:
+                other = other object, e.g., another associative array, a number, or a string
+            Output:
+                self >= other = An associative array such that for row and column labels r and c, resp., such that
+                    (self >= other)(r,c) = 1 if and only if...
+                        (Case 1) self(r,c) >= other(r,c) (when other is another associative array
+                            and assuming at least one of self(r,c) and other(r,c) is not null)
+                        (Case 2) self(r,c) >= other (when other is not another associative array)
+                    otherwise (self >= other)(r,c) = null.
+            Notes:
+                - Only numeric and string data types are supported.
+            Warnings:
+                - Only compares values corresponding to keys explicitly stored in self or other.
         """
         def KeyVal_ge(value_1, value_2):
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 >= value_2
-            elif is_numeric(value_1) and is_numeric(value_2):
+            elif util.is_numeric(value_1) and util.is_numeric(value_2):
                 return value_1 >= value_2
             elif not (issubclass(type(value_1), type(value_2)) or issubclass(type(value_2), type(value_1))):
                 return False
             else:
                 raise TypeError
 
-        return self.compare(other, comparator=KeyVal_ge)
+        return self.compare(other, sort_key=KeyVal_ge)
 
 
-def val2col(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
+def nnz(A: Assoc) -> int:
+    return A.nnz()
+
+
+def hadamard(A: Assoc, B: Assoc) -> Assoc:
+    return A.multiply(B)
+
+
+def combine(A: Assoc, B: Assoc, binary_op: Callable[[KeyVal, KeyVal], KeyVal],
+            right_zero: bool = False, left_zero: bool = False) -> Assoc:
+    return A.combine(B, binary_op, right_zero=right_zero, left_zero=left_zero)
+
+
+def assoc_min(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
+              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> Assoc:
+    if isinstance(A, Assoc):
+        return A.min(B, sort_key=sort_key)
+    else:
+        assert isinstance(B, Assoc)
+        return B.min(A, sort_key=sort_key)
+
+
+def assoc_max(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
+              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> Assoc:
+    if isinstance(A, Assoc):
+        return A.max(B, sort_key=sort_key)
+    else:
+        assert isinstance(B, Assoc)
+        return B.max(A, sort_key=sort_key)
+
+
+def transpose(A: Assoc, copy: bool = True) -> Assoc:
+    return A.transpose(copy=copy)
+
+
+def sqin(A: Assoc) -> Assoc:
+    return A.sqin()
+
+
+def sqout(A: Assoc) -> Assoc:
+    return A.sqout()
+
+
+def catkeymul(A: Assoc, B: Assoc, delimiter: str = ';') -> Assoc:
+    return A.catkeymul(B, delimiter=delimiter)
+
+
+def catvalmul(A: Assoc, B: Assoc, pair_delimiter: str = ',', delimiter: str = ';') -> Assoc:
+    return A.catvalmul(B, pair_delimiter=pair_delimiter, delimiter=delimiter)
+
+
+def val2col(A: Assoc, separator: str = '|', int_aware: bool = True) -> Assoc:
     """Convert from adjacency array to incidence array.
-            Usage:
-                val2col(A, separator)
-            Inputs:
-                A = Associative Array
-                separator = (new) delimiting character (default '|') to separate column labels from values
-            Output:
-                val2col(A, separator) = Associative Array B where B.row == A.row and
-                                        B[row_label, col_label + split_separator + value] == 1 if and only if
-                                        A[row_label, col_label] == value
+        Usage:
+            val2col(A, separator)
+        Inputs:
+            A = Associative Array
+            separator = (Optional, defualt '|') (new) delimiting character to separate column labels from values
+            int_strip = (Optional, default True) Boolean which determines if '.0' is stripped from float strings
+        Output:
+            val2col(A, separator) = Associative Array B where B.row == A.row and
+                B[row_label, col_label + split_separator + value] == 1 if and only if
+                A[row_label, col_label] == value
     """
-    if separator is None:
-        separator = '|'
-
-    rows, column_types, column_vals = array_.find()
-    column_types = num_to_str(column_types)
-    column_vals = num_to_str(column_vals)
-    cols = catstr(column_types, column_vals, separator)
+    rows, column_types, column_vals = A.find()
+    column_types = util.num_to_str(column_types, int_aware=int_aware)
+    column_vals = util.num_to_str(column_vals, int_aware=int_aware)
+    cols = util.catstr(column_types, column_vals, separator, int_aware=int_aware)
     return Assoc(rows, cols, 1)
 
 
-def col2type(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
+def col_to_type(A: Assoc, separator: str = '|', convert: bool = True) -> Assoc:
     """Split column keys of associative array and sorts first part as column key and second part as value.
         Inverse of val2col.
             Usage:
-                B = col2type(A, separator)
+                B = col_to_type(A, separator)
             Inputs:
                 A = Associative array with string column keys assumed to be of the form 'key' + separator + 'val'
-                separator = separator for A's column keys (default '|')
+                separator = (Optional, default '|') separator for A's column keys
+                convert = (Optional, default True) Boolean indicating whether values should be considered numerical
+                    when possible
             Outputs:
-                col2type(A, separator) = Associative array whose row keys are the same as A, but whose column
-                                        keys are the first parts of A's column keys and whose values are the second
-                                        parts of A's column keys
+                col_to_type(A, separator) = Associative array whose row keys are the same as A, but whose column
+                    keys are the first parts of A's column keys and whose values are the second parts of A's column keys
             Example:
-                col2type(A, '|')
-                col2type(A, '/')
+                col_to_type(A, '|')
+                col_to_type(A, '/')
             Note:
                 - A's column keys must be in the desired form.
     """
-    if separator is None:
-        separator = '|'
-
     # Extract row and column keys from A
-    row, col, _ = array_.find()
+    row, col, _ = A.find()
 
     # Split column keys according to splitSep
     column_splits = list()
@@ -2098,39 +2051,104 @@ def col2type(array_: 'Assoc', separator: Optional[str] = None) -> 'Assoc':
 
     # Extract column types and values
     column_types = [split_column_key[0] for split_column_key in column_splits]
-    column_vals = [split_column_key[1] for split_column_key in column_splits]
+    if convert:
+        column_vals = [util.str_to_num(split_column_key[1]) for split_column_key in column_splits]
+    else:
+        column_vals = [split_column_key[1] for split_column_key in column_splits]
 
     return Assoc(row, column_types, column_vals)
 
 
-def readcsvtotriples(filename, labels=True, triples=False, **fmtoptions):
-    """
-    Read CSV file to row, col, val lists.
+col2type = col_to_type
+
+
+def num_to_str(A: Assoc) -> Assoc:
+    new_row, new_col, new_val = A.row, A.col, A.get_val()
+    new_row = np.char.strip(new_row.astype(str), '.0')
+    new_col = np.char.strip(new_col.astype(str), '.0')
+    if isinstance(A.val, float):
+        new_val, index_map = np.unique(A.adj.data, return_index=True)
+        index_map += 1
+        new_adj = sparse.coo_matrix((index_map, (A.adj.row, A.adj.col)), dtype=int)
+    else:
+        new_adj = A.adj
+
+    B = Assoc(new_row, new_col, new_val, new_adj, aggregate='unique')
+    B.condense()
+    B.deepcondense()
+    return B
+
+
+num2str = num_to_str
+
+
+def sparse_equal(sparr_1: sparse.spmatrix, sparr_2: sparse.spmatrix):
+    """ Test whether two COO sparse matrices are equal. """
+    return (sparr_1 != sparr_2).nnz == 0
+
+
+def assoc_equal(A: Assoc, B: Assoc, return_info: bool = False) -> bool:
+    """ Test whether two associative arrays are equal. """
+    is_equal = True
+
+    if not np.array_equal(A.row, B.row):
+        is_equal = False
+        if return_info:
+            print("Rows unequal:" + str(A.row) + " (dtype=" + str(A.row.dtype) + ")" + " vs. "
+                  + str(B.row) + " (dtype=" + str(B.row.dtype) + ")")
+
+    if not np.array_equal(A.col, B.col):
+        is_equal = False
+        if return_info:
+            print("Cols unequal:" + str(A.col) + " (dtype=" + str(A.col.dtype) + ")" + " vs. "
+                  + str(B.col) + " (dtype=" + str(B.col.dtype) + ")")
+
+    if not ((isinstance(A.val, float) and isinstance(B.val, float) and A.val == 1 and B.val == 1)
+            or np.array_equal(A.val, B.val)):
+        is_equal = False
+        if return_info:
+            dtype_1_message = ''
+            if isinstance(A.val, np.ndarray):
+                dtype_1_message += ' (dtype=' + str(A.val.dtype) + ')'
+            dtype_2_message = ''
+            if isinstance(B.val, np.ndarray):
+                dtype_2_message += ' (dtype=' + str(B.val.dtype) + ')'
+            print("Vals unequal:" + str(A.val) + dtype_1_message + " vs. " + str(B.val) + dtype_2_message)
+
+    if not sparse_equal(A.adj, B.adj):
+        is_equal = False
+        if return_info:
+            print("Adjs unequal:" + str(A.adj) + " vs. " + str(B.adj))
+
+    return is_equal
+
+
+def readcsvtotriples(filename: str, labels: bool = True, triples: bool = False, **fmtoptions) \
+        -> Tuple[list[KeyVal], list[KeyVal], list[KeyVal]]:
+    """Read CSV file to row, col, val lists.
         Usage:
             row, col, val = readCSV(filename, labels=False, triples=False)
             row, col, val = readCSV(filename, fmtoptions)
         Inputs:
             filename = name of file (string)
-            labels = optional parameter to say whether row and column labels are 
-                        the first column and row, resp.
-            triples = optional parameter indicating whether each row is of the form 'row[i], col[i], val[i]'
-            **fmtoptions = format options accepted by csv.reader, e.g. "delimiter='\t'" for tsv's
+            labels = (Optional, default True) Boolean indicating if row and column labels are the first column and row,
+                resp.
+            triples = (Optional, default False) Boolean indicating if each row is of the form 'row[i], col[i], val[i]'
+            **fmtoptions = format options accepted by csv.reader, e.g., "delimiter='\t'" for tsv's
         Outputs:
             row, col, val = value in row[i]-th row and col[i]-th column is val[i] (if not triples,
-                                else the transposes of the columns)
+                else the transposes of the columns)
         Examples:
             row, col, val = readcsv('my_file_name.csv')
             row, col, val = readcsv('my_file_name.csv', delimiter=';')
             row, col, val = readcsv('my_file_name.tsv', triples=True, delimiter='\t')
     """
     # Read CSV file and create (row-index,col-index):value dictionary
-    with open(filename, 'rU') as csvfile:
-        assoc_reader = csv.reader(csvfile, **fmtoptions)
+    with open(filename, 'rU') as csv_file:
+        assoc_reader = csv.reader(csv_file, **fmtoptions)
         
         if triples:
-            row = list()
-            col = list()
-            val = list()
+            row, col, val = list(), list(), list()
             
             for line in assoc_reader:
                 if len(line) == 0:
@@ -2177,29 +2195,28 @@ def readcsvtotriples(filename, labels=True, triples=False, **fmtoptions):
 
             # Extract row, col, val from dictionary
             row_col_tuples = list(assoc_dict.keys())
-            row = [str_to_num(item[0]) for item in row_col_tuples]
-            col = [str_to_num(item[1]) for item in row_col_tuples]
-            val = [str_to_num(item) for item in list(assoc_dict.values())]
+            row = [util.str_to_num(item[0]) for item in row_col_tuples]
+            col = [util.str_to_num(item[1]) for item in row_col_tuples]
+            val = [util.str_to_num(item) for item in list(assoc_dict.values())]
 
     return row, col, val
 
 
-def readcsv(filename, labels=True, triples=False, **fmtoptions):
+def readcsv(filename: str, labels: bool = True, triples: bool = False, **fmtoptions) -> Assoc:
     """Read CSV file to Assoc instance.
         Usage:
             A = readcsv(filename)
             A = readcsv(filename, fmtoptions)
         Inputs:
             filename = name of file (string)
-            labels = optional parameter to say whether row and column labels are 
-                        the first column and row, resp.
-            triples = optional parameter indicating whether each row is of the form 'row[i], col[i], val[i]'
+            labels = (Optional, default True) Boolean indicating if row and column labels are the first column and row,
+                resp.
+            triples = (Optional, default False) Boolean indicating if each row is of the form 'row[i], col[i], val[i]'
             fmtoptions = format options accepted by csv.reader, e.g. "delimiter='\t'" for tsv's
         Outputs:
-            A = Associative Array whose column indices are given in the first line of the file,
-                whose row indices are given in the first column of the file, and whose values
-                are the remaining non-empty/null items, paired with the appropriate row
-                and col indices
+            A = Associative Array whose column indices are given in the first line of the file, whose row indices
+                are given in the first column of the file, and whose values are the remaining non-empty/null items,
+                paired with the appropriate row and col indices
         Examples:
             A = readcsv('my_file_name.csv')
             A = readcsv('my_file_name.csv', delimiter=';')
@@ -2210,11 +2227,11 @@ def readcsv(filename, labels=True, triples=False, **fmtoptions):
     return Assoc(row, col, val)
 
 
-def writecsv(array_, filename, fmtparams=None):
+def writecsv(A: Assoc, filename: str, **fmtparams) -> None:
     """Write CSV file from Assoc instance.
         Usage:
             writeCSV(filename)
-            writeCSV(filename, fmtoptions)
+            writeCSV(filename, **fmtoptions)
         Inputs:
             A = Associative array to write to CSV
             filename = name of file to write to (string)
@@ -2226,25 +2243,22 @@ def writecsv(array_, filename, fmtparams=None):
             writeCSV(A, 'my_file_name.csv', delimiter=';')
     """
     with open(filename, 'w') as csv_file:
-        assoc_writer = csv.writer(csv_file, fmtparams, lineterminator='\r')
+        assoc_writer = csv.writer(csv_file, **fmtparams, lineterminator='\r')
 
         # Write the headings (offset by one to account for row indices)
-        headings = [item for item in array_.col]
+        headings = [item for item in A.col]
         headings.insert(0, None)
         assoc_writer.writerow(headings)
 
-        # Create lookup dictionary
-        row, col, val = array_.find()
-        adj_dict = dict(zip(zip(row, col), val))
+        adj_dict = A.to_dict2()  # lookup dictionary
 
-        for i in range(len(array_.row)):
+        for row_index in range(len(A.row)):
             new_line = list()
-            new_line.append(array_.row[i])  # Start with row index
+            new_line.append(A.row[row_index])
 
-            # Go through the row and add value if it exists, else None
-            for j in range(len(array_.col)):
-                if (array_.row[i], array_.col[j]) in adj_dict.keys():
-                    new_line.append(adj_dict[(array_.row[i], array_.col[j])])
+            for col_index in range(len(A.col)):
+                if (A.row[row_index], A.col[col_index]) in adj_dict.keys():
+                    new_line.append(adj_dict[(A.row[row_index], A.col[col_index])])
                 else:
                     new_line.append(None)
 

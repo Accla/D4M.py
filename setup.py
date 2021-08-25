@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='D4M',
-    version='0.1.0',
+    version='1.2.0',
     description='Python implementation of D4M',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -20,5 +20,5 @@ setup(
     include_package_data=True,
     zip_safe=False,
     packages=find_packages(),
-    install_requires=['scipy', 'numpy', 'py4j', 'pandas', 'matplotlib'],
+    install_requires=['scipy', 'numpy', 'py4j', 'matplotlib'],
 )
