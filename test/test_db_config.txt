@@ -1,0 +1,5 @@
+# py4j_path=/path/to/share/py4j/py4j0.10.7.jar
+# accumulo_path=/path/to/libext/*
+# graphulo_path=/path/to/lib/graphulo-3.0.0.jar
+# config=/path/to/accumulo/instances/
+# instance_name=class-db03

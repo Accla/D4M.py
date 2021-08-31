@@ -1,5 +1,4 @@
 # Import packages
-from __future__ import annotations
 import numpy as np
 import random
 import string
@@ -7,7 +6,7 @@ import warnings
 from numbers import Number
 from inspect import signature
 from typing import Any, Union, Tuple, Optional, Callable, Sequence, List, Dict
-from collections.abc import Sequence as sequence_like
+from collections.abc import Sequence as SequenceLike
 # Use List & Dict for backwards (<3.9) compatibility
 
 KeyVal = Union[str, Number]
@@ -192,7 +191,7 @@ def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = 
     keys = sanitize(keys)
 
     if callable(selection):
-        # If function on iterables returning a list of indices, apply to keys[index] and get subarray
+        # If function on iterables returning a list of indices, apply to keys and get subarray
         selection = selection(keys)
         selection = np.unique(selection).astype(int)
         clean_selection = keys[selection]
@@ -275,9 +274,13 @@ def contains(substrings: StrList) -> Callable[[StrList], List[int]]:
             func(string_list) = returns a list of indices of the strings in string_list which have some element of
                 substrings as a substring
     """
+    presanitized = substrings
     substrings = sanitize(substrings)
 
-    def func(string_list):
+    def func(string_list, function_name='contains', currying_parameter=presanitized):
+        if string_list is None:
+            return function_name, currying_parameter
+
         string_list = sanitize(string_list)
         good_string_list = list()
         for index in range(len(string_list)):
@@ -304,19 +307,23 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
             func(string_list) = returns a list of indices of the strings in string_list which have some element of
                 prefixes as a prefix
     """
+    presanitized = prefixes
     prefixes = sanitize(prefixes)
 
-    def func(string_list):
-        string_list = sanitize(string_list)
-        good_string_list = list()
+    def func(string_list, function_name='startswith', currying_parameter=presanitized):
+        if string_list is None:
+            return function_name, currying_parameter
+        else:
+            string_list = sanitize(string_list)
+            good_string_list = list()
 
-        for index in range(len(string_list)):
-            item = string_list[index]
-            for prefix in prefixes:
-                if item.startswith(prefix):
-                    good_string_list.append(index)
-                    break
-        return good_string_list
+            for index in range(len(string_list)):
+                item = string_list[index]
+                for prefix in prefixes:
+                    if item.startswith(prefix):
+                        good_string_list.append(index)
+                        break
+            return good_string_list
 
     return func
 
@@ -354,7 +361,10 @@ def num_to_str(array: ArrayLike, int_aware: bool = True) -> np.ndarray:
 
 
 def can_sanitize(object_: Any) -> bool:
-    return isinstance(object_, str) or isinstance(object_, Number) or isinstance(object_, sequence_like)
+    return isinstance(object_, str) or isinstance(object_, Number) or isinstance(object_, SequenceLike) \
+           or (isinstance(object_, np.ndarray) and object_.ndim == 1
+               and (np.issubdtype(object_.dtype, float) or np.issubdtype(object_.dtype, int)
+                    or np.issubdtype(object_.dtype, str)))
 
 
 def sanitize(object_: ArrayLike, prevent_upcasting: bool = False, convert: bool = False) -> np.ndarray:
@@ -414,7 +424,7 @@ def sanitize(object_: ArrayLike, prevent_upcasting: bool = False, convert: bool 
     return object_
 
 
-def to_db_string(object_):
+def to_db_string(object_) -> str:
     """Convert input (either a delimiter-separated string or an iterable) to Accumulo-friendly string."""
     if isinstance(object_, str):
         object_ = object_.replace(object_[-1], '\n')
@@ -422,6 +432,11 @@ def to_db_string(object_):
         object_ = sanitize(object_).astype(str)
         object_ = '\n'.join(object_) + '\n'
     return object_
+
+
+def from_db_string(db_string: str) -> np.ndarray:
+    """Convert db-formatted string to numpy array."""
+    return sanitize(db_string.split('\n')[0: -1])
 
 
 def np_sorted(arr: np.ndarray) -> bool:

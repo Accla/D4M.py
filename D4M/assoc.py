@@ -1,5 +1,4 @@
 # Import packages
-from __future__ import annotations
 from scipy import sparse
 import numpy as np
 import matplotlib.pyplot as plt
@@ -296,7 +295,7 @@ class Assoc:
 
         return canonical
 
-    def dropzeros(self, copy: bool = False) -> Assoc:
+    def dropzeros(self, copy: bool = False) -> 'Assoc':  # Using 'Assoc' for Python 3.6 forward-ref compatibility
         """Return copy of Assoc without null values recorded.
             Usage:
                 self.dropzeros()
@@ -369,7 +368,7 @@ class Assoc:
         return A
 
     # Remove row/col indices that do not appear in the data
-    def condense(self) -> Assoc:
+    def condense(self) -> 'Assoc':
         """Remove items from self.row and self.col which do not correspond to values, according to self.adj.
             Usage:
                 self.condense()
@@ -407,7 +406,7 @@ class Assoc:
         return self
 
     # extension of condense() which also removes unused values
-    def deepcondense(self) -> Assoc:
+    def deepcondense(self) -> 'Assoc':
         """Remove values from self.val which are not reflected in self.adj."""
 
         # If numerical, do nothing (no unused values)
@@ -429,7 +428,7 @@ class Assoc:
 
             return self
 
-    def set_row(self, new_row: ArrayLike) -> Assoc:
+    def set_row(self, new_row: ArrayLike) -> 'Assoc':
         """Replace current sorted array of row keys with new row keys. (in-place)
             Usage:
                 self.set_row(new_row)
@@ -459,7 +458,7 @@ class Assoc:
 
         return self
 
-    def set_col(self, new_col: ArrayLike) -> Assoc:
+    def set_col(self, new_col: ArrayLike) -> 'Assoc':
         """Replace current sorted array of column keys with new column keys. (in-place)
             Usage:
                 self.set_col(new_col)
@@ -489,7 +488,7 @@ class Assoc:
 
         return self
 
-    def set_val(self, new_val: ArrayLike) -> Assoc:
+    def set_val(self, new_val: ArrayLike) -> 'Assoc':
         """Replace current sorted array of unique values with new values. (in-place)
             Usage:
                 self.set_val(new_val)
@@ -550,7 +549,7 @@ class Assoc:
 
         return self
 
-    def set_adj(self, new_adj: sparse.spmatrix, numerical: bool = True) -> Assoc:
+    def set_adj(self, new_adj: sparse.spmatrix, numerical: bool = True) -> 'Assoc':
         """Replace current adjacency array with new adjacency array. (in-place)
             Usage:
                 self.set_adj(new_adj)
@@ -610,7 +609,7 @@ class Assoc:
                                                        new_entry_name='col_key', sorted_array_name='self.col')
 
             # Reconstruct self.adj so shape and dtype are correct
-            if isinstance(self.val, float) and isinstance(value, Number):
+            if isinstance(self.val, float) and (isinstance(value, int) or isinstance(value, float)):
                 new_adj_data = np.append(self.adj.data, value).astype(float)
                 self.adj = sparse.coo_matrix((new_adj_data, (new_adj_row, new_adj_col)))
             else:
@@ -759,7 +758,7 @@ class Assoc:
             return self.val[value_index]
 
     # Overload getitem; allows for subsref
-    def __getitem__(self, selection: Tuple[Selectable, Selectable]) -> Assoc:
+    def __getitem__(self, selection: Tuple[Selectable, Selectable]) -> 'Assoc':
         """Returns a sub-associative array of self according to object1 and object2 or corresponding value
             Usage:
                 B = self[row_select, col_select]
@@ -959,22 +958,22 @@ class Assoc:
         plt.show()
         return assoc_spy
 
-    def copy(self) -> Assoc:
+    def copy(self) -> 'Assoc':
         """Create a shallow copy of self."""
         assoc_copy = Assoc(cpy.copy(self.row), cpy.copy(self.col), cpy.copy(self.val), self.adj.copy(),
                            aggregate='unique')
         return assoc_copy
 
-    def __copy__(self) -> Assoc:
+    def __copy__(self) -> 'Assoc':
         return self.copy()
 
-    def deepcopy(self) -> Assoc:
+    def deepcopy(self) -> 'Assoc':
         """Create a deep copy of self."""
         assoc_deepcopy = Assoc(cpy.deepcopy(self.row), cpy.deepcopy(self.col), cpy.deepcopy(self.val),
                                cpy.deepcopy(self.adj), aggregate='unique')
         return assoc_deepcopy
 
-    def __deepcopy__(self) -> Assoc:
+    def __deepcopy__(self) -> 'Assoc':
         return self.deepcopy()
 
     def diag(self):
@@ -1012,7 +1011,7 @@ class Assoc:
             return Assoc(diag_row, diag_col, diag_val, diag_adj, aggregate='unique')
 
     # replace all non-zero values with ones
-    def logical(self, copy: bool = True) -> Assoc:
+    def logical(self, copy: bool = True) -> 'Assoc':
         """Replaces every non-zero value with 1.0
             Usage:
                 self.logical()
@@ -1028,7 +1027,7 @@ class Assoc:
         A.adj.data[:] = 1.0
         return A
 
-    def transpose(self, copy: bool = True) -> Assoc:
+    def transpose(self, copy: bool = True) -> 'Assoc':
         """Transpose array, switching self.row and self.col and transposing self.adj."""
         if copy:
             transposed = Assoc(cpy.copy(self.col), cpy.copy(self.row), cpy.copy(self.val),
@@ -1040,7 +1039,7 @@ class Assoc:
         return transposed
 
     # Eliminate columns
-    def nocol(self, copy: bool = True) -> Assoc:
+    def nocol(self, copy: bool = True) -> 'Assoc':
         """Eliminate columns.
             Usage:
                 self.nocol()
@@ -1103,7 +1102,7 @@ class Assoc:
 
         return self_
 
-    def sum(self, axis: Optional[int] = None) -> Union[float, Assoc]:
+    def sum(self, axis: Optional[int] = None) -> Union[float, 'Assoc']:
         """Sum over the given axis or over whole array if None.
             Usage:
                 self.sum()
@@ -1141,8 +1140,8 @@ class Assoc:
 
         return A
 
-    def combine(self, other: Assoc, binary_op: Callable[[KeyVal, KeyVal], KeyVal],
-                right_zero: bool = False, left_zero: bool = False, zero: Optional[KeyVal] = None) -> Assoc:
+    def combine(self, other: 'Assoc', binary_op: Callable[[KeyVal, KeyVal], KeyVal],
+                right_zero: bool = False, left_zero: bool = False, zero: Optional[KeyVal] = None) -> 'Assoc':
         """Generic method for combining two associative arrays according to a given binary operation binary_op.
             Inputs:
                 other = associative array
@@ -1207,8 +1206,8 @@ class Assoc:
 
         return Assoc(new_row, new_col, new_val, aggregate=binary_op)
 
-    def semiring_prod(self, other: Assoc, semi_add: Callable[[KeyVal, KeyVal], KeyVal],
-                      semi_mult: Callable[[KeyVal, KeyVal], KeyVal]) -> Assoc:
+    def semiring_prod(self, other: 'Assoc', semi_add: Callable[[KeyVal, KeyVal], KeyVal],
+                      semi_mult: Callable[[KeyVal, KeyVal], KeyVal]) -> 'Assoc':
         """Array multiplication taken with respect to given semiring addition and semiring multiplication operations.
             Note:
                 - semi_add and semi_mult are assumed to obey the semiring axioms, i.e., semi_add is assumed to be
@@ -1274,7 +1273,7 @@ class Assoc:
         return Assoc(new_row, new_col, new_val)
 
     # Overload element-wise addition
-    def __add__(self, other: Assoc) -> Assoc:
+    def __add__(self, other: 'Assoc') -> 'Assoc':
         """Element-wise addition of self and other, matched up by row and column indices.
             Usage:
                 self + other
@@ -1318,7 +1317,7 @@ class Assoc:
             summed = self_.combine(other, util.add)
         return summed
 
-    def __sub__(self, other: Assoc) -> Assoc:
+    def __sub__(self, other: 'Assoc') -> 'Assoc':
         """Take arithmetic difference of numerical associative arrays and set difference otherwise."""
         # If both associative arrays are numerical, compute the element-wise arithmetic difference.
         if isinstance(self.val, float) and isinstance(other.val, float):
@@ -1343,7 +1342,7 @@ class Assoc:
             return self.combine(other, _minus, right_zero=True, left_zero=True)
 
     # Overload matrix multiplication
-    def __mul__(self, other: Union[int, float, Assoc]) -> Assoc:
+    def __mul__(self, other: Union[int, float, 'Assoc']) -> 'Assoc':
         """Array multiplication of A and B, with A's column indices matched up with B's row indices
             Usage:
                 self * other
@@ -1389,7 +1388,7 @@ class Assoc:
                 return self_
 
     # element-wise multiplication
-    def multiply(self, other: Assoc) -> Assoc:
+    def multiply(self, other: 'Assoc') -> 'Assoc':
         """Element-wise multiplication of self and B, matched up by row and column indices.
             Usage:
                 self.multiply(other)
@@ -1436,7 +1435,7 @@ class Assoc:
         return multiplied
 
     # element-wise division -- for division by zero, treat as null
-    def divide(self, other: Union[Assoc, Number]) -> Assoc:
+    def divide(self, other: Union['Assoc', Number]) -> 'Assoc':
         """Element-wise division of self and B, matched up by row and column indices.
             Usage:
                 self.divide(other)
@@ -1471,8 +1470,8 @@ class Assoc:
             except ValueError:
                 raise ValueError('Division by 0.')
 
-    def min(self, other: Union[Assoc, KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
-            -> Assoc:
+    def min(self, other: Union['Assoc', KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
+            -> 'Assoc':
         """Element-wise minimum between associative arrays. Supports optional comparison function."""
         if sort_key is None:
             comp_min = min
@@ -1494,8 +1493,8 @@ class Assoc:
 
         return self.combine(other, comp_min, right_zero=True, left_zero=True)
 
-    def max(self, other: Union[Assoc, KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
-            -> Assoc:
+    def max(self, other: Union['Assoc', KeyVal], sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) \
+            -> 'Assoc':
         """Element-wise maximum between associative arrays. Supports optional comparison function."""
         if sort_key is None:
             comp_max = max
@@ -1517,7 +1516,7 @@ class Assoc:
 
         return self.combine(other, comp_max, right_zero=True, left_zero=True)
 
-    def __and__(self, other: Assoc) -> Assoc:
+    def __and__(self, other: 'Assoc') -> 'Assoc':
         """Element-wise logical AND of self and other, matched up by row and column indices.
             Usage:
                 self & other
@@ -1531,7 +1530,7 @@ class Assoc:
         self_, other_ = self.logical(copy=True), other.logical(copy=True)
         return self_.multiply(other_)
 
-    def __or__(self, other: Assoc) -> Assoc:
+    def __or__(self, other: 'Assoc') -> 'Assoc':
         """Element-wise logical OR (on {0,1}) of self and B, matched up by row and column indices.
             Usage:
                 self | other
@@ -1545,15 +1544,15 @@ class Assoc:
         self_, other_ = self.logical(copy=True), other.logical(copy=True)
         return (self_ + other_).logical(copy=False)
 
-    def sqin(self) -> Assoc:
+    def sqin(self) -> 'Assoc':
         """self.transpose() * self"""
         return self.transpose() * self
 
-    def sqout(self) -> Assoc:
+    def sqout(self) -> 'Assoc':
         """self * self.transpose()"""
         return self * self.transpose()
 
-    def catkeymul(self, other: Assoc, delimiter: str = ';') -> Assoc:
+    def catkeymul(self, other: 'Assoc', delimiter: str = ';') -> 'Assoc':
         """Computes the array product, but values are delimiter-separated string list of
             the row/column indices which contribute to the value in the product
             Usage:
@@ -1584,7 +1583,7 @@ class Assoc:
 
         return Assoc(catkey_row, catkey_col, catkeys)
 
-    def catvalmul(self, other: Assoc, pair_delimiter: str = ',', delimiter: str = ';') -> Assoc:
+    def catvalmul(self, other: 'Assoc', pair_delimiter: str = ',', delimiter: str = ';') -> 'Assoc':
         """Computes the array product, but values are delimiter-separated string list of
             the values of A and B which contribute to the value in the product
             Usage:
@@ -1680,8 +1679,8 @@ class Assoc:
         #
         # return D
 
-    def compare(self, other: Union[Assoc, KeyVal], sort_key: Callable[[KeyVal, KeyVal], bool],
-                inverse: bool = False, include_inverse: bool = False) -> Union[Assoc, Tuple[Assoc, Assoc]]:
+    def compare(self, other: Union['Assoc', KeyVal], sort_key: Callable[[KeyVal, KeyVal], bool],
+                inverse: bool = False, include_inverse: bool = False) -> Union['Assoc', Tuple['Assoc', 'Assoc']]:
         """Generic element-wise comparison with another associative array or a single value according to sort_key.
             Usage:
                 self.compare(other, min)
@@ -1768,7 +1767,7 @@ class Assoc:
         else:
             return Assoc(compared_row, compared_col, 1), Assoc(inv_compared_row, inv_compared_col, 1)
 
-    def __eq__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __eq__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self == other
@@ -1798,7 +1797,7 @@ class Assoc:
 
         return self.compare(other, sort_key=KeyVal_eq)
 
-    def __ne__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __ne__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self != other
@@ -1828,7 +1827,7 @@ class Assoc:
 
         return self.compare(other, sort_key=KeyVal_ne)
 
-    def __lt__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __lt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self < other
@@ -1858,7 +1857,7 @@ class Assoc:
 
         return self.compare(other, sort_key=KeyVal_lt)
 
-    def __gt__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __gt__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self > other
@@ -1888,7 +1887,7 @@ class Assoc:
 
         return self.compare(other, sort_key=KeyVal_gt)
 
-    def __le__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __le__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self <= other
@@ -1918,7 +1917,7 @@ class Assoc:
 
         return self.compare(other, sort_key=KeyVal_le)
 
-    def __ge__(self, other: Union[Assoc, KeyVal]) -> Assoc:
+    def __ge__(self, other: Union['Assoc', KeyVal]) -> 'Assoc':
         """Element-wise equality comparison between self and other.
             Usage:
                 self >= other
@@ -1949,21 +1948,21 @@ class Assoc:
         return self.compare(other, sort_key=KeyVal_ge)
 
 
-def nnz(A: Assoc) -> int:
+def nnz(A: 'Assoc') -> int:
     return A.nnz()
 
 
-def hadamard(A: Assoc, B: Assoc) -> Assoc:
+def hadamard(A: 'Assoc', B: 'Assoc') -> 'Assoc':
     return A.multiply(B)
 
 
-def combine(A: Assoc, B: Assoc, binary_op: Callable[[KeyVal, KeyVal], KeyVal],
-            right_zero: bool = False, left_zero: bool = False) -> Assoc:
+def combine(A: 'Assoc', B: 'Assoc', binary_op: Callable[[KeyVal, KeyVal], KeyVal],
+            right_zero: bool = False, left_zero: bool = False) -> 'Assoc':
     return A.combine(B, binary_op, right_zero=right_zero, left_zero=left_zero)
 
 
 def assoc_min(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
-              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> Assoc:
+              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> 'Assoc':
     if isinstance(A, Assoc):
         return A.min(B, sort_key=sort_key)
     else:
@@ -1972,7 +1971,7 @@ def assoc_min(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
 
 
 def assoc_max(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
-              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> Assoc:
+              sort_key: Optional[Callable[[KeyVal, KeyVal], bool]] = None) -> 'Assoc':
     if isinstance(A, Assoc):
         return A.max(B, sort_key=sort_key)
     else:
@@ -1980,27 +1979,27 @@ def assoc_max(A: Union[KeyVal, Assoc], B: Union[KeyVal, Assoc],
         return B.max(A, sort_key=sort_key)
 
 
-def transpose(A: Assoc, copy: bool = True) -> Assoc:
+def transpose(A: 'Assoc', copy: bool = True) -> 'Assoc':
     return A.transpose(copy=copy)
 
 
-def sqin(A: Assoc) -> Assoc:
+def sqin(A: 'Assoc') -> 'Assoc':
     return A.sqin()
 
 
-def sqout(A: Assoc) -> Assoc:
+def sqout(A: 'Assoc') -> 'Assoc':
     return A.sqout()
 
 
-def catkeymul(A: Assoc, B: Assoc, delimiter: str = ';') -> Assoc:
+def catkeymul(A: 'Assoc', B: 'Assoc', delimiter: str = ';') -> 'Assoc':
     return A.catkeymul(B, delimiter=delimiter)
 
 
-def catvalmul(A: Assoc, B: Assoc, pair_delimiter: str = ',', delimiter: str = ';') -> Assoc:
+def catvalmul(A: 'Assoc', B: 'Assoc', pair_delimiter: str = ',', delimiter: str = ';') -> 'Assoc':
     return A.catvalmul(B, pair_delimiter=pair_delimiter, delimiter=delimiter)
 
 
-def val2col(A: Assoc, separator: str = '|', int_aware: bool = True) -> Assoc:
+def val2col(A: 'Assoc', separator: str = '|', int_aware: bool = True) -> 'Assoc':
     """Convert from adjacency array to incidence array.
         Usage:
             val2col(A, separator)
@@ -2020,7 +2019,7 @@ def val2col(A: Assoc, separator: str = '|', int_aware: bool = True) -> Assoc:
     return Assoc(rows, cols, 1)
 
 
-def col_to_type(A: Assoc, separator: str = '|', convert: bool = True) -> Assoc:
+def col_to_type(A: 'Assoc', separator: str = '|', convert: bool = True) -> 'Assoc':
     """Split column keys of associative array and sorts first part as column key and second part as value.
         Inverse of val2col.
             Usage:
@@ -2062,7 +2061,7 @@ def col_to_type(A: Assoc, separator: str = '|', convert: bool = True) -> Assoc:
 col2type = col_to_type
 
 
-def num_to_str(A: Assoc) -> Assoc:
+def num_to_str(A: 'Assoc') -> 'Assoc':
     new_row, new_col, new_val = A.row, A.col, A.get_val()
     new_row = np.char.strip(new_row.astype(str), '.0')
     new_col = np.char.strip(new_col.astype(str), '.0')
@@ -2087,7 +2086,7 @@ def sparse_equal(sparr_1: sparse.spmatrix, sparr_2: sparse.spmatrix):
     return (sparr_1 != sparr_2).nnz == 0
 
 
-def assoc_equal(A: Assoc, B: Assoc, return_info: bool = False) -> bool:
+def assoc_equal(A: 'Assoc', B: 'Assoc', return_info: bool = False) -> bool:
     """ Test whether two associative arrays are equal. """
     is_equal = True
 
@@ -2124,7 +2123,7 @@ def assoc_equal(A: Assoc, B: Assoc, return_info: bool = False) -> bool:
 
 
 def readcsvtotriples(filename: str, labels: bool = True, triples: bool = False, **fmtoptions) \
-        -> Tuple[list[KeyVal], list[KeyVal], list[KeyVal]]:
+        -> Tuple[List[KeyVal], List[KeyVal], List[KeyVal]]:
     """Read CSV file to row, col, val lists.
         Usage:
             row, col, val = readCSV(filename, labels=False, triples=False)
@@ -2202,7 +2201,7 @@ def readcsvtotriples(filename: str, labels: bool = True, triples: bool = False, 
     return row, col, val
 
 
-def readcsv(filename: str, labels: bool = True, triples: bool = False, **fmtoptions) -> Assoc:
+def readcsv(filename: str, labels: bool = True, triples: bool = False, **fmtoptions) -> 'Assoc':
     """Read CSV file to Assoc instance.
         Usage:
             A = readcsv(filename)
@@ -2227,7 +2226,7 @@ def readcsv(filename: str, labels: bool = True, triples: bool = False, **fmtopti
     return Assoc(row, col, val)
 
 
-def writecsv(A: Assoc, filename: str, **fmtparams) -> None:
+def writecsv(A: 'Assoc', filename: str, **fmtparams) -> None:
     """Write CSV file from Assoc instance.
         Usage:
             writeCSV(filename)

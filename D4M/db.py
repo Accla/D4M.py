@@ -1,8 +1,7 @@
 # Import packages
-from __future__ import annotations
 import os
-import warnings
 from numbers import Number
+import math
 import numpy as np
 from typing import Union, Optional, List, Sequence, Callable, Tuple
 from pkg_resources import resource_filename  # Facilitate packaged jars being referenced
@@ -17,39 +16,82 @@ ArrayLike = Union[KeyVal, Sequence[KeyVal], np.ndarray]
 Selectable = Union[ArrayLike, slice, Callable]
 
 
+default_py4j_path = resource_filename(__name__, '/jars/py4j/share/py4j/py4j0.10.7.jar')
+default_accumulo_path = resource_filename(__name__, '/jars/accumulo/libext/*')
+default_graphulo_path = resource_filename(__name__, '/jars/graphulo/lib/graphulo-3.0.0.jar')
+
+
+def _read_config_file(file: str) -> dict:
+    with open(file, 'r') as config_file:
+        db_conf = [line.split('=') for line in config_file.readlines()]
+        db_conf = {line[0]: line[1] for line in db_conf}
+    return db_conf
+
+
+def _get_default_path(field_name: str, default: str, file: Optional[str] = None, silent: bool = True) -> str:
+    if file is not None:
+        try:
+            db_conf = _read_config_file(file)
+            try:
+                return db_conf[field_name]
+            except KeyError:
+                message = "Given file has no field '" + str(field_name) + "'."
+                if not silent:
+                    raise ValueError(message)
+                else:
+                    print(message)
+        except FileNotFoundError:
+            message = "No file named '" + str(file) + "' found."
+            if not silent:
+                raise ValueError(message)
+            else:
+                print(message)
+    return default
+
+
 # Classes
 class JavaConnector:
     """Handles the starting of the JVM and exposing the JVM to the relevant JARs of Graphulo and Accumulo.
         Attributes:
             jvm_port = (Global) port number for port being used by py4j to connect to JVM
             jvm_gateway = (Global) py4j.java_gateway.JavaGateway object to facilitate communication with JVM
-            default_paths = (Global) dictionary containing default paths for the py4j, accumulo, and graphulo JARs
-                as well as path for directory containing /databases/[accumulo-db-instance] or path for config file
+            py4j_path = path to py4j0.x.jar
+            accumulo_path = path to directory containing accumulo jars
+            graphulo_path = path to graphulo-3.0.0.jar
     """
 
     jvm_port = None
     jvm_gateway = None
-    default_paths = {'py4j_path': resource_filename(__name__, '/jars/py4j/share/py4j/py4j.0.1.jar'),
-                     'accumulo_path': resource_filename(__name__, '/jars/libext/*'),
-                     'graphulo_path': resource_filename(__name__, '/jars/lib/graphulo-3.0.0.jar'),
-                     'config': '/home/gridsan/tools/groups/'}
+    py4j_path = default_py4j_path
+    accumulo_path = default_accumulo_path
+    graphulo_path = default_graphulo_path
 
     @staticmethod
-    def start_java(py4j_path: str = default_paths['py4j_path'], accumulo_path: str = default_paths['accumulo_path'],
-                   graphulo_path: str = default_paths['graphulo_path'], die_on_exit: bool = True) \
+    def start_java(py4j_path: Optional[str] = None, accumulo_path: Optional[str] = None,
+                   graphulo_path: Optional[str] = None, filename: Optional[str] = None, die_on_exit: bool = True) \
             -> py4j.java_gateway.JavaGateway:
         """Start JVM and connect via a Py4J JavaGateway, with classpath exposing Accumulo and Graphulo to the JVM.
             Inputs:
-                py4j_path = (Optional, default is packaged py4j jar) full path for py4j jar
-                accumulo_path = (Optional, default is packaged accumulo jar) full path of _directory_ containing
-                                Accumulo jars
-                graphulo_path = (Optional, default is packaged graphulo_jar) full path for graphulo jar
+                py4j_path = (Optional, default is packaged py4j jar unless filename is given) full path for py4j jar
+                accumulo_path = (Optional, default is packaged accumulo jar unless filename is given) full path of
+                    _directory_ containing Accumulo jars
+                graphulo_path = (Optional, default is packaged graphulo jar unless filename is given) full path for
+                    graphulo jar
+                filename = (Optional) name of config file to use; assumed to be of the form
+                    "py4j_path=/path/to/directory/py4j/share/py4j/py4j0.x.jar
+                     accumulo_path=/path/to/directory/*
+                     graphulo_path=/path/to/directory/graphulo-3.0.0.jar"
                 die_on_exit = (Optional, default True) Boolean whether JVM should close upon exiting python
             Output:
                 start_java() = JavaConnector.gateway
-            Notes:
-                - Default values of py4j_path, accumulo_path, and graphulo_path are found in JavaConnector.default_paths
         """
+        if py4j_path is None:
+            py4j_path = _get_default_path('py4j_path', default_py4j_path, file=filename, silent=True)
+        if accumulo_path is None:
+            accumulo_path = _get_default_path('accumulo_path', default_accumulo_path, file=filename, silent=True)
+        if graphulo_path is None:
+            graphulo_path = _get_default_path('graphulo_path', default_graphulo_path, file=filename, silent=True)
+
         class_path = '.:' + accumulo_path + ':' + graphulo_path
 
         port = py4j.java_gateway.launch_gateway(jarpath=py4j_path, classpath=class_path, die_on_exit=die_on_exit)
@@ -60,9 +102,12 @@ class JavaConnector:
         )
 
         print('JavaGateway started in Port '+str(port))
-        
+
         JavaConnector.jvm_port = port
         JavaConnector.jvm_gateway = gateway
+        JavaConnector.py4j_path = py4j_path
+        JavaConnector.accumulo_path = accumulo_path
+        JavaConnector.graphulo_path = graphulo_path
         return gateway
 
     @staticmethod
@@ -123,7 +168,7 @@ class DbTable:
             table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
     """
 
-    def __init__(self, DB: 'DbServer', name: str, security: str, num_limit: int, num_row: int,
+    def __init__(self, DB: DbServer, name: str, security: str, num_limit: int, num_row: int,
                  column_family: str, put_bytes: float, d4m_query: py4j.java_gateway.JavaObject,
                  table_ops: py4j.java_gateway.JavaObject):
         self.DB = DB
@@ -153,7 +198,7 @@ class DbTablePair:
             table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
     """
 
-    def __init__(self, DB: 'DbServer', name_1: str, name_2: str, security: str, num_limit: int,
+    def __init__(self, DB: DbServer, name_1: str, name_2: str, security: str, num_limit: int,
                  num_row: int, column_family: str, put_bytes: float, d4m_query: py4j.java_gateway.JavaObject,
                  table_ops: py4j.java_gateway.JavaObject):
         self.DB = DB
@@ -172,9 +217,9 @@ DbTableLike = Union[DbTable, DbTablePair]
 default_tables = ['accumulo.metadata', 'accumulo.replication', 'accumulo.root', 'trace']
 
 
-def dbsetup(instance: str, config: str = JavaConnector.default_paths['config'], py4j_path: Optional[str] = None,
-            accumulo_path: Optional[str] = None, graphulo_path: Optional[str] = None, die_on_exit: bool = True,
-            force_restart: bool = False) -> 'DbServer':
+def dbsetup(instance: str, config: Optional[str] = None, py4j_path: Optional[str] = None,
+            accumulo_path: Optional[str] = None, graphulo_path: Optional[str] = None, filename: Optional[str] = None,
+            force_restart: bool = False, die_on_exit: bool = True) -> DbServer:
     """Set up DB connection, starting JVM if not already started.
         Usage:
             dbsetup('instance_name')
@@ -193,11 +238,25 @@ def dbsetup(instance: str, config: str = JavaConnector.default_paths['config'], 
                              password = *actual password*"
             py4j_path, accumulo_path, graphulo_path, die_on_exit = see JavaConnector.start_java()
         Output:
-            DB = Dbserver, containing the connection information to Accumulo instance
+            DB = DbServer containing the connection information to Accumulo instance
         Examples:
             dbsetup('class-db49')
             dbsetup('class-db50')
     """
+    if py4j_path is None:
+        py4j_path = _get_default_path('py4j_path',
+                                      resource_filename(__name__, '/jars/py4j/share/py4j/py4j0.10.9.2.jar'),
+                                      file=filename, silent=True)
+    if accumulo_path is None:
+        accumulo_path = _get_default_path('accumulo_path', resource_filename(__name__, '/jars/accumulo/libext/*'),
+                                          file=filename, silent=True)
+    if graphulo_path is None:
+        graphulo_path = _get_default_path('graphulo_path',
+                                          resource_filename(__name__, '/jars/graphulo/lib/graphulo-3.0.0.jar'),
+                                          file=filename, silent=True)
+    if config is None:
+        config = _get_default_path('config', '/home/gridsan/tools/groups/', file=filename, silent=True)
+
     if os.path.isdir(config):
         dbdir = config + '/databases/' + instance
         with open(dbdir + '/accumulo_user_password.txt', 'r') as f:
@@ -215,7 +274,8 @@ def dbsetup(instance: str, config: str = JavaConnector.default_paths['config'], 
         username = conf['username']
         pword = conf['password']
     else:
-        raise ValueError("'config' must either be a config file or a directory containing a config file")
+        raise ValueError("'config' must either be a config file or a directory containing a config file."
+                         + "Supplied 'config': " + str(config))
 
     if JavaConnector.jvm_gateway is None or force_restart:
         gateway = JavaConnector.start_java(py4j_path=py4j_path, accumulo_path=accumulo_path,
@@ -226,8 +286,8 @@ def dbsetup(instance: str, config: str = JavaConnector.default_paths['config'], 
     return DbServer(instance, hostname, username, pword, "BigTableLike", gateway)
 
 
-def _get_index_single(DB: 'DbServer', table_name: str, security: str = '', num_limit: int = 0, num_row: int = 0,
-                      column_family: str = '', put_bytes: float = 5e5) -> 'DbTable':
+def _get_index_single(DB: DbServer, table_name: str, security: str = '', num_limit: int = 0, num_row: int = 0,
+                      column_family: str = '', put_bytes: float = 5e5) -> DbTable:
     """Create DbTable object containing binding information for tableName in DB."""
     gateway = DB.gateway
     table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
@@ -245,8 +305,8 @@ def _get_index_single(DB: 'DbServer', table_name: str, security: str = '', num_l
     return db_table
 
 
-def _get_index_pair(DB: 'DbServer', table_name_1: str, table_name_2: str, security: str = '', num_limit: int = 0,
-                    num_row: int = 0, column_family: str = '', put_bytes: float = 5e5) -> 'DbTablePair':
+def _get_index_pair(DB: DbServer, table_name_1: str, table_name_2: str, security: str = '', num_limit: int = 0,
+                    num_row: int = 0, column_family: str = '', put_bytes: float = 5e5) -> DbTablePair:
     """Create DbTablePair object containing binding information for tableName1 and tableName2 in DB."""
     gateway = DB.gateway
     table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
@@ -264,12 +324,51 @@ def _get_index_pair(DB: 'DbServer', table_name_1: str, table_name_2: str, securi
     return db_table_pair
 
 
+_colon_equivalents = [':', slice(None, None), slice(0, None), slice(None, None, 1), slice(0, None, 1)]
+
+
+def _needs_full(query):
+    if callable(query) or (isinstance(query, slice) and query not in _colon_equivalents):
+        return True
+    else:
+        query = D4M.util.sanitize(query)
+        if query.dtype == int or (query.dtype == str and ':' in query and (len(query) != 1 and len(query) != 3)):
+            return True
+        else:
+            return False
+
+
+def _is_colon(object_):
+    return isinstance(object_, str) and object_ == ':'
+
+
+def _make_chunks(query: ArrayLike, chunk_size) -> Tuple[list, int]:
+    num_chunks = math.floor(len(query) / chunk_size)
+    num_extra = len(query) % chunk_size
+
+    chunks = [D4M.util.to_db_string(query[chunk_index: chunk_index + chunk_size]) for chunk_index in range(num_chunks)]
+    if num_extra > 0:
+        covered = num_chunks * chunk_size
+        chunks.append(D4M.util.to_db_string(query[covered: covered + num_extra]))
+        num_chunks += 1
+    return chunks, num_chunks
+
+
 def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selectable) -> D4M.assoc.Assoc:
-    """Create Assoc object from the sub-array of table with queried row and column indices."""
+    """Create Assoc object from the sub-array of table with queried row and column indices/keys."""
     switch_keys = False
+
+    row_query = ':' if row_query in _colon_equivalents else row_query
+    if row_query not in _colon_equivalents and D4M.util.can_sanitize(row_query):
+        row_query = D4M.util.sanitize(row_query)
+    col_query = ':' if col_query in _colon_equivalents else col_query
+    if col_query not in _colon_equivalents and D4M.util.can_sanitize(col_query):
+        col_query = D4M.util.sanitize(col_query)
+
     if isinstance(table, DbTablePair):
-        if row_query == ':' and col_query != ':':
+        if _is_colon(row_query) and not _is_colon(col_query):
             table.d4m_query.setTableName(table.name_2)
+            row_query, col_query = col_query, row_query
             switch_keys = True
         else:
             table.d4m_query.setTableName(table.name_1)
@@ -279,34 +378,122 @@ def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selec
     table.d4m_query.setCloudType(table.DB.db_type)
     table.d4m_query.setLimit(table.num_limit)
 
-    row_query_needs_full = not ((isinstance(row_query, str) and ':' not in row_query) or row_query == ':')
-    col_query_needs_full = not ((isinstance(col_query, str) and ':' not in col_query) or col_query == ':')
+    new_row, new_col, new_val = list(), list(), list()
 
-    if row_query_needs_full or col_query_needs_full:
+    # If row_query or col_query require knowing the entire sequence of row keys or of column keys, query entire table
+    # and loop through to pick out matching triples
+    if _needs_full(row_query) or _needs_full(col_query):
         table.d4m_query.reset()
         table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
-        full_row, full_col = table.d4m_query.getRowReturnString(), table.d4m_query.getColumnReturnString()
+        full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+        full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+        full_val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
 
-        row_query, col_query = D4M.util.select_items(row_query, full_row), D4M.util.select_items(col_query, full_col)
-        row_query, col_query = D4M.util.to_db_string(row_query), D4M.util.to_db_string(col_query)
+        unique_row, unique_col = np.unique(full_row), np.unique(full_col)
+        row_query = D4M.util.select_items(row_query, unique_row)
+        col_query = D4M.util.select_items(col_query, unique_col)
+
+        for triple in zip(full_row, full_col, full_val):
+            if triple[0] in row_query and triple[1] in col_query:
+                new_row.append(triple[0])
+                new_col.append(triple[1])
+                new_val.append(triple[2])
     else:
-        if row_query != ':':
-            row_query = D4M.util.to_db_string(row_query)
-        if col_query != ':':
-            col_query = D4M.util.to_db_string(col_query)
+        # Otherwise, split row_query and col_query up into (at most) 3 x 3 squares and query over each
+        # (graphulo does not support queries with more than 3 elements)
+        if not _is_colon(row_query):
+            row_chunks, num_row_chunks = _make_chunks(row_query, 3)
+        else:
+            num_row_chunks = 1
+            row_chunks = [':']
+        if not _is_colon(col_query):
+            col_chunks, num_col_chunks = _make_chunks(col_query, 3)
+        else:
+            num_col_chunks = 1
+            col_chunks = [':']
 
-    table.d4m_query.reset()
-    table.d4m_query.doMatlabQuery(row_query, col_query, table.column_family, table.security)
-    new_row, new_col = table.d4m_query.getRowReturnString(), table.d4m_query.getColumnReturnString()
-    new_val = table.d4m_query.getValueReturnString()
+        row_chunk_index, col_chunk_index = 0, 0
+        while col_chunk_index < num_col_chunks:
+            while row_chunk_index < num_row_chunks:
+                table.d4m_query.reset()
+                table.d4m_query.doMatlabQuery(row_chunks[row_chunk_index], col_chunks[col_chunk_index],
+                                              table.column_family, table.security)
+                new_row += list(D4M.util.from_db_string(table.d4m_query.getRowReturnString()))
+                new_col += list(D4M.util.from_db_string(table.d4m_query.getColumnReturnString()))
+                new_val += list(D4M.util.from_db_string(table.d4m_query.getValueReturnString()))
 
+                row_chunk_index += 1
+            row_chunk_index = 0
+            col_chunk_index += 1
+
+    # Switch around new_row and new_col if table is a DbTablePair and col_query was nontrivial
     if switch_keys:
         new_row, new_col = new_col, new_row
 
     return D4M.assoc.Assoc(new_row, new_col, new_val)
 
+    # needed_full_row = _needs_full(row_query)
+    # needed_full_col = _needs_full(col_query)
+    #
+    # # Get all row and/or column keys if needed; either both nontrivial queries or needed to make selection
+    # if (needed_full_row or needed_full_col) or (not _is_colon(row_query) and not _is_colon(col_query)):
+    #     table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
+    #     full_row = np.array([], dtype=str)
+    #     full_col = np.array([], dtype=str)
+    #     full_val = np.array([], dtype=str)
+    #
+    #     # For each query, replace with an array of actual keys
+    #     if needed_full_row:
+    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+    #         unique_full_row = np.unique(full_row)
+    #         row_query = D4M.util.select_items(row_query, unique_full_row)
+    #     if needed_full_col:
+    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+    #         unique_full_col = np.unique(full_col)
+    #         col_query = D4M.util.select_items(col_query, unique_full_col)
+    #
+    #     # Fill in full_row and/or full_col as needed, avoiding repetition
+    #     if needed_full_row and not needed_full_col and not _is_colon(col_query):
+    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+    #     if needed_full_col and not needed_full_row and not _is_colon(row_query):
+    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+    #     if not needed_full_row and not needed_full_col:
+    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+    #     if not _is_colon(row_query) and not _is_colon(col_query):
+    #         full_val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
+    #
+    #     table.d4m_query.reset()
+    # else:
+    #     full_row, full_col, full_val = np.array([], dtype=str), np.array([], dtype=str), np.array([], dtype=str)
+    #
+    # new_row, new_col, new_val = list(), list(), list()
+    # if not _is_colon(row_query) and not _is_colon(col_query):
+    #     # If querying both row and col, then go through the triples and pick out desired ones
+    #     for key_index in range(len(full_row)):
+    #         if full_row[key_index] in row_query and full_col[key_index] in col_query:
+    #             new_row.append(full_row[key_index])
+    #             new_col.append(full_col[key_index])
+    #             new_val.append(full_val[key_index])
+    # else:
+    #     # If only querying one of row or col, then use graphulo to do so
+    #     row_query = D4M.util.to_db_string(row_query) if not _is_colon(row_query) else ':'
+    #     col_query = D4M.util.to_db_string(col_query) if not _is_colon(col_query) else ':'
+    #     print(row_query)
+    #     print(col_query)
+    #
+    #     table.d4m_query.doMatlabQuery(row_query, col_query, table.column_family, table.security)
+    #     new_row, new_col = table.d4m_query.getRowReturnString(), table.d4m_query.getColumnReturnString()
+    #     new_val = table.d4m_query.getValueReturnString()
+    #
+    # # Switch around new_row and new_col if table is a DbTablePair and col_query was nontrivial
+    # if switch_keys:
+    #     new_row, new_col = new_col, new_row
+    #
+    # return D4M.assoc.Assoc(new_row, new_col, new_val)
 
-def _get_index_from_iter(table: 'DbTableLike') -> 'D4M.assoc.Assoc':
+
+def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
     """Query table as iterator if table.num_limit > 0 and return associative array consisting of next batch of triples,
         otherwise return associative array consisting of all triples."""
     if table.num_limit == 0:
@@ -315,18 +502,19 @@ def _get_index_from_iter(table: 'DbTableLike') -> 'D4M.assoc.Assoc':
     table_name = table.d4m_query.getTableName()
 
     if isinstance(table, DbTablePair) and table_name == table.name_2:
-        col = table.d4m_query.getRowReturnString()
-        row = table.d4m_query.getColumnReturnString()
+        col = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+        row = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
     else:
-        row = table.d4m_query.getRowReturnString()
-        col = table.d4m_query.getColumnReturnString()
+        row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+        col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
 
-    val = table.d4m_query.getValueReturnString()
+    val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
 
     if not table.d4m_query.hasNext():
-        warnings.warn('End of table reached.')
-
-    table.d4m_query.next()
+        _iterator_start(table)
+        print('End of table reached. Returning to beginning of table.')
+    else:
+        table.d4m_query.next()
 
     return D4M.assoc.Assoc(row, col, val)
 
@@ -375,7 +563,7 @@ def get_index(*arg) -> Union[DbTableLike, D4M.assoc.Assoc]:
 valid_confirm = ['y', 'yes', 'Y', 'Yes']  # Enumerate user inputs that 'confirm'
 
 
-def _delete_table_single(table: 'DbTable', force: bool = False) -> None:
+def _delete_table_single(table: DbTable, force: bool = False) -> None:
     """Delete the table with name table.name in table.DB instance."""
     if table.name in table.DB.ls():
         if table.name in default_tables:
@@ -393,7 +581,7 @@ def _delete_table_single(table: 'DbTable', force: bool = False) -> None:
     return None
 
 
-def _delete_table_pair(table_pair: 'DbTablePair', force: bool = False) -> None:
+def _delete_table_pair(table_pair: DbTablePair, force: bool = False) -> None:
     """Delete the tables with names table.name1 and table.name2 in table.DB instance."""
     present_tables = table_pair.DB.ls()
     table_pair_names = [table_pair.name_1, table_pair.name_2]
@@ -451,6 +639,14 @@ def delete_all(DB: DbServer, force: bool = False) -> None:
     return None
 
 
+def _iterator_start(table: DbTableLike) -> None:
+    table.d4m_query.setCloudType(table.DB.db_type)
+    table.d4m_query.setLimit(table.num_limit)
+    table.d4m_query.reset()
+    table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
+    return None
+
+
 def get_iterator(table: DbTableLike, num_limit: int) -> DbTableLike:
     """Query iterator functionality."""
     if isinstance(table, DbTable):
@@ -459,12 +655,7 @@ def get_iterator(table: DbTableLike, num_limit: int) -> DbTableLike:
     else:
         table_iter = DbTablePair(table.DB, table.name_1, table.name_2, table.security, num_limit, table.num_row,
                                  table.column_family, table.put_bytes, table.d4m_query, table.table_ops)
-
-    table_iter.d4m_query.setCloudType(table_iter.DB.db_type)
-    table_iter.d4m_query.setLimit(num_limit)
-    table_iter.d4m_query.reset()
-    table_iter.d4m_query.doMatlabQuery(':', ':', table_iter.column_family, table_iter.security)
-
+    _iterator_start(table_iter)
     return table_iter
 
 
@@ -509,9 +700,9 @@ def put_triple(table: DbTableLike, row: ArrayLike, col: ArrayLike, val: ArrayLik
 
     for chunk_start in np.arange(0, num_triples, chunk_size):
         chunk_end = min(chunk_start + chunk_size, num_triples)
-        new_row_chunk = new_row[chunk_start:chunk_end]
-        new_col_chunk = new_col[chunk_start:chunk_end]
-        new_val_chunk = new_val[chunk_start:chunk_end]
+        new_row_chunk = D4M.util.to_db_string(new_row[chunk_start: chunk_end])
+        new_col_chunk = D4M.util.to_db_string(new_col[chunk_start: chunk_end])
+        new_val_chunk = D4M.util.to_db_string(new_val[chunk_start: chunk_end])
 
         insert_obj.doProcessing(new_row_chunk, new_col_chunk, new_val_chunk, table.column_family, table.security)
 
