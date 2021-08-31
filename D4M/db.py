@@ -16,19 +16,23 @@ ArrayLike = Union[KeyVal, Sequence[KeyVal], np.ndarray]
 Selectable = Union[ArrayLike, slice, Callable]
 
 
-default_py4j_path = resource_filename(__name__, '/jars/py4j/share/py4j/py4j0.10.7.jar')
-default_accumulo_path = resource_filename(__name__, '/jars/accumulo/libext/*')
-default_graphulo_path = resource_filename(__name__, '/jars/graphulo/lib/graphulo-3.0.0.jar')
+default_py4j_path = resource_filename(__name__, "/jars/py4j/share/py4j/py4j0.10.7.jar")
+default_accumulo_path = resource_filename(__name__, "/jars/accumulo/libext/*")
+default_graphulo_path = resource_filename(
+    __name__, "/jars/graphulo/lib/graphulo-3.0.0.jar"
+)
 
 
 def _read_config_file(file: str) -> dict:
-    with open(file, 'r') as config_file:
-        db_conf = [line.split('=') for line in config_file.readlines()]
+    with open(file, "r") as config_file:
+        db_conf = [line.split("=") for line in config_file.readlines()]
         db_conf = {line[0]: line[1] for line in db_conf}
     return db_conf
 
 
-def _get_default_path(field_name: str, default: str, file: Optional[str] = None, silent: bool = True) -> str:
+def _get_default_path(
+    field_name: str, default: str, file: Optional[str] = None, silent: bool = True
+) -> str:
     if file is not None:
         try:
             db_conf = _read_config_file(file)
@@ -52,12 +56,12 @@ def _get_default_path(field_name: str, default: str, file: Optional[str] = None,
 # Classes
 class JavaConnector:
     """Handles the starting of the JVM and exposing the JVM to the relevant JARs of Graphulo and Accumulo.
-        Attributes:
-            jvm_port = (Global) port number for port being used by py4j to connect to JVM
-            jvm_gateway = (Global) py4j.java_gateway.JavaGateway object to facilitate communication with JVM
-            py4j_path = path to py4j0.x.jar
-            accumulo_path = path to directory containing accumulo jars
-            graphulo_path = path to graphulo-3.0.0.jar
+    Attributes:
+        jvm_port = (Global) port number for port being used by py4j to connect to JVM
+        jvm_gateway = (Global) py4j.java_gateway.JavaGateway object to facilitate communication with JVM
+        py4j_path = path to py4j0.x.jar
+        accumulo_path = path to directory containing accumulo jars
+        graphulo_path = path to graphulo-3.0.0.jar
     """
 
     jvm_port = None
@@ -67,41 +71,55 @@ class JavaConnector:
     graphulo_path = default_graphulo_path
 
     @staticmethod
-    def start_java(py4j_path: Optional[str] = None, accumulo_path: Optional[str] = None,
-                   graphulo_path: Optional[str] = None, filename: Optional[str] = None, die_on_exit: bool = True) \
-            -> py4j.java_gateway.JavaGateway:
+    def start_java(
+        py4j_path: Optional[str] = None,
+        accumulo_path: Optional[str] = None,
+        graphulo_path: Optional[str] = None,
+        filename: Optional[str] = None,
+        die_on_exit: bool = True,
+    ) -> py4j.java_gateway.JavaGateway:
         """Start JVM and connect via a Py4J JavaGateway, with classpath exposing Accumulo and Graphulo to the JVM.
-            Inputs:
-                py4j_path = (Optional, default is packaged py4j jar unless filename is given) full path for py4j jar
-                accumulo_path = (Optional, default is packaged accumulo jar unless filename is given) full path of
-                    _directory_ containing Accumulo jars
-                graphulo_path = (Optional, default is packaged graphulo jar unless filename is given) full path for
-                    graphulo jar
-                filename = (Optional) name of config file to use; assumed to be of the form
-                    "py4j_path=/path/to/directory/py4j/share/py4j/py4j0.x.jar
-                     accumulo_path=/path/to/directory/*
-                     graphulo_path=/path/to/directory/graphulo-3.0.0.jar"
-                die_on_exit = (Optional, default True) Boolean whether JVM should close upon exiting python
-            Output:
-                start_java() = JavaConnector.gateway
+        Inputs:
+            py4j_path = (Optional, default is packaged py4j jar unless filename is given) full path for py4j jar
+            accumulo_path = (Optional, default is packaged accumulo jar unless filename is given) full path of
+                _directory_ containing Accumulo jars
+            graphulo_path = (Optional, default is packaged graphulo jar unless filename is given) full path for
+                graphulo jar
+            filename = (Optional) name of config file to use; assumed to be of the form
+                "py4j_path=/path/to/directory/py4j/share/py4j/py4j0.x.jar
+                 accumulo_path=/path/to/directory/*
+                 graphulo_path=/path/to/directory/graphulo-3.0.0.jar"
+            die_on_exit = (Optional, default True) Boolean whether JVM should close upon exiting python
+        Output:
+            start_java() = JavaConnector.gateway
         """
         if py4j_path is None:
-            py4j_path = _get_default_path('py4j_path', default_py4j_path, file=filename, silent=True)
+            py4j_path = _get_default_path(
+                "py4j_path", default_py4j_path, file=filename, silent=True
+            )
         if accumulo_path is None:
-            accumulo_path = _get_default_path('accumulo_path', default_accumulo_path, file=filename, silent=True)
+            accumulo_path = _get_default_path(
+                "accumulo_path", default_accumulo_path, file=filename, silent=True
+            )
         if graphulo_path is None:
-            graphulo_path = _get_default_path('graphulo_path', default_graphulo_path, file=filename, silent=True)
+            graphulo_path = _get_default_path(
+                "graphulo_path", default_graphulo_path, file=filename, silent=True
+            )
 
-        class_path = '.:' + accumulo_path + ':' + graphulo_path
+        class_path = ".:" + accumulo_path + ":" + graphulo_path
 
-        port = py4j.java_gateway.launch_gateway(jarpath=py4j_path, classpath=class_path, die_on_exit=die_on_exit)
+        port = py4j.java_gateway.launch_gateway(
+            jarpath=py4j_path, classpath=class_path, die_on_exit=die_on_exit
+        )
 
         gateway = py4j.java_gateway.JavaGateway(
             gateway_parameters=py4j.java_gateway.GatewayParameters(port=port),
-            callback_server_parameters=py4j.java_gateway.CallbackServerParameters(port=0)
+            callback_server_parameters=py4j.java_gateway.CallbackServerParameters(
+                port=0
+            ),
         )
 
-        print('JavaGateway started in Port '+str(port))
+        print("JavaGateway started in Port " + str(port))
 
         JavaConnector.jvm_port = port
         JavaConnector.jvm_gateway = gateway
@@ -114,7 +132,7 @@ class JavaConnector:
     def get_port() -> int:
         """Return JavaGateway port number."""
         return JavaConnector.jvm_port
-    
+
     @staticmethod
     def get_gateway() -> py4j.java_gateway.JavaGateway:
         """Return the JavaGateway instance."""
@@ -123,19 +141,26 @@ class JavaConnector:
 
 class DbServer:
     """A DbServer instance collects the data needed to bind to Accumulo tables in a given Accumulo instance.
-        Attributes:
-            instance_name = name of the Accumulo instance, i.e., the name of the Accumulo instance directory
-            host = hostname associated with the Accumulo instance
-            user = username associated with the Accumulo instance
-            password = password associated with the Accumulo instance
-            db_type = type of Accumulo database (e.g., BigTableLike)
-            gateway = py4j.java_gateway.JavaGateway object
-        Note:
-            - instance_name, host, user, and password are used as arguments of edu.mit.ll.d4m.db.cloud.D4mDbInfo
+    Attributes:
+        instance_name = name of the Accumulo instance, i.e., the name of the Accumulo instance directory
+        host = hostname associated with the Accumulo instance
+        user = username associated with the Accumulo instance
+        password = password associated with the Accumulo instance
+        db_type = type of Accumulo database (e.g., BigTableLike)
+        gateway = py4j.java_gateway.JavaGateway object
+    Note:
+        - instance_name, host, user, and password are used as arguments of edu.mit.ll.d4m.db.cloud.D4mDbInfo
     """
 
-    def __init__(self, instance_name: str, host: str, user: str, password: str, db_type: str,
-                 gateway: py4j.java_gateway.JavaGateway):
+    def __init__(
+        self,
+        instance_name: str,
+        host: str,
+        user: str,
+        password: str,
+        db_type: str,
+        gateway: py4j.java_gateway.JavaGateway,
+    ):
         """Construct DbServer instance from database connection information."""
         self.instance_name = instance_name
         self.host = host
@@ -146,31 +171,41 @@ class DbServer:
 
     def ls(self) -> List[str]:
         """Print list of tables in DbServer instance."""
-        db_info = self.gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInfo(self.instance_name, self.host, self.user,
-                                                                     self.password)
-        tables = db_info.getTableList().split(' ')
+        db_info = self.gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInfo(
+            self.instance_name, self.host, self.user, self.password
+        )
+        tables = db_info.getTableList().split(" ")
         tables.pop()
         return tables
 
 
 class DbTable:
     """Binding information to existing table.
-        Attributes:
-            DB = DbServer containing table
-            name = table name
-            security = authorization argument for edu.mit.ll.d4m.db.cloud.D4mDataSearch; usually ''
-            num_limit = maximum size of batch of triples fetched by successive calls of
-                edu.mit.ll.d4m.db.cloud.D4mDataSearch.next()
-            num_row
-            column_family
-            put_bytes = upper bound on number of bytes ingested at a time
-            d4m_query = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDataSearch
-            table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
+    Attributes:
+        DB = DbServer containing table
+        name = table name
+        security = authorization argument for edu.mit.ll.d4m.db.cloud.D4mDataSearch; usually ''
+        num_limit = maximum size of batch of triples fetched by successive calls of
+            edu.mit.ll.d4m.db.cloud.D4mDataSearch.next()
+        num_row
+        column_family
+        put_bytes = upper bound on number of bytes ingested at a time
+        d4m_query = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDataSearch
+        table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
     """
 
-    def __init__(self, DB: DbServer, name: str, security: str, num_limit: int, num_row: int,
-                 column_family: str, put_bytes: float, d4m_query: py4j.java_gateway.JavaObject,
-                 table_ops: py4j.java_gateway.JavaObject):
+    def __init__(
+        self,
+        DB: DbServer,
+        name: str,
+        security: str,
+        num_limit: int,
+        num_row: int,
+        column_family: str,
+        put_bytes: float,
+        d4m_query: py4j.java_gateway.JavaObject,
+        table_ops: py4j.java_gateway.JavaObject,
+    ):
         self.DB = DB
         self.name = name
         self.security = security
@@ -184,23 +219,33 @@ class DbTable:
 
 class DbTablePair:
     """Binding information to existing pair of tables.
-        Attributes:
-            DB = DbServer containing table
-            name_1 = name of first table in pair
-            name_2 = name of second table in pair
-            security = authorization argument for edu.mit.ll.d4m.db.cloud.D4mDataSearch; usually ''
-            num_limit = maximum size of batch of triples fetched by successive calls of
-                edu.mit.ll.d4m.db.cloud.D4mDataSearch.next()
-            num_row
-            column_family
-            put_bytes = upper bound on number of bytes ingested at a time
-            d4m_query = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDataSearch
-            table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
+    Attributes:
+        DB = DbServer containing table
+        name_1 = name of first table in pair
+        name_2 = name of second table in pair
+        security = authorization argument for edu.mit.ll.d4m.db.cloud.D4mDataSearch; usually ''
+        num_limit = maximum size of batch of triples fetched by successive calls of
+            edu.mit.ll.d4m.db.cloud.D4mDataSearch.next()
+        num_row
+        column_family
+        put_bytes = upper bound on number of bytes ingested at a time
+        d4m_query = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDataSearch
+        table_ops = py4j.java_gateway.JavaObject binding edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
     """
 
-    def __init__(self, DB: DbServer, name_1: str, name_2: str, security: str, num_limit: int,
-                 num_row: int, column_family: str, put_bytes: float, d4m_query: py4j.java_gateway.JavaObject,
-                 table_ops: py4j.java_gateway.JavaObject):
+    def __init__(
+        self,
+        DB: DbServer,
+        name_1: str,
+        name_2: str,
+        security: str,
+        num_limit: int,
+        num_row: int,
+        column_family: str,
+        put_bytes: float,
+        d4m_query: py4j.java_gateway.JavaObject,
+        table_ops: py4j.java_gateway.JavaObject,
+    ):
         self.DB = DB
         self.name_1 = name_1
         self.name_2 = name_2
@@ -214,80 +259,113 @@ class DbTablePair:
 
 
 DbTableLike = Union[DbTable, DbTablePair]
-default_tables = ['accumulo.metadata', 'accumulo.replication', 'accumulo.root', 'trace']
+default_tables = ["accumulo.metadata", "accumulo.replication", "accumulo.root", "trace"]
 
 
-def dbsetup(instance: str, config: Optional[str] = None, py4j_path: Optional[str] = None,
-            accumulo_path: Optional[str] = None, graphulo_path: Optional[str] = None, filename: Optional[str] = None,
-            force_restart: bool = False, die_on_exit: bool = True) -> DbServer:
+def dbsetup(
+    instance: str,
+    config: Optional[str] = None,
+    py4j_path: Optional[str] = None,
+    accumulo_path: Optional[str] = None,
+    graphulo_path: Optional[str] = None,
+    filename: Optional[str] = None,
+    force_restart: bool = False,
+    die_on_exit: bool = True,
+) -> DbServer:
     """Set up DB connection, starting JVM if not already started.
-        Usage:
-            dbsetup('instance_name')
-            dbsetup('instance_name', config='config_location')
-        Input:
-            instance = name of existing accumulo instance
-            config = location of config information
-                        -- if a directory then the file
-                        accumulo_user_password.txt is opened in config/databases/instance
-                        to get password, and dnsname is open in config/databases/instance
-                        for hostname. Username is assumed to be 'AccumuloUser'
-                        -- if a file, then it is assumed to be of form
-                            "instance = *actual instance name*
-                             hostname = *actual hostname*
-                             username = *actual username*
-                             password = *actual password*"
-            py4j_path, accumulo_path, graphulo_path, die_on_exit = see JavaConnector.start_java()
-        Output:
-            DB = DbServer containing the connection information to Accumulo instance
-        Examples:
-            dbsetup('class-db49')
-            dbsetup('class-db50')
+    Usage:
+        dbsetup('instance_name')
+        dbsetup('instance_name', config='config_location')
+    Input:
+        instance = name of existing accumulo instance
+        config = location of config information
+                    -- if a directory then the file
+                    accumulo_user_password.txt is opened in config/databases/instance
+                    to get password, and dnsname is open in config/databases/instance
+                    for hostname. Username is assumed to be 'AccumuloUser'
+                    -- if a file, then it is assumed to be of form
+                        "instance = *actual instance name*
+                         hostname = *actual hostname*
+                         username = *actual username*
+                         password = *actual password*"
+        py4j_path, accumulo_path, graphulo_path, die_on_exit = see JavaConnector.start_java()
+    Output:
+        DB = DbServer containing the connection information to Accumulo instance
+    Examples:
+        dbsetup('class-db49')
+        dbsetup('class-db50')
     """
     if py4j_path is None:
-        py4j_path = _get_default_path('py4j_path',
-                                      resource_filename(__name__, '/jars/py4j/share/py4j/py4j0.10.9.2.jar'),
-                                      file=filename, silent=True)
+        py4j_path = _get_default_path(
+            "py4j_path",
+            resource_filename(__name__, "/jars/py4j/share/py4j/py4j0.10.9.2.jar"),
+            file=filename,
+            silent=True,
+        )
     if accumulo_path is None:
-        accumulo_path = _get_default_path('accumulo_path', resource_filename(__name__, '/jars/accumulo/libext/*'),
-                                          file=filename, silent=True)
+        accumulo_path = _get_default_path(
+            "accumulo_path",
+            resource_filename(__name__, "/jars/accumulo/libext/*"),
+            file=filename,
+            silent=True,
+        )
     if graphulo_path is None:
-        graphulo_path = _get_default_path('graphulo_path',
-                                          resource_filename(__name__, '/jars/graphulo/lib/graphulo-3.0.0.jar'),
-                                          file=filename, silent=True)
+        graphulo_path = _get_default_path(
+            "graphulo_path",
+            resource_filename(__name__, "/jars/graphulo/lib/graphulo-3.0.0.jar"),
+            file=filename,
+            silent=True,
+        )
     if config is None:
-        config = _get_default_path('config', '/home/gridsan/tools/groups/', file=filename, silent=True)
+        config = _get_default_path(
+            "config", "/home/gridsan/tools/groups/", file=filename, silent=True
+        )
 
     if os.path.isdir(config):
-        dbdir = config + '/databases/' + instance
-        with open(dbdir + '/accumulo_user_password.txt', 'r') as f:
+        dbdir = config + "/databases/" + instance
+        with open(dbdir + "/accumulo_user_password.txt", "r") as f:
             pword = f.read()
-        with open(dbdir + '/dnsname', 'r') as f:
+        with open(dbdir + "/dnsname", "r") as f:
             hostname = f.read()
-            hostname = hostname.replace('\n', '') + ':2181'
+            hostname = hostname.replace("\n", "") + ":2181"
             username = "AccumuloUser"
     elif os.path.isfile(config):
-        with open(config, 'r') as f:
-            conf = [line.split('=') for line in f.readlines()]
+        with open(config, "r") as f:
+            conf = [line.split("=") for line in f.readlines()]
             conf = {line[0]: line[1] for line in conf}
-        instance = conf['instance']
-        hostname = conf['hostname']
-        username = conf['username']
-        pword = conf['password']
+        instance = conf["instance"]
+        hostname = conf["hostname"]
+        username = conf["username"]
+        pword = conf["password"]
     else:
-        raise ValueError("'config' must either be a config file or a directory containing a config file."
-                         + "Supplied 'config': " + str(config))
+        raise ValueError(
+            "'config' must either be a config file or a directory containing a config file."
+            + "Supplied 'config': "
+            + str(config)
+        )
 
     if JavaConnector.jvm_gateway is None or force_restart:
-        gateway = JavaConnector.start_java(py4j_path=py4j_path, accumulo_path=accumulo_path,
-                                           graphulo_path=graphulo_path, die_on_exit=die_on_exit)
+        gateway = JavaConnector.start_java(
+            py4j_path=py4j_path,
+            accumulo_path=accumulo_path,
+            graphulo_path=graphulo_path,
+            die_on_exit=die_on_exit,
+        )
     else:
         gateway = JavaConnector.jvm_gateway
 
     return DbServer(instance, hostname, username, pword, "BigTableLike", gateway)
 
 
-def _get_index_single(DB: DbServer, table_name: str, security: str = '', num_limit: int = 0, num_row: int = 0,
-                      column_family: str = '', put_bytes: float = 5e5) -> DbTable:
+def _get_index_single(
+    DB: DbServer,
+    table_name: str,
+    security: str = "",
+    num_limit: int = 0,
+    num_row: int = 0,
+    column_family: str = "",
+    put_bytes: float = 5e5,
+) -> DbTable:
     """Create DbTable object containing binding information for tableName in DB."""
     gateway = DB.gateway
     table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
@@ -298,15 +376,34 @@ def _get_index_single(DB: DbServer, table_name: str, security: str = '', num_lim
         table_ops_object.createTable(table_name)
 
     data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
-    query_object = data_search(DB.instance_name, DB.host, table_name, DB.user, DB.password)
+    query_object = data_search(
+        DB.instance_name, DB.host, table_name, DB.user, DB.password
+    )
 
-    db_table = DbTable(DB, table_name, security, num_limit, num_row, column_family, put_bytes,
-                       query_object, table_ops_object)
+    db_table = DbTable(
+        DB,
+        table_name,
+        security,
+        num_limit,
+        num_row,
+        column_family,
+        put_bytes,
+        query_object,
+        table_ops_object,
+    )
     return db_table
 
 
-def _get_index_pair(DB: DbServer, table_name_1: str, table_name_2: str, security: str = '', num_limit: int = 0,
-                    num_row: int = 0, column_family: str = '', put_bytes: float = 5e5) -> DbTablePair:
+def _get_index_pair(
+    DB: DbServer,
+    table_name_1: str,
+    table_name_2: str,
+    security: str = "",
+    num_limit: int = 0,
+    num_row: int = 0,
+    column_family: str = "",
+    put_bytes: float = 5e5,
+) -> DbTablePair:
     """Create DbTablePair object containing binding information for tableName1 and tableName2 in DB."""
     gateway = DB.gateway
     table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
@@ -317,51 +414,80 @@ def _get_index_pair(DB: DbServer, table_name_1: str, table_name_2: str, security
             table_ops_object.createTable(table_name)
 
     data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
-    query_object = data_search(DB.instance_name, DB.host, table_name_1, DB.user, DB.password)
+    query_object = data_search(
+        DB.instance_name, DB.host, table_name_1, DB.user, DB.password
+    )
 
-    db_table_pair = DbTablePair(DB, table_name_1, table_name_2, security, num_limit, num_row, column_family, put_bytes,
-                                query_object, table_ops_object)
+    db_table_pair = DbTablePair(
+        DB,
+        table_name_1,
+        table_name_2,
+        security,
+        num_limit,
+        num_row,
+        column_family,
+        put_bytes,
+        query_object,
+        table_ops_object,
+    )
     return db_table_pair
 
 
-_colon_equivalents = [':', slice(None, None), slice(0, None), slice(None, None, 1), slice(0, None, 1)]
+_colon_equivalents = [
+    ":",
+    slice(None, None),
+    slice(0, None),
+    slice(None, None, 1),
+    slice(0, None, 1),
+]
 
 
 def _needs_full(query):
-    if callable(query) or (isinstance(query, slice) and query not in _colon_equivalents):
+    if callable(query) or (
+        isinstance(query, slice) and query not in _colon_equivalents
+    ):
         return True
     else:
         query = D4M.util.sanitize(query)
-        if query.dtype == int or (query.dtype == str and ':' in query and (len(query) != 1 and len(query) != 3)):
+        if query.dtype == int or (
+            query.dtype == str
+            and ":" in query
+            and (len(query) != 1 and len(query) != 3)
+        ):
             return True
         else:
             return False
 
 
 def _is_colon(object_):
-    return isinstance(object_, str) and object_ == ':'
+    return isinstance(object_, str) and object_ == ":"
 
 
 def _make_chunks(query: ArrayLike, chunk_size) -> Tuple[list, int]:
     num_chunks = math.floor(len(query) / chunk_size)
     num_extra = len(query) % chunk_size
 
-    chunks = [D4M.util.to_db_string(query[chunk_index: chunk_index + chunk_size]) for chunk_index in range(num_chunks)]
+    chunks = [
+        D4M.util.to_db_string(query[chunk_index : chunk_index + chunk_size])
+        for chunk_index in range(num_chunks)
+    ]
     if num_extra > 0:
         covered = num_chunks * chunk_size
-        chunks.append(D4M.util.to_db_string(query[covered: covered + num_extra]))
+        chunks.append(D4M.util.to_db_string(query[covered : covered + num_extra]))
         num_chunks += 1
     return chunks, num_chunks
 
 
-def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selectable) -> D4M.assoc.Assoc:
+def _get_index_assoc(
+    table: DbTableLike, row_query: Selectable, col_query: Selectable
+) -> D4M.assoc.Assoc:
     """Create Assoc object from the sub-array of table with queried row and column indices/keys."""
     switch_keys = False
 
-    row_query = ':' if row_query in _colon_equivalents else row_query
+    row_query = ":" if row_query in _colon_equivalents else row_query
     if row_query not in _colon_equivalents and D4M.util.can_sanitize(row_query):
         row_query = D4M.util.sanitize(row_query)
-    col_query = ':' if col_query in _colon_equivalents else col_query
+    col_query = ":" if col_query in _colon_equivalents else col_query
     if col_query not in _colon_equivalents and D4M.util.can_sanitize(col_query):
         col_query = D4M.util.sanitize(col_query)
 
@@ -384,7 +510,7 @@ def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selec
     # and loop through to pick out matching triples
     if _needs_full(row_query) or _needs_full(col_query):
         table.d4m_query.reset()
-        table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
+        table.d4m_query.doMatlabQuery(":", ":", table.column_family, table.security)
         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
         full_val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
@@ -405,22 +531,32 @@ def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selec
             row_chunks, num_row_chunks = _make_chunks(row_query, 3)
         else:
             num_row_chunks = 1
-            row_chunks = [':']
+            row_chunks = [":"]
         if not _is_colon(col_query):
             col_chunks, num_col_chunks = _make_chunks(col_query, 3)
         else:
             num_col_chunks = 1
-            col_chunks = [':']
+            col_chunks = [":"]
 
         row_chunk_index, col_chunk_index = 0, 0
         while col_chunk_index < num_col_chunks:
             while row_chunk_index < num_row_chunks:
                 table.d4m_query.reset()
-                table.d4m_query.doMatlabQuery(row_chunks[row_chunk_index], col_chunks[col_chunk_index],
-                                              table.column_family, table.security)
-                new_row += list(D4M.util.from_db_string(table.d4m_query.getRowReturnString()))
-                new_col += list(D4M.util.from_db_string(table.d4m_query.getColumnReturnString()))
-                new_val += list(D4M.util.from_db_string(table.d4m_query.getValueReturnString()))
+                table.d4m_query.doMatlabQuery(
+                    row_chunks[row_chunk_index],
+                    col_chunks[col_chunk_index],
+                    table.column_family,
+                    table.security,
+                )
+                new_row += list(
+                    D4M.util.from_db_string(table.d4m_query.getRowReturnString())
+                )
+                new_col += list(
+                    D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+                )
+                new_val += list(
+                    D4M.util.from_db_string(table.d4m_query.getValueReturnString())
+                )
 
                 row_chunk_index += 1
             row_chunk_index = 0
@@ -495,9 +631,9 @@ def _get_index_assoc(table: DbTableLike, row_query: Selectable, col_query: Selec
 
 def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
     """Query table as iterator if table.num_limit > 0 and return associative array consisting of next batch of triples,
-        otherwise return associative array consisting of all triples."""
+    otherwise return associative array consisting of all triples."""
     if table.num_limit == 0:
-        return get_index(table, ':', ':')
+        return get_index(table, ":", ":")
 
     table_name = table.d4m_query.getTableName()
 
@@ -512,7 +648,7 @@ def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
 
     if not table.d4m_query.hasNext():
         _iterator_start(table)
-        print('End of table reached. Returning to beginning of table.')
+        print("End of table reached. Returning to beginning of table.")
     else:
         table.d4m_query.next()
 
@@ -521,58 +657,75 @@ def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
 
 def get_index(*arg) -> Union[DbTableLike, D4M.assoc.Assoc]:
     """Query a table in a given Accumulo database instance, either returning a DbTable/DbTablePair object or an
-        associative array containing triples from the given table.
-        Inputs:
-            *arg = one of:
-                - DB, table_name - a DbServer instance and the name of a table (which may or may not be the
-                    name of an existing table)
-                - DB, table_name_1, table_name_2 - a DbServer instance and the name of two tables (which each
-                    may or may not be the name of an existing table)
-                - table, row_query, col_query - a DbTable or DbTablePair with a pair of objects representing
-                    row and column queries, respectively (see D4M.util.select_items for valid & supported queries)
-                - table - a DbTable or DbTablePair
-        Output:
-            get_index(DB, table_name) = DbTable with binding information for table_name, if it exists,
-                otherwise creates a table in DB with default settings, and binds to that table
-            get_index(DB, table_name_1, table_name_2) = DBtable with binding information for tableName1 and tablename2,
-                if they exist, otherwise creates necessary tables in DB with default settings, and binds to those tables
-            get_index(table, row_query, col_query) = associative array containing all triples in table whose row and
-                column keys are selected by the given row_query and col_query, respectively
-            get_index(table) = if table.num_limit > 0, table is interpreted as an iterator and an associative array
-                containing the next batch of triples; if table.num_limit == 0, mirrors get_index(table, ':', ':')
+    associative array containing triples from the given table.
+    Inputs:
+        *arg = one of:
+            - DB, table_name - a DbServer instance and the name of a table (which may or may not be the
+                name of an existing table)
+            - DB, table_name_1, table_name_2 - a DbServer instance and the name of two tables (which each
+                may or may not be the name of an existing table)
+            - table, row_query, col_query - a DbTable or DbTablePair with a pair of objects representing
+                row and column queries, respectively (see D4M.util.select_items for valid & supported queries)
+            - table - a DbTable or DbTablePair
+    Output:
+        get_index(DB, table_name) = DbTable with binding information for table_name, if it exists,
+            otherwise creates a table in DB with default settings, and binds to that table
+        get_index(DB, table_name_1, table_name_2) = DBtable with binding information for tableName1 and tablename2,
+            if they exist, otherwise creates necessary tables in DB with default settings, and binds to those tables
+        get_index(table, row_query, col_query) = associative array containing all triples in table whose row and
+            column keys are selected by the given row_query and col_query, respectively
+        get_index(table) = if table.num_limit > 0, table is interpreted as an iterator and an associative array
+            containing the next batch of triples; if table.num_limit == 0, mirrors get_index(table, ':', ':')
     """
     if len(arg) == 2 and isinstance(arg[0], DbServer) and isinstance(arg[1], str):
         DB, table_name = arg
         output = _get_index_single(DB, table_name)
-    elif len(arg) == 3 and isinstance(arg[0], DbServer) and isinstance(arg[1], str) and isinstance(arg[2], str):
+    elif (
+        len(arg) == 3
+        and isinstance(arg[0], DbServer)
+        and isinstance(arg[1], str)
+        and isinstance(arg[2], str)
+    ):
         DB, table_name_1, table_name_2 = arg
         output = _get_index_pair(DB, table_name_1, table_name_2)
-    elif len(arg) == 3 and (isinstance(arg[0], DbTable) or isinstance(arg[0], DbTablePair)):
+    elif len(arg) == 3 and (
+        isinstance(arg[0], DbTable) or isinstance(arg[0], DbTablePair)
+    ):
         # Assume arg[1] and arg[2] can be interpreted as row and column queries, respectively
         table, row_query, column_query = arg
         output = _get_index_assoc(table, row_query, column_query)
-    elif len(arg) == 1 and (isinstance(arg[0], DbTable) or isinstance(arg[0], DbTablePair)):
+    elif len(arg) == 1 and (
+        isinstance(arg[0], DbTable) or isinstance(arg[0], DbTablePair)
+    ):
         table = arg[0]
         output = _get_index_from_iter(table)
     else:
-        raise ValueError("Improper argument supplied. Argument must be of the form 'DB, table_name', "
-                         "'DB, table_name_1, table_name_2', 'table, row_query, col_query', or 'table'.")
+        raise ValueError(
+            "Improper argument supplied. Argument must be of the form 'DB, table_name', "
+            "'DB, table_name_1, table_name_2', 'table, row_query, col_query', or 'table'."
+        )
     return output
 
 
-valid_confirm = ['y', 'yes', 'Y', 'Yes']  # Enumerate user inputs that 'confirm'
+valid_confirm = ["y", "yes", "Y", "Yes"]  # Enumerate user inputs that 'confirm'
 
 
 def _delete_table_single(table: DbTable, force: bool = False) -> None:
     """Delete the table with name table.name in table.DB instance."""
     if table.name in table.DB.ls():
         if table.name in default_tables:
-            print(table.name + ' is a default table and cannot be deleted.')
+            print(table.name + " is a default table and cannot be deleted.")
         else:
             if force:
-                confirm = 'yes'
+                confirm = "yes"
             else:
-                confirm = input("Confirm deletion of " + table.name + " in " + table.DB.instance_name + ".")
+                confirm = input(
+                    "Confirm deletion of "
+                    + table.name
+                    + " in "
+                    + table.DB.instance_name
+                    + "."
+                )
             if confirm in valid_confirm:
                 table.table_ops.deleteTable(table.name)
                 print("Deleted " + table.name + " from " + table.DB.instance_name + ".")
@@ -585,8 +738,14 @@ def _delete_table_pair(table_pair: DbTablePair, force: bool = False) -> None:
     """Delete the tables with names table.name1 and table.name2 in table.DB instance."""
     present_tables = table_pair.DB.ls()
     table_pair_names = [table_pair.name_1, table_pair.name_2]
-    is_present_list = [table_pair.name_1 in present_tables, table_pair.name_2 in present_tables]
-    is_default_list = [table_pair.name_1 in default_tables, table_pair.name_2 in default_tables]
+    is_present_list = [
+        table_pair.name_1 in present_tables,
+        table_pair.name_2 in present_tables,
+    ]
+    is_default_list = [
+        table_pair.name_1 in default_tables,
+        table_pair.name_2 in default_tables,
+    ]
 
     for table_index in range(2):
         is_present = is_present_list[table_index]
@@ -594,14 +753,26 @@ def _delete_table_pair(table_pair: DbTablePair, force: bool = False) -> None:
         table_name = table_pair_names[table_index]
         if is_present and not is_default:
             if force:
-                confirm = 'yes'
+                confirm = "yes"
             else:
-                confirm = input('Confirm deletion of ' + table_name + ' in ' + table_pair.DB.instance_name + '.')
+                confirm = input(
+                    "Confirm deletion of "
+                    + table_name
+                    + " in "
+                    + table_pair.DB.instance_name
+                    + "."
+                )
             if confirm in valid_confirm:
                 table_pair.table_ops.deleteTable(table_name)
-                print('Deleted ' + table_name + ' from ' + table_pair.DB.instance_name + '.')
+                print(
+                    "Deleted "
+                    + table_name
+                    + " from "
+                    + table_pair.DB.instance_name
+                    + "."
+                )
         elif is_present and is_default:
-            print(table_name + ' is a default table and cannot be deleted.')
+            print(table_name + " is a default table and cannot be deleted.")
         else:
             print(table_name + " was not found in " + table_pair.DB.instance_name + ".")
     return None
@@ -609,10 +780,10 @@ def _delete_table_pair(table_pair: DbTablePair, force: bool = False) -> None:
 
 def delete_table(table: DbTableLike, force: bool = False) -> None:
     """Delete given DbTable or DbTablePair from table.DB.
-        Notes:
-            - Deletes ACTUAL table from table.DB.
-            - Default Accumulo tables cannot be deleted.
-            - When deleting DbTablePair, deletion of table.table_name_1 and table.table_name_2 are confirmed separately.
+    Notes:
+        - Deletes ACTUAL table from table.DB.
+        - Default Accumulo tables cannot be deleted.
+        - When deleting DbTablePair, deletion of table.table_name_1 and table.table_name_2 are confirmed separately.
     """
     if isinstance(table, DbTablePair):
         _delete_table_pair(table, force=force)
@@ -623,14 +794,16 @@ def delete_table(table: DbTableLike, force: bool = False) -> None:
 
 def delete_all(DB: DbServer, force: bool = False) -> None:
     """Deletes all (non-default) tables in the given DB.
-        Notes:
-            - Deletes the ACTUAL non-default tables from DB.
+    Notes:
+        - Deletes the ACTUAL non-default tables from DB.
     """
     present_tables = DB.ls()
     if force:
-        confirm = 'yes'
+        confirm = "yes"
     else:
-        confirm = input('Confirm deletion of all non-default tables in ' + DB.instance_name + '.')
+        confirm = input(
+            "Confirm deletion of all non-default tables in " + DB.instance_name + "."
+        )
     if confirm in valid_confirm:
         for table_name in present_tables:
             temp_table = get_index(DB, table_name)
@@ -643,39 +816,60 @@ def _iterator_start(table: DbTableLike) -> None:
     table.d4m_query.setCloudType(table.DB.db_type)
     table.d4m_query.setLimit(table.num_limit)
     table.d4m_query.reset()
-    table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
+    table.d4m_query.doMatlabQuery(":", ":", table.column_family, table.security)
     return None
 
 
 def get_iterator(table: DbTableLike, num_limit: int) -> DbTableLike:
     """Query iterator functionality."""
     if isinstance(table, DbTable):
-        table_iter = DbTable(table.DB, table.name, table.security, num_limit, table.num_row, table.column_family,
-                             table.put_bytes, table.d4m_query, table.table_ops)
+        table_iter = DbTable(
+            table.DB,
+            table.name,
+            table.security,
+            num_limit,
+            table.num_row,
+            table.column_family,
+            table.put_bytes,
+            table.d4m_query,
+            table.table_ops,
+        )
     else:
-        table_iter = DbTablePair(table.DB, table.name_1, table.name_2, table.security, num_limit, table.num_row,
-                                 table.column_family, table.put_bytes, table.d4m_query, table.table_ops)
+        table_iter = DbTablePair(
+            table.DB,
+            table.name_1,
+            table.name_2,
+            table.security,
+            num_limit,
+            table.num_row,
+            table.column_family,
+            table.put_bytes,
+            table.d4m_query,
+            table.table_ops,
+        )
     _iterator_start(table_iter)
     return table_iter
 
 
-def put_triple(table: DbTableLike, row: ArrayLike, col: ArrayLike, val: ArrayLike) -> None:
+def put_triple(
+    table: DbTableLike, row: ArrayLike, col: ArrayLike, val: ArrayLike
+) -> None:
     """Insert the triples (row(i), col(i), val(i)) into table.
-        Usage:
-            putTriple(table, row, col, val)
-        Inputs:
-            table = DBtable or DbTablePair instance
-            row = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-            col = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-            val = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-        Notes:
-            - If table is a DbTablePair, then table.name2 is assumed to be the transpose of
-                table.name1 for the purposes or insertion (e.g., transposed triples are put
-                into table.name2)
-            - Accumulo tables record duplicate triples.
+    Usage:
+        putTriple(table, row, col, val)
+    Inputs:
+        table = DBtable or DbTablePair instance
+        row = string of (delimiter separated) values (delimiter is last character)
+            or list of values of length n
+        col = string of (delimiter separated) values (delimiter is last character)
+            or list of values of length n
+        val = string of (delimiter separated) values (delimiter is last character)
+            or list of values of length n
+    Notes:
+        - If table is a DbTablePair, then table.name2 is assumed to be the transpose of
+            table.name1 for the purposes or insertion (e.g., transposed triples are put
+            into table.name2)
+        - Accumulo tables record duplicate triples.
     """
     gateway = table.DB.gateway
 
@@ -686,28 +880,63 @@ def put_triple(table: DbTableLike, row: ArrayLike, col: ArrayLike, val: ArrayLik
     # Optimize by selecting appropriate chunk size for insertion
     chunk_bytes = table.put_bytes
     num_triples = len(row)
-    avg_byte_per_triple = (np.char.str_len(new_row).sum() + np.char.str_len(new_col).sum()
-                           + np.char.str_len(new_val).sum()) / num_triples
-    chunk_size = int(min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples))
+    avg_byte_per_triple = (
+        np.char.str_len(new_row).sum()
+        + np.char.str_len(new_col).sum()
+        + np.char.str_len(new_val).sum()
+    ) / num_triples
+    chunk_size = int(
+        min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
+    )
 
     db_insert = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInsert
     if isinstance(table, DbTablePair):
-        insert_obj = db_insert(table.DB.instance_name, table.DB.host, table.name_1, table.DB.user, table.DB.password)
-        insert_objT = db_insert(table.DB.instance_name, table.DB.host, table.name_2, table.DB.user, table.DB.password)
+        insert_obj = db_insert(
+            table.DB.instance_name,
+            table.DB.host,
+            table.name_1,
+            table.DB.user,
+            table.DB.password,
+        )
+        insert_objT = db_insert(
+            table.DB.instance_name,
+            table.DB.host,
+            table.name_2,
+            table.DB.user,
+            table.DB.password,
+        )
     else:
-        insert_obj = db_insert(table.DB.instance_name, table.DB.host, table.name, table.DB.user, table.DB.password)
+        insert_obj = db_insert(
+            table.DB.instance_name,
+            table.DB.host,
+            table.name,
+            table.DB.user,
+            table.DB.password,
+        )
         insert_objT = None
 
     for chunk_start in np.arange(0, num_triples, chunk_size):
         chunk_end = min(chunk_start + chunk_size, num_triples)
-        new_row_chunk = D4M.util.to_db_string(new_row[chunk_start: chunk_end])
-        new_col_chunk = D4M.util.to_db_string(new_col[chunk_start: chunk_end])
-        new_val_chunk = D4M.util.to_db_string(new_val[chunk_start: chunk_end])
+        new_row_chunk = D4M.util.to_db_string(new_row[chunk_start:chunk_end])
+        new_col_chunk = D4M.util.to_db_string(new_col[chunk_start:chunk_end])
+        new_val_chunk = D4M.util.to_db_string(new_val[chunk_start:chunk_end])
 
-        insert_obj.doProcessing(new_row_chunk, new_col_chunk, new_val_chunk, table.column_family, table.security)
+        insert_obj.doProcessing(
+            new_row_chunk,
+            new_col_chunk,
+            new_val_chunk,
+            table.column_family,
+            table.security,
+        )
 
         if isinstance(table, DbTablePair):
-            insert_objT.doProcessing(new_col_chunk, new_row_chunk, new_val_chunk, table.column_family, table.security)
+            insert_objT.doProcessing(
+                new_col_chunk,
+                new_row_chunk,
+                new_val_chunk,
+                table.column_family,
+                table.security,
+            )
     return None
 
 
@@ -720,8 +949,8 @@ def put(table: DbTableLike, A: D4M.assoc.Assoc) -> None:
 
 def nnz(table: DbTableLike) -> int:
     """Returns the number of non-zero triples stored in table.
-        Note:
-            - returns count for all triples found, including duplicates.
+    Note:
+        - returns count for all triples found, including duplicates.
     """
     if isinstance(table, DbTablePair):
         table_name = table.name_1
@@ -736,7 +965,9 @@ def nnz(table: DbTableLike) -> int:
     return nnz_
 
 
-def add_splits(table: DbTableLike, split_string: str, split_stringT: Optional[str] = None) -> None:
+def add_splits(
+    table: DbTableLike, split_string: str, split_stringT: Optional[str] = None
+) -> None:
     if isinstance(table, DbTable):
         table.table_ops.addSplits(table.name, split_string)
     else:

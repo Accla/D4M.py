@@ -7,6 +7,7 @@ from numbers import Number
 from inspect import signature
 from typing import Any, Union, Tuple, Optional, Callable, Sequence, List, Dict
 from collections.abc import Sequence as SequenceLike
+
 # Use List & Dict for backwards (<3.9) compatibility
 
 KeyVal = Union[str, Number]
@@ -17,9 +18,10 @@ Selectable = Union[ArrayLike, slice, Callable]
 
 # Auxiliary/Helper functions
 
+
 def string_gen(length_: int) -> str:
     """Create randomly-generated string of given length."""
-    rand_string = ''
+    rand_string = ""
     for _ in range(length_):
         rand_string += random.SystemRandom().choice(string.ascii_letters)
     return rand_string
@@ -27,34 +29,35 @@ def string_gen(length_: int) -> str:
 
 def num_string_gen(length_: int, upper_bound: int) -> str:
     """Create string list of integers <= upper_bound of given length."""
-    rand_string = [str(random.randint(0, upper_bound)) for _ in range(length_)] + ['']
-    rand_string = ','.join(rand_string)
+    rand_string = [str(random.randint(0, upper_bound)) for _ in range(length_)] + [""]
+    rand_string = ",".join(rand_string)
     return rand_string
 
 
 def is_numeric(object_: Any) -> bool:
-    """ Check if object_ is numeric (int, float, complex, etc) or not. """
+    """Check if object_ is numeric (int, float, complex, etc) or not."""
     return isinstance(object_, Number)
 
 
-def sorted_union(array_1: np.ndarray, array_2: np.ndarray, return_index: bool = False) \
-        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def sorted_union(
+    array_1: np.ndarray, array_2: np.ndarray, return_index: bool = False
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """Return the union of two sorted numpy arrays with index maps (if return_index=True).
-        Usage:
-            union = sorted_union(array_1, array_2)
-        Input:
-            array_1 = sorted numpy array of values with no duplicates
-            array_2 = sorted numpy array of values with no duplicates
-            return_index = boolean
-        Output:
-            union = sorted array of values coming from either array_1 or array_2
-            index_map_1 = list of indices of the elements of array_1 in union
-            index_map_2 = list of indices of the elements of array_2 in union
-        Example:
-            sorted_union(np.array([0,1,4,6]), np.array([0,4,7]), return_index = True)
-                = np.array([0,1,4,6,7]), [0,1,2,3], [0,2,4]
-            sorted_union(np.array([0,1,4,6]), np.array([0,4,7]))
-                = np.array([0,1,4,6,7])
+    Usage:
+        union = sorted_union(array_1, array_2)
+    Input:
+        array_1 = sorted numpy array of values with no duplicates
+        array_2 = sorted numpy array of values with no duplicates
+        return_index = boolean
+    Output:
+        union = sorted array of values coming from either array_1 or array_2
+        index_map_1 = list of indices of the elements of array_1 in union
+        index_map_2 = list of indices of the elements of array_2 in union
+    Example:
+        sorted_union(np.array([0,1,4,6]), np.array([0,4,7]), return_index = True)
+            = np.array([0,1,4,6,7]), [0,1,2,3], [0,2,4]
+        sorted_union(np.array([0,1,4,6]), np.array([0,4,7]))
+            = np.array([0,1,4,6,7])
     """
     union = list()
     index_map_1, index_map_2 = list(), list()
@@ -107,29 +110,35 @@ def sorted_union(array_1: np.ndarray, array_2: np.ndarray, return_index: bool = 
         return union
 
 
-def sorted_intersect(array_1: np.ndarray, array_2: np.ndarray, return_index: bool = False,
-                     return_index_1: bool = False, return_index_2: bool = False) \
-        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def sorted_intersect(
+    array_1: np.ndarray,
+    array_2: np.ndarray,
+    return_index: bool = False,
+    return_index_1: bool = False,
+    return_index_2: bool = False,
+) -> Union[
+    np.ndarray, Tuple[np.ndarray, np.ndarray], Tuple[np.ndarray, np.ndarray, np.ndarray]
+]:
     """Return the intersection of two sorted numpy arrays with index maps
-        (if return_index, return_index_1, or return_index_2 are True).
-        Usage:
-            intersection = sorted_intersection(array_1, array_2)
-        Input:
-            array_1 = sorted numpy array of values with no duplicates
-            array_2 = sorted numpy array of values with no duplicates
-            return_index = (Optional, default False) Boolean indicating whether index maps from the intersection
-                into array_1 and array_2 should be returned. return_index_1 and return_index_2 are the same, but only
-                apply to index maps into array_1 and array_2, respectively. If return_index is True, then return_index_1
-                and return_index_2 are assumed True.
-        Output:
-            intersection = sorted array of values coming from both array_1 and array_2
-            index_map_1 = list of indices of elements of intersection in array_1
-            index_map_2 = list of indices of elements of intersection in array_2
-        Example:
-            sorted_intersect(np.array([0,1,4]), np.array([0,4,7]), return_index = True)
-                = np.array([0,4]), [0,2], [0,1]
-            sorted_intersect(np.array([0,1,4]), np.array([0,4,7]))
-                = np.array([0,4])
+    (if return_index, return_index_1, or return_index_2 are True).
+    Usage:
+        intersection = sorted_intersection(array_1, array_2)
+    Input:
+        array_1 = sorted numpy array of values with no duplicates
+        array_2 = sorted numpy array of values with no duplicates
+        return_index = (Optional, default False) Boolean indicating whether index maps from the intersection
+            into array_1 and array_2 should be returned. return_index_1 and return_index_2 are the same, but only
+            apply to index maps into array_1 and array_2, respectively. If return_index is True, then return_index_1
+            and return_index_2 are assumed True.
+    Output:
+        intersection = sorted array of values coming from both array_1 and array_2
+        index_map_1 = list of indices of elements of intersection in array_1
+        index_map_2 = list of indices of elements of intersection in array_2
+    Example:
+        sorted_intersect(np.array([0,1,4]), np.array([0,4,7]), return_index = True)
+            = np.array([0,4]), [0,2], [0,1]
+        sorted_intersect(np.array([0,1,4]), np.array([0,4,7]))
+            = np.array([0,4])
     """
     set_2 = set(array_2)
     intersection = [item for item in array_1 if item in set_2]
@@ -156,38 +165,39 @@ def sorted_intersect(array_1: np.ndarray, array_2: np.ndarray, return_index: boo
         return np.array(intersection)
 
 
-def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = False) \
-        -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
+def select_items(
+    selection: Selectable, keys: ArrayLike, return_indices: bool = False
+) -> Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]:
     """Select a subsequence from the sequence keys using given selection.
-        Inputs:
-            selection = a callable compatible with input keys and returning a list of indices of keys,
-                or a slice object,
-                or a string, a sequence of strings, a sequence of ints, a sequence of bools, or a sequence of floats
-            keys = a sorted numpy array with no duplicates
-        Output:
-            select_items(selection, keys) = subsequence, where
-                - if selection is a callable, then subsequence = keys[selection(keys)]
-                - if selection is a slice object, with subsequence = keys[object_]
-                - if, after being sanitized, selection is an array of strings containing ':'...
-                    ...and is of the form np.array([initial, ':', final]), then subsequence = keys[in: fin], where
-                        in = least integer such that initial <= keys[in] and
-                        out = greatest integer such that keys[fin] <= final, or...
-                    ...and is of the form np.array([initial, ':']), then subsequence = keys[in:], where
-                        in = least integer such that initial <= keys[in], or...
-                    ...and is of the form np.array([':', final]), then subsequence = keys[:fin], where
-                        fin = greatest integer such that keys[fin] <= final, or...
-                    ...and is of the form np.array([':']), then selection = keys, or...
-                    ...otherwise raises a ValueError
-                - if, after being sanitized, selection is an array of integers or bools, then
-                    subsequence = keys[selection]
-                - otherwise, selection is sanitized and subsequence = selection
-            select_items(selection, keys, return_indices=True) = subsequence, index_map, where
-                subsequence is as above and index_map is a numpy array of ints such that subsequence = keys[index_map]
-        Note:
-            - Unlike slice objects, string slices with an upper limit (array of strings of the form
-                [initial, ':', final] or [':', final]) ARE inclusive on the right, if final is in keys
+    Inputs:
+        selection = a callable compatible with input keys and returning a list of indices of keys,
+            or a slice object,
+            or a string, a sequence of strings, a sequence of ints, a sequence of bools, or a sequence of floats
+        keys = a sorted numpy array with no duplicates
+    Output:
+        select_items(selection, keys) = subsequence, where
+            - if selection is a callable, then subsequence = keys[selection(keys)]
+            - if selection is a slice object, with subsequence = keys[object_]
+            - if, after being sanitized, selection is an array of strings containing ':'...
+                ...and is of the form np.array([initial, ':', final]), then subsequence = keys[in: fin], where
+                    in = least integer such that initial <= keys[in] and
+                    out = greatest integer such that keys[fin] <= final, or...
+                ...and is of the form np.array([initial, ':']), then subsequence = keys[in:], where
+                    in = least integer such that initial <= keys[in], or...
+                ...and is of the form np.array([':', final]), then subsequence = keys[:fin], where
+                    fin = greatest integer such that keys[fin] <= final, or...
+                ...and is of the form np.array([':']), then selection = keys, or...
+                ...otherwise raises a ValueError
+            - if, after being sanitized, selection is an array of integers or bools, then
+                subsequence = keys[selection]
+            - otherwise, selection is sanitized and subsequence = selection
+        select_items(selection, keys, return_indices=True) = subsequence, index_map, where
+            subsequence is as above and index_map is a numpy array of ints such that subsequence = keys[index_map]
+    Note:
+        - Unlike slice objects, string slices with an upper limit (array of strings of the form
+            [initial, ':', final] or [':', final]) ARE inclusive on the right, if final is in keys
     """
-    colon = np.array([':'])
+    colon = np.array([":"])
     keys = sanitize(keys)
 
     if callable(selection):
@@ -204,8 +214,8 @@ def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = 
         # Otherwise, sanitize and find any instances of the string ':'
         selection = sanitize(selection)
         # Check if ':' is compatible with selection.dtype to make numpy happy, then test membership if so
-        if np.issubdtype(colon.dtype, selection.dtype) and np.isin(':', selection):
-            colon_indices = np.nonzero(selection == ':')[0]
+        if np.issubdtype(colon.dtype, selection.dtype) and np.isin(":", selection):
+            colon_indices = np.nonzero(selection == ":")[0]
         else:
             colon_indices = np.empty(0, dtype=int)
         if selection.dtype == int or selection.dtype == bool:
@@ -217,21 +227,24 @@ def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = 
                 selection = np.unique(selection)
             clean_selection = keys[selection]
             index_map = selection
-        elif len(colon_indices) == 1 \
-                and (len(selection) == 1 or len(selection) == 2 or (len(selection) == 3 and selection[1] == ':')):
+        elif len(colon_indices) == 1 and (
+            len(selection) == 1
+            or len(selection) == 2
+            or (len(selection) == 3 and selection[1] == ":")
+        ):
             # If well-formed string slice, take that slice of keys
             if len(selection) == 1:
                 start_compare = np.ones(len(keys))
                 stop_compare = np.zeros(len(keys))
-            elif len(selection) == 2 and selection[0] == ':':
+            elif len(selection) == 2 and selection[0] == ":":
                 start_compare = np.ones(len(keys))
-                stop_compare = (keys > selection[1])
-            elif len(selection) == 2 and selection[1] == ':':
-                start_compare = (keys >= selection[0])
+                stop_compare = keys > selection[1]
+            elif len(selection) == 2 and selection[1] == ":":
+                start_compare = keys >= selection[0]
                 stop_compare = np.zeros(len(keys))
             else:
-                start_compare = (keys >= selection[0])
-                stop_compare = (keys > selection[2])
+                start_compare = keys >= selection[0]
+                stop_compare = keys > selection[2]
 
             try:
                 start_index = np.nonzero(start_compare)[0][0]
@@ -244,15 +257,15 @@ def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = 
 
             clean_selection = keys[start_index:stop_index]
             index_map = np.arange(start_index, stop_index)
-        elif np.isin(':', selection):
+        elif np.isin(":", selection):
             # If contains ':' but not dealt with, ill-formed string slice
-            raise ValueError('Improper string slice provided.')
+            raise ValueError("Improper string slice provided.")
         else:
             # Assume that the elements of selection are actual elements of keys; take intersection
             selection = np.unique(selection)
-            clean_selection, selection_map, keys_index_map = np.intersect1d(selection, keys,
-                                                                            assume_unique=True,
-                                                                            return_indices=True)
+            clean_selection, selection_map, keys_index_map = np.intersect1d(
+                selection, keys, assume_unique=True, return_indices=True
+            )
             index_map = keys_index_map
 
     if return_indices:
@@ -263,21 +276,21 @@ def select_items(selection: Selectable, keys: ArrayLike, return_indices: bool = 
 
 def contains(substrings: StrList) -> Callable[[StrList], List[int]]:
     """Return callable which accepts a list of strings and returns the list of indices
-        of those strings which contain some element of substrings.
-        Usage:
-            contains("a,b,")
-            contains(['a','b'])
-        Inputs:
-            substrings = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-        Outputs:
-            func(string_list) = returns a list of indices of the strings in string_list which have some element of
-                substrings as a substring
+    of those strings which contain some element of substrings.
+    Usage:
+        contains("a,b,")
+        contains(['a','b'])
+    Inputs:
+        substrings = string of (delimiter separated) values (delimiter is last character)
+            or list of values of length n
+    Outputs:
+        func(string_list) = returns a list of indices of the strings in string_list which have some element of
+            substrings as a substring
     """
     presanitized = substrings
     substrings = sanitize(substrings)
 
-    def func(string_list, function_name='contains', currying_parameter=presanitized):
+    def func(string_list, function_name="contains", currying_parameter=presanitized):
         if string_list is None:
             return function_name, currying_parameter
 
@@ -296,21 +309,21 @@ def contains(substrings: StrList) -> Callable[[StrList], List[int]]:
 
 def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
     """Return callable which accepts a list of strings and returns the list of indices
-        of those strings which have some element of prefixes as a prefix.
-        Usage:
-            startswith("a,b,")
-            startswith(['a','b'])
-        Inputs:
-            prefixes = string of (delimiter separated) values (delimiter is last character)
-                or list of values of length n
-        Outputs:
-            func(string_list) = returns a list of indices of the strings in string_list which have some element of
-                prefixes as a prefix
+    of those strings which have some element of prefixes as a prefix.
+    Usage:
+        startswith("a,b,")
+        startswith(['a','b'])
+    Inputs:
+        prefixes = string of (delimiter separated) values (delimiter is last character)
+            or list of values of length n
+    Outputs:
+        func(string_list) = returns a list of indices of the strings in string_list which have some element of
+            prefixes as a prefix
     """
     presanitized = prefixes
     prefixes = sanitize(prefixes)
 
-    def func(string_list, function_name='startswith', currying_parameter=presanitized):
+    def func(string_list, function_name="startswith", currying_parameter=presanitized):
         if string_list is None:
             return function_name, currying_parameter
         else:
@@ -345,8 +358,8 @@ def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, Numb
 def remove_suffix(word, suffix):
     if len(word) == 0:
         return word
-    elif len(suffix) <= len(word) and word[-len(suffix):] == suffix:
-        return word[0:-len(suffix)]
+    elif len(suffix) <= len(word) and word[-len(suffix) :] == suffix:
+        return word[0 : -len(suffix)]
     else:
         return word
 
@@ -354,48 +367,62 @@ def remove_suffix(word, suffix):
 def num_to_str(array: ArrayLike, int_aware: bool = True) -> np.ndarray:
     """Convert array of numbers to array of strings."""
     array = sanitize(array)
-    stringified_array = array.astype('str')
+    stringified_array = array.astype("str")
     if int_aware:
-        stringified_array = np.vectorize(lambda word: remove_suffix(word, '.0'))(stringified_array)
+        stringified_array = np.vectorize(lambda word: remove_suffix(word, ".0"))(
+            stringified_array
+        )
     return stringified_array
 
 
 def can_sanitize(object_: Any) -> bool:
-    return isinstance(object_, str) or isinstance(object_, Number) or isinstance(object_, SequenceLike) \
-           or (isinstance(object_, np.ndarray) and object_.ndim == 1
-               and (np.issubdtype(object_.dtype, float) or np.issubdtype(object_.dtype, int)
-                    or np.issubdtype(object_.dtype, str)))
+    return (
+        isinstance(object_, str)
+        or isinstance(object_, Number)
+        or isinstance(object_, SequenceLike)
+        or (
+            isinstance(object_, np.ndarray)
+            and object_.ndim == 1
+            and (
+                np.issubdtype(object_.dtype, float)
+                or np.issubdtype(object_.dtype, int)
+                or np.issubdtype(object_.dtype, str)
+            )
+        )
+    )
 
 
-def sanitize(object_: ArrayLike, prevent_upcasting: bool = False, convert: bool = False) -> np.ndarray:
+def sanitize(
+    object_: ArrayLike, prevent_upcasting: bool = False, convert: bool = False
+) -> np.ndarray:
     """Convert
-        * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
-        * iterables into numpy arrays, and
-        * all other objects into a numpy array having that object.
-        Usage:
-            sanitized list = sanitize(obj)
-        Inputs:
-            object_ = string of (delimiter separated) values (delimiter is last character)
-                or iterable of values of length n or single value
-            prevent_upcasting = (Optional, default False) Boolean indicating whether potential upcasting when forming
-                numpy arrays should be avoided when possible
-            convert = (Optional, default False) Boolean indicating whether strings which represent numbers should
-                be replaced with numbers
-        Outputs:
-            list of values
-        Examples:
-            sanitize("a,b,") = np.array(['a', 'b'])
-            sanitize("1,1,") = np.array(['1', '1'])
-            sanitize("1,1,", convert=True) = np.array([1, 1])
-            sanitize([10, 3]) = np.array([10, 3])
-            sanitize([10, 3.5]) = np.array([10, 3.5], dtype=float)
-            sanitize([10, 3.5], prevent_upcasting=True) = np.array([10, 3.5], dtype=object)
-            sanitize(1) = np.array([1])
+    * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
+    * iterables into numpy arrays, and
+    * all other objects into a numpy array having that object.
+    Usage:
+        sanitized list = sanitize(obj)
+    Inputs:
+        object_ = string of (delimiter separated) values (delimiter is last character)
+            or iterable of values of length n or single value
+        prevent_upcasting = (Optional, default False) Boolean indicating whether potential upcasting when forming
+            numpy arrays should be avoided when possible
+        convert = (Optional, default False) Boolean indicating whether strings which represent numbers should
+            be replaced with numbers
+    Outputs:
+        list of values
+    Examples:
+        sanitize("a,b,") = np.array(['a', 'b'])
+        sanitize("1,1,") = np.array(['1', '1'])
+        sanitize("1,1,", convert=True) = np.array([1, 1])
+        sanitize([10, 3]) = np.array([10, 3])
+        sanitize([10, 3.5]) = np.array([10, 3.5], dtype=float)
+        sanitize([10, 3.5], prevent_upcasting=True) = np.array([10, 3.5], dtype=object)
+        sanitize(1) = np.array([1])
     """
     # If a single string character, treat as single value instead of delimiter
     if isinstance(object_, str):
         if len(object_) == 0:
-            return np.array([''])
+            return np.array([""])
         elif len(object_) == 1:
             if convert:
                 object_ = str_to_num(object_)
@@ -412,7 +439,7 @@ def sanitize(object_: ArrayLike, prevent_upcasting: bool = False, convert: bool 
 
     # Convert to numpy array
     if not isinstance(object_, np.ndarray):
-        if hasattr(object_, '__iter__'):
+        if hasattr(object_, "__iter__"):
             # Only make dtype=object if necessary
             if prevent_upcasting and len({type(item) for item in object_}) > 1:
                 object_ = np.array(object_, dtype=object)
@@ -427,16 +454,16 @@ def sanitize(object_: ArrayLike, prevent_upcasting: bool = False, convert: bool 
 def to_db_string(object_) -> str:
     """Convert input (either a delimiter-separated string or an iterable) to Accumulo-friendly string."""
     if isinstance(object_, str):
-        object_ = object_.replace(object_[-1], '\n')
+        object_ = object_.replace(object_[-1], "\n")
     else:
         object_ = sanitize(object_).astype(str)
-        object_ = '\n'.join(object_) + '\n'
+        object_ = "\n".join(object_) + "\n"
     return object_
 
 
 def from_db_string(db_string: str) -> np.ndarray:
     """Convert db-formatted string to numpy array."""
-    return sanitize(db_string.split('\n')[0: -1])
+    return sanitize(db_string.split("\n")[0:-1])
 
 
 def np_sorted(arr: np.ndarray) -> bool:
@@ -444,34 +471,40 @@ def np_sorted(arr: np.ndarray) -> bool:
     return np.all(arr[:-1] <= arr[1:])
 
 
-def aggregate_triples(row: Sequence, col: Sequence, val: Sequence, func: Callable[[KeyVal, KeyVal], KeyVal]) \
-        -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def aggregate_triples(
+    row: Sequence,
+    col: Sequence,
+    val: Sequence,
+    func: Callable[[KeyVal, KeyVal], KeyVal],
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Aggregate (row[i], col[i], val[i]) triples using func as collision function.
-        Usage:
-            aggregate_triples(row, col, val, func)
-        Inputs:
-            row = numpy array of length n
-            col = numpy array of length n
-            val = numpy array of length n
-            func = collision function (e.g. add, times, max, min, first, last)
-        Output:
-            new_row, new_col, new_val = subarrays of row, col, val in which pairs (r, c) = (new_row[i], new_col[i])
-                are unique and new_val[i] is the resulting of iteratively applying func to the values corresponding to
-                triples (r, c, value) = (row[j], col[j], val[j])
-        Example:
-            aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], add) = ['a', 'b'], ['A', 'B'], [3, 3]
-            aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], first) = ['a', 'b'], ['A', 'B'], [1, 3]
-            aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], last) = ['a', 'b'], ['A', 'B'], [2, 3]
-            aggregate_triples(['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min)
-                = ['a', 'b'], ['A', 'B'], [0, 3]
-            (where lists are stand-ins for the corresponding numpy arrays)
+    Usage:
+        aggregate_triples(row, col, val, func)
+    Inputs:
+        row = numpy array of length n
+        col = numpy array of length n
+        val = numpy array of length n
+        func = collision function (e.g. add, times, max, min, first, last)
+    Output:
+        new_row, new_col, new_val = subarrays of row, col, val in which pairs (r, c) = (new_row[i], new_col[i])
+            are unique and new_val[i] is the resulting of iteratively applying func to the values corresponding to
+            triples (r, c, value) = (row[j], col[j], val[j])
+    Example:
+        aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], add) = ['a', 'b'], ['A', 'B'], [3, 3]
+        aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], first) = ['a', 'b'], ['A', 'B'], [1, 3]
+        aggregate_triples(['a', 'a', 'b'], ['A', 'A', 'B'], [1, 2, 3], last) = ['a', 'b'], ['A', 'B'], [2, 3]
+        aggregate_triples(['a', 'a', 'a', 'b'], ['A', 'A', 'A', 'B'], [1, 2, 0, 3], min)
+            = ['a', 'b'], ['A', 'B'], [0, 3]
+        (where lists are stand-ins for the corresponding numpy arrays)
     """
     aggregate_dict = dict()
     for index in range(len(row)):
         if (row[index], col[index]) not in aggregate_dict:
             aggregate_dict[(row[index], col[index])] = val[index]
         else:
-            aggregate_dict[(row[index], col[index])] = func(aggregate_dict[(row[index], col[index])], val[index])
+            aggregate_dict[(row[index], col[index])] = func(
+                aggregate_dict[(row[index], col[index])], val[index]
+            )
 
     new_row = np.array([item[0] for item in list(aggregate_dict.keys())])
     new_col = np.array([item[1] for item in list(aggregate_dict.keys())])
@@ -479,51 +512,70 @@ def aggregate_triples(row: Sequence, col: Sequence, val: Sequence, func: Callabl
     return new_row, new_col, new_val
 
 
-def sorted_append(new_entry: KeyVal, sorted_array: np.ndarray, array_of_indices: np.ndarray,
-                  new_entry_name: str = 'new_entry', sorted_array_name: str = 'sorted_array') \
-        -> Tuple[np.ndarray, np.ndarray]:
+def sorted_append(
+    new_entry: KeyVal,
+    sorted_array: np.ndarray,
+    array_of_indices: np.ndarray,
+    new_entry_name: str = "new_entry",
+    sorted_array_name: str = "sorted_array",
+) -> Tuple[np.ndarray, np.ndarray]:
     """Add new entry to a sorted array, sort, and update an array of indices to reflect new entry.
-        Inputs:
-            new_entry = value to add to given sorted_array
-            sorted_array = sorted, unique numpy array
-            array_of_indices = numpy array whose entries are indices in reference to sorted_array
-            new_entry_name = (Optional, default 'new_entry') how new_entry argument is referred to in warnings
-            sorted_array_name = (Optional, default 'sorted_array') how sorted_array argument is referred to in warnings
-        Outputs:
-            updated_sorted = sorted, unique union of sorted_array and np.array([new_entry])
-            updated_indices = update of array_of_indices with indices updated to refer to corresponding entries of
-                updated_sorted coming from sorted_unique, additionally appended with the index of new_entry in
-                updated_sorted
-        Notes:
-            - If new_entry is already present in sorted_array, updated_indices is array_of_indices appended with the
-                index of new_entry in sorted_array.
-            - If the datatype of new_entry is incompatible with the datatype of entries of sorted_array (in particular,
-                <= comparisons cannot be made between new_entry and entries of sorted_array), then entries of
-                sorted_array are upcast to be compatible, if possible, and a warning is raised.
-            - If new_entry and the entries of sorted_array are numerical, then they will silently be upcast to the
-                least general datatype of them.
+    Inputs:
+        new_entry = value to add to given sorted_array
+        sorted_array = sorted, unique numpy array
+        array_of_indices = numpy array whose entries are indices in reference to sorted_array
+        new_entry_name = (Optional, default 'new_entry') how new_entry argument is referred to in warnings
+        sorted_array_name = (Optional, default 'sorted_array') how sorted_array argument is referred to in warnings
+    Outputs:
+        updated_sorted = sorted, unique union of sorted_array and np.array([new_entry])
+        updated_indices = update of array_of_indices with indices updated to refer to corresponding entries of
+            updated_sorted coming from sorted_unique, additionally appended with the index of new_entry in
+            updated_sorted
+    Notes:
+        - If new_entry is already present in sorted_array, updated_indices is array_of_indices appended with the
+            index of new_entry in sorted_array.
+        - If the datatype of new_entry is incompatible with the datatype of entries of sorted_array (in particular,
+            <= comparisons cannot be made between new_entry and entries of sorted_array), then entries of
+            sorted_array are upcast to be compatible, if possible, and a warning is raised.
+        - If new_entry and the entries of sorted_array are numerical, then they will silently be upcast to the
+            least general datatype of them.
     """
     try:
-        compare = (sorted_array >= new_entry)
+        compare = sorted_array >= new_entry
         if np.any(compare):
             new_index = np.nonzero(compare)[0][0]
             if sorted_array[new_index] != new_entry:
-                updated_sorted = np.append(np.append(sorted_array[0:new_index], np.array([new_entry])),
-                                           sorted_array[new_index:])
-                offset_array = np.append(np.arange(new_index), np.arange(new_index + 1, len(sorted_array) + 1))
-                updated_indices = offset_array[array_of_indices].astype(int)  # Re-index existing entries
+                updated_sorted = np.append(
+                    np.append(sorted_array[0:new_index], np.array([new_entry])),
+                    sorted_array[new_index:],
+                )
+                offset_array = np.append(
+                    np.arange(new_index),
+                    np.arange(new_index + 1, len(sorted_array) + 1),
+                )
+                updated_indices = offset_array[array_of_indices].astype(
+                    int
+                )  # Re-index existing entries
             else:
                 updated_sorted = sorted_array
                 updated_indices = array_of_indices
-            updated_indices = np.append(updated_indices, new_index)  # Append index of new_entry
+            updated_indices = np.append(
+                updated_indices, new_index
+            )  # Append index of new_entry
         else:
             # Otherwise, row_key is after all entries in sorted_array
             updated_sorted = np.append(sorted_array, new_entry)
             updated_indices = np.append(array_of_indices, len(sorted_array))
     except TypeError:
         # Assume issue is that >= comparison fails due to incompatible datatypes
-        warnings.warn('Incompatible dtypes; the dtypes of ' + sorted_array_name + ' may be upcast to make it '
-                      + 'compatible with given ' + new_entry_name + '.')
+        warnings.warn(
+            "Incompatible dtypes; the dtypes of "
+            + sorted_array_name
+            + " may be upcast to make it "
+            + "compatible with given "
+            + new_entry_name
+            + "."
+        )
         # Try forcing an upcast by appending new_entry to sorted_array anyway
         updated_presorted = np.append(sorted_array, new_entry)
         updated_sorted, inverse_map = np.unique(updated_presorted, return_inverse=True)
@@ -533,24 +585,29 @@ def sorted_append(new_entry: KeyVal, sorted_array: np.ndarray, array_of_indices:
     return updated_sorted, updated_indices
 
 
-def update_indices(array_of_indices: np.ndarray, sorted_bad_indices: List[int], size: int,
-                   offset: int = 0, mark: Optional[int] = None) -> np.ndarray:
+def update_indices(
+    array_of_indices: np.ndarray,
+    sorted_bad_indices: List[int],
+    size: int,
+    offset: int = 0,
+    mark: Optional[int] = None,
+) -> np.ndarray:
     """Given a numpy array of indices of an understood sequence of values and a list of indices of that sequence which
-        are to be removed, update array of indices to be with respect to post-deletion sequence.
-        Inputs:
-            array_of_indices = numpy array of indices (with possible offset) of an understood sequence
-            sorted_bad_indices = sorted list of indices of understood sequence to be deleted/removed
-            size = length/size of understood sequence (i.e., must be at least as large as the largest index encountered
-                + 1)
-            offset = (Optional, default 0) represents amount that indices are offset from being 0-indexed;
-                e.g., if array_of_indices = [1, 3, 2, 5] and offset = 1, then those offset indices refer to
-                sequence[0], sequence[2], sequence[1], sequence[4]
-            mark = (Optional, default None) controls how bad indices present in array_of_indices are handled:
-                if mark is None, they are deleted; otherwise they are set to mark
-        Output:
-            update_indices(array_of_indices, sorted_bad_indices, offset=offset) = new array of indices (with possible
-                offset) referring to post-deletion sequence; bad indices present in array_of_indices are either
-                deleted (if mark is None) or set to mark (otherwise)
+    are to be removed, update array of indices to be with respect to post-deletion sequence.
+    Inputs:
+        array_of_indices = numpy array of indices (with possible offset) of an understood sequence
+        sorted_bad_indices = sorted list of indices of understood sequence to be deleted/removed
+        size = length/size of understood sequence (i.e., must be at least as large as the largest index encountered
+            + 1)
+        offset = (Optional, default 0) represents amount that indices are offset from being 0-indexed;
+            e.g., if array_of_indices = [1, 3, 2, 5] and offset = 1, then those offset indices refer to
+            sequence[0], sequence[2], sequence[1], sequence[4]
+        mark = (Optional, default None) controls how bad indices present in array_of_indices are handled:
+            if mark is None, they are deleted; otherwise they are set to mark
+    Output:
+        update_indices(array_of_indices, sorted_bad_indices, offset=offset) = new array of indices (with possible
+            offset) referring to post-deletion sequence; bad indices present in array_of_indices are either
+            deleted (if mark is None) or set to mark (otherwise)
     """
     if mark is None:
         delete = True
@@ -570,12 +627,18 @@ def update_indices(array_of_indices: np.ndarray, sorted_bad_indices: List[int], 
 
     # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
     for index in range(len(padded_bad_indices) - 1):
-        new_indices[padded_bad_indices[index]: padded_bad_indices[index + 1]] -= index
+        new_indices[padded_bad_indices[index] : padded_bad_indices[index + 1]] -= index
         if index > 0:
             new_indices[padded_bad_indices[index]] = mark  # Mark bad indices
-    updated_array = new_indices[array_of_indices - np.full(len(array_of_indices), offset)]
+    updated_array = new_indices[
+        array_of_indices - np.full(len(array_of_indices), offset)
+    ]
     if delete:
-        present_bad_indices = [index for index in range(len(updated_array)) if updated_array[index] == offset-1]
+        present_bad_indices = [
+            index
+            for index in range(len(updated_array))
+            if updated_array[index] == offset - 1
+        ]
         updated_array = np.delete(updated_array, present_bad_indices)
 
     # Return dtype to original value
@@ -606,16 +669,34 @@ def last(_: Any, object_2: Any) -> Any:
 
 # Aliases for valid binary operations
 def operation_dict() -> Dict[str, Callable]:
-    op_dict = {'add': add, 'plus': add, 'sum': add, 'addition': add,
-               'times': times, 'multiply': times, 'product': times, 'multiplication': times, 'prod': times,
-               'min': min, 'minimum': min, 'minimize': min,
-               'max': max, 'maximum': max, 'maximize': max,
-               'first': first, 'last': last}
+    op_dict = {
+        "add": add,
+        "plus": add,
+        "sum": add,
+        "addition": add,
+        "times": times,
+        "multiply": times,
+        "product": times,
+        "multiplication": times,
+        "prod": times,
+        "min": min,
+        "minimum": min,
+        "minimize": min,
+        "max": max,
+        "maximum": max,
+        "maximize": max,
+        "first": first,
+        "last": last,
+    }
     return op_dict
 
 
-def catstr(str_array_1: np.ndarray, str_array_2: np.ndarray, separator: str = '|', int_aware: bool = True) \
-        -> np.ndarray:
+def catstr(
+    str_array_1: np.ndarray,
+    str_array_2: np.ndarray,
+    separator: str = "|",
+    int_aware: bool = True,
+) -> np.ndarray:
     """Concatenate arrays of strings/numbers str_array_1 and str_array_2 with separator sep between them."""
     str_array_1, str_array_2 = sanitize(str_array_1), sanitize(str_array_2)
     str_array_1 = num_to_str(str_array_1, int_aware=int_aware)

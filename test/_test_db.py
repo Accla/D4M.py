@@ -8,17 +8,17 @@ import D4M.util as util
 import D4M.db
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def test_instance():
-    return 'class-db03'
+    return "class-db03"
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def config_filename():
-    return 'test_db_config.txt'
+    return "test_db_config.txt"
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def DB(test_instance):
     DB = D4M.db.dbsetup(test_instance, die_on_exit=False)
     yield DB
@@ -28,7 +28,7 @@ def _get_new_table_name(DB: D4M.db.DbServer) -> str:
     """Create table name which isn't present in the given DbServer."""
     table_list = DB.ls()
     index = 0
-    new_table_name = 'test_table_'
+    new_table_name = "test_table_"
     while new_table_name + str(index) in table_list:
         index += 1
     return new_table_name + str(index)
@@ -38,10 +38,13 @@ def _get_new_tablepair_name(DB: D4M.db.DbServer) -> Tuple[str, str]:
     """Create table pair names which aren't present in the given DbServer."""
     table_list = DB.ls()
     index = 0
-    new_table_name = 'test_table_'
-    while new_table_name + str(index) in table_list or new_table_name + str(index) + 'T' in table_list:
+    new_table_name = "test_table_"
+    while (
+        new_table_name + str(index) in table_list
+        or new_table_name + str(index) + "T" in table_list
+    ):
         index += 1
-    return new_table_name + str(index), new_table_name + str(index) + 'T'
+    return new_table_name + str(index), new_table_name + str(index) + "T"
 
 
 # D4M.assoc.Assoc(test_row, test_col, test_val).printfull():
@@ -57,23 +60,25 @@ def _get_new_tablepair_name(DB: D4M.db.DbServer) -> Tuple[str, str]:
 # d                                              dD
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def row():
-    return '1,1,1,1,1,1,3,3,3,3,3,3,5,5,5,5,5,5,7,7,7,7,7,a,a,a,a,a,a,a,abcd,abcd,b,b,b,b,b,c,c,c,d,'
+    return "1,1,1,1,1,1,3,3,3,3,3,3,5,5,5,5,5,5,7,7,7,7,7,a,a,a,a,a,a,a,abcd,abcd,b,b,b,b,b,c,c,c,d,"
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def col():
-    return '2,4,8,A,C,D,4,6,8,ABCD,B,D,2,4,6,8,B,C,2,6,8,A,B,2,4,6,8,A,C,D,2,ABCD,2,6,A,B,D,2,6,C,D,'
+    return "2,4,8,A,C,D,4,6,8,ABCD,B,D,2,4,6,8,B,C,2,6,8,A,B,2,4,6,8,A,C,D,2,ABCD,2,6,A,B,D,2,6,C,D,"
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def val():
-    return '12,14,18,1A,1C,1D,34,36,38,3ABCD,3B,3D,52,54,56,58,5B,5C,72,76,78,7A,7B,a2,a4,a6,a8,' \
-           'aA,aC,aD,abcd2,abcdABCD,b2,b6,bA,bB,bD,c2,c6,cC,dD,'
+    return (
+        "12,14,18,1A,1C,1D,34,36,38,3ABCD,3B,3D,52,54,56,58,5B,5C,72,76,78,7A,7B,a2,a4,a6,a8,"
+        "aA,aC,aD,abcd2,abcdABCD,b2,b6,bA,bB,bD,c2,c6,cC,dD,"
+    )
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def table(DB, row, col, val):
     table_name = _get_new_table_name(DB)
     table = D4M.db.get_index(DB, table_name)
@@ -84,7 +89,7 @@ def table(DB, row, col, val):
     D4M.db.delete_table(table, force=True)
 
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope="function")
 def tablepair(DB, row, col, val):
     tablepair_name, tablepair_nameT = _get_new_tablepair_name(DB)
     tablepair = D4M.db.get_index(DB, tablepair_name, tablepair_nameT)
@@ -155,67 +160,78 @@ def test_put_triples(DB):
     new_table_name = _get_new_table_name(DB)
     new_table = D4M.db.get_index(DB, new_table_name)
     assert D4M.db.nnz(new_table) == 0
-    D4M.db.put_triple(new_table, '1,2,3,4,', 'A,B,C,D,', 'A1,B2,C3,D4,')
+    D4M.db.put_triple(new_table, "1,2,3,4,", "A,B,C,D,", "A1,B2,C3,D4,")
     assert D4M.db.nnz(new_table) == 4
     D4M.db.delete_table(new_table, force=True)
 
 
-@pytest.mark.parametrize("row_query,col_query",
-                         [(slice(None, None), slice(None, None)),
-                          ('a,b,', 'A,B,'),
-                          ('1,5,', '8,A,'),
-                          ('d,e,', 'D,E,'),
-                          ('1,:,7,', '2,4,'),
-                          (util.contains('a,d,'), slice(2, 5)),
-                          ([0, 2, 4], [1, 3, 5]),
-                          (['a', 'b', 'd'], ['A', 'C', 'D']),
-                          (':', ':')
-                          ])
+@pytest.mark.parametrize(
+    "row_query,col_query",
+    [
+        (slice(None, None), slice(None, None)),
+        ("a,b,", "A,B,"),
+        ("1,5,", "8,A,"),
+        ("d,e,", "D,E,"),
+        ("1,:,7,", "2,4,"),
+        (util.contains("a,d,"), slice(2, 5)),
+        ([0, 2, 4], [1, 3, 5]),
+        (["a", "b", "d"], ["A", "C", "D"]),
+        (":", ":"),
+    ],
+)
 def test_index_assoc_single(row_query, col_query, table, row, col, val):
     test_assoc = D4M.assoc.Assoc(row, col, val)
     test_assoc[row_query, col_query].printfull()
     D4M.db.get_index(table, row_query, col_query).printfull()
 
-    assert D4M.assoc.assoc_equal(test_assoc[row_query, col_query],
-                                 D4M.db.get_index(table, row_query, col_query), return_info=True)
+    assert D4M.assoc.assoc_equal(
+        test_assoc[row_query, col_query],
+        D4M.db.get_index(table, row_query, col_query),
+        return_info=True,
+    )
 
 
-@pytest.mark.parametrize("row_query,col_query",
-                         [(slice(None, None), slice(None, None)),
-                          ('a,b,', 'A,B,'),
-                          ('1,5,', '8,A,'),
-                          ('d,e,', 'D,E,'),
-                          ('1,:,7,', '2,4,'),
-                          (util.contains('a,d,'), slice(1, 5)),
-                          ([0, 2, 4], [1, 3, 5]),
-                          (['a', 'b', 'd'], ['A', 'C', 'D']),
-                          (':', ':'),
-                          (':', 'A,B,'),
-                          (':', '8,A,'),
-                          (':', 'D,E,'),
-                          (':', '2,4,'),
-                          (':', slice(1, 5)),
-                          (':', [1, 3, 5]),
-                          (':', ['A', 'C', 'D']),
-                          ])
+@pytest.mark.parametrize(
+    "row_query,col_query",
+    [
+        (slice(None, None), slice(None, None)),
+        ("a,b,", "A,B,"),
+        ("1,5,", "8,A,"),
+        ("d,e,", "D,E,"),
+        ("1,:,7,", "2,4,"),
+        (util.contains("a,d,"), slice(1, 5)),
+        ([0, 2, 4], [1, 3, 5]),
+        (["a", "b", "d"], ["A", "C", "D"]),
+        (":", ":"),
+        (":", "A,B,"),
+        (":", "8,A,"),
+        (":", "D,E,"),
+        (":", "2,4,"),
+        (":", slice(1, 5)),
+        (":", [1, 3, 5]),
+        (":", ["A", "C", "D"]),
+    ],
+)
 def test_index_assoc_pair(row_query, col_query, tablepair, row, col, val):
     test_assoc = D4M.assoc.Assoc(row, col, val)
     test_assoc[row_query, col_query].printfull()
     D4M.db.get_index(tablepair, row_query, col_query).printfull()
 
-    assert D4M.assoc.assoc_equal(test_assoc[row_query, col_query],
-                                 D4M.db.get_index(tablepair, row_query, col_query), return_info=True)
+    assert D4M.assoc.assoc_equal(
+        test_assoc[row_query, col_query],
+        D4M.db.get_index(tablepair, row_query, col_query),
+        return_info=True,
+    )
 
 
-@pytest.mark.parametrize("num_limit",
-                         [2,
-                          0,
-                          1,
-                          5
-                          ])
+@pytest.mark.parametrize("num_limit", [2, 0, 1, 5])
 def test_get_index_iter(num_limit, table, row, col, val):
     test_assoc = D4M.assoc.Assoc(row, col, val)
-    row, col, val = D4M.util.sanitize(row), D4M.util.sanitize(col), D4M.util.sanitize(val)
+    row, col, val = (
+        D4M.util.sanitize(row),
+        D4M.util.sanitize(col),
+        D4M.util.sanitize(val),
+    )
 
     new_iterator = D4M.db.get_iterator(table, num_limit)
 
@@ -224,8 +240,11 @@ def test_get_index_iter(num_limit, table, row, col, val):
     else:
         index = 0
         while index + num_limit <= len(val):
-            test_assoc = D4M.assoc.Assoc(row[index: index+num_limit], col[index: index+num_limit],
-                                         val[index: index+num_limit])
+            test_assoc = D4M.assoc.Assoc(
+                row[index : index + num_limit],
+                col[index : index + num_limit],
+                val[index : index + num_limit],
+            )
             assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
             index += num_limit
         if index < len(val):
@@ -233,5 +252,7 @@ def test_get_index_iter(num_limit, table, row, col, val):
             assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
 
         # Run one last time to check that iterator restarts after going through all triples
-        test_assoc = D4M.assoc.Assoc(row[0: num_limit], col[0: num_limit], val[0: num_limit])
+        test_assoc = D4M.assoc.Assoc(
+            row[0:num_limit], col[0:num_limit], val[0:num_limit]
+        )
         assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
