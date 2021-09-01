@@ -19,7 +19,7 @@ Current Status: Many of the functionalities of cores D4M have been implemented, 
   
 ## Requirements
 
-D4M.py is written and tested to work with Python 2.7 and 3.* . It makes use of
+D4M.py is written and tested to work with Python 3.6 through 3.9 . It makes use of
 - Scipy.sparse (for sparse matrix support)
 - Numpy (for working with scipy)
 - Py4J (for handling database connectivity)
@@ -45,25 +45,26 @@ row = "a,a,a,a,a,a,a,aa,aaa,b,bb,bbb,a,aa,aaa,b,bb,bbb,"
 column = "a,aa,aaa,b,bb,bbb,a,a,a,a,a,a,a,aa,aaa,b,bb,bbb,"
 values = "a-a,a-aa,a-aaa,a-b,a-bb,a-bbb,a-a,aa-a,aaa-a,b-a,bb-a,bbb-a,a-a,aa-aa,aaa-aaa,b-b,bb-bb,bbb-bbb,"
 
-A = D4M.assoc.Assoc(row,column,values)
+A = D4M.assoc.Assoc(row, column, values)
 ```
 
 You can get particular rows and columns of associative arrays by using row and column indexing, as well as get the entries where the values satisfy some condition.
 ```python
-Ar = A['a,b,',:]
-Ac = A[:,'a,b,']
+Ar = A['a,b,', :]
+Ac = A[:, 'a,b,']
 Av = A > 'b'
 ```
 
 Associative Arrays support a variety of mathematical operations, including addition, subtraction, matrix multiplication, element-wise multiplication/division, summing across rows/columns, and more.
 ```python
-A + B
-A - B
-A.multiply(B)
-A.divide(B)
-A.sum()
-A.sum(0)
-A.sum(1)
+A + B         # Associative array addition
+A - B         # Associative array difference
+A * B         # Associative array multiplication
+A.multiply(B) # Associative array element-wise multiplication
+A.divide(B)   # Associative array element-wise division
+A.sum()       # Sum over entire associative array
+A.sum(0)      # Sum down columns of associative array
+A.sum(1)      # Sum across rows of associative array
 ```
 
 For more exmaples of how you can use D4M.py, check out the examples in the examples directory, including some examples with real datasets.
@@ -78,3 +79,5 @@ D4M.py relies on the Py4J package to call the Graphulo functions that enable dat
 
 ***Note***
 Various parts of this implementation have been completed and compared with the original matlab in performance. In the examples/Scaling subfolder, this implementation has achieved performance on par with the Julia and MATLAB implementations of D4M.
+
+The associative array and utility submodules can be tested for correctness by running the command "pytest" in the D4M/test subdirectory. The database submodule can be included in this testing by renaming the file "_test_db.py" to "test_db.py"; custom configuration info for py4j, Graphulo, Accumulo, and path to Accumulo instances may be included in "test_db_config.txt".
