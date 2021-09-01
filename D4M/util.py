@@ -358,8 +358,8 @@ def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, Numb
 def remove_suffix(word, suffix):
     if len(word) == 0:
         return word
-    elif len(suffix) <= len(word) and word[-len(suffix) :] == suffix:
-        return word[0 : -len(suffix)]
+    elif len(suffix) <= len(word) and word[(-len(suffix)):] == suffix:
+        return word[0:(-len(suffix))]
     else:
         return word
 
@@ -627,7 +627,7 @@ def update_indices(
 
     # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
     for index in range(len(padded_bad_indices) - 1):
-        new_indices[padded_bad_indices[index] : padded_bad_indices[index + 1]] -= index
+        new_indices[padded_bad_indices[index]:padded_bad_indices[(index + 1)]] -= index
         if index > 0:
             new_indices[padded_bad_indices[index]] = mark  # Mark bad indices
     updated_array = new_indices[

@@ -23,8 +23,8 @@ print(A.sum(1))
 
 # Compute a simple join
 
-Aa = A[:,"a,"]
-Ab = A[:,"b,"]
+Aa = A[:, "a,"]
+Ab = A[:, "b,"]
 Aab = Aa.nocol() & Ab.nocol()
 
 # Compute a histogram (facets) of other columns that are in rows with both a and b
@@ -40,7 +40,5 @@ Fn.printfull()
 # Compute correlation
 
 AtA = A.sqin()
-d = AtA.adj.diagonal()
-AtA = AtA.setadj(AtA.adj - diags(d, shape = AtA.adj.shape))
+AtA = AtA - AtA.diag()
 AtA.printfull()
-

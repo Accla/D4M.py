@@ -1,4 +1,5 @@
 from D4M.assoc import *
+from D4M.util import startswith
 
 # ## Graph Test
 # 
@@ -25,18 +26,18 @@ Ae.printfull()
 
 # Get orange edges
 
-Eo = E[(E[:,'Color,'] == 'Orange').row, :]
+Eo = E[(E[:, 'Color,'] == 'Orange').row, :]
 Eo.printfull()
 
 # Get orange and green edges
 
-Eog = E[startswith('O,G,'),:]
+Eog = E[startswith('O,G,'), :]
 Eog.printfull()
 
 # Another way to get orange and green edges.
 
-EvO = Ev[startswith('O,'),:]
-EvG = Ev[startswith('G,'),:]
+EvO = Ev[startswith('O,'), :]
+EvG = Ev[startswith('G,'), :]
 
 AvOG = EvO.transpose() * EvG
 print(AvOG)
@@ -48,4 +49,3 @@ AeOG.printfull()
 
 AeOG = EvO.catkeymul(EvG.transpose())
 AeOG.printfull()
-

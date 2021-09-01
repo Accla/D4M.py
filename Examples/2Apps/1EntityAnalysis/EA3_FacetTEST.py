@@ -6,8 +6,8 @@ from D4M.assoc import *
 E = readcsv('E.csv')
 E = E.logical()
 
-x = 'LOCATION/new york,'
-p = 'PERSON/michael chang,'
+x = 'LOCATION|new york,'
+p = 'PERSON|michael chang,'
 F = (E[:, x].nocol() & E[:, p].nocol()).transpose() * E  # Compute Facets
 (F.transpose() > 1).printfull()  # Display most common
 

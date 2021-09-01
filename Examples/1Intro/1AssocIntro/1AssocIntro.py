@@ -1,4 +1,5 @@
 from D4M.assoc import *
+from D4M.util import startswith, contains
 import scipy.sparse as sp
 
 # ## Creating Associative Arrays
@@ -116,6 +117,5 @@ Fn.printfull()
 # Compute correlation
 
 AtA = A.sqin()
-d = AtA.adj.diagonal()
-AtA = AtA.setadj(AtA.adj - sp.diags(d, shape=AtA.adj.shape))
+AtA = AtA - AtA.diag()
 AtA.printfull()

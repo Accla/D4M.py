@@ -1,5 +1,5 @@
 from D4M.assoc import *
-import D4M.util as util
+from D4M.util import catstr
 
 # Read CSV file (take ~1 minute)
 E = readcsv('Entity.csv')
@@ -12,7 +12,7 @@ _, _, position = E[:, 'position,'].find()
 _, _, rowType = E[:, 'type,'].find()
 
 # Interleave type and entity strings
-typeEntity = util.catstr(rowType, entity, separator='|')
+typeEntity = catstr(rowType, entity, separator='|')
 
 # Create Sparse Edge Matrix
 E = Assoc(doc, typeEntity, position)

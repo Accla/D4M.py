@@ -13,7 +13,7 @@ Ae.printfull()
 Ae.spy()
 
 # Entity-entity graph with pedigree
-p = startswith('PERSON/j,')  # Set entity range
+p = startswith('PERSON|j,')  # Set entity range
 Ep = E[:, p]  # Limit to entity range
 Ap = Ep.transpose().catkeymul(Ep)  # Correlated while preserving pedigree
 Ap.spy()

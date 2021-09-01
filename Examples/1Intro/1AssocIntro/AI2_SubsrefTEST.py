@@ -1,4 +1,5 @@
 from D4M.assoc import *
+from D4M.util import startswith, contains
 
 # ## Subreferencing of Associative Arrays
 

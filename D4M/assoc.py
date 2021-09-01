@@ -630,7 +630,7 @@ class Assoc:
                     (new_val[data_indices], (self.adj.row, self.adj.col)), dtype=float
                 )
             else:
-                self.val = new_val[0 : max_index + 1]
+                self.val = new_val[0:(max_index + 1)]
                 self.adj = sparse.coo_matrix(
                     (data_indices + 1, (self.adj.row, self.adj.col)), dtype=int
                 )
@@ -979,9 +979,11 @@ class Assoc:
             trans_dict = (
                 rel_array.transpose().to_dict()
             )  # Take transpose to collate by column labels
-            trans_dict.update(
-                self[-1, :].transpose().to_dict()
-            )  # Add in final row (may already be present)
+            # Add in final row (may already be present)
+            final_row_dict = self[-1, :].transpose().to_dict()
+            for column_key in trans_dict.keys():
+                if column_key in final_row_dict.keys():
+                    trans_dict[column_key].update(final_row_dict[column_key])
 
             # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
             col_widths = list()
@@ -1508,16 +1510,16 @@ class Assoc:
 
         rows = [
             self_trimmed_adj.indices[
-                self_trimmed_adj.indptr[row_index] : self_trimmed_adj.indptr[
-                    row_index + 1
+                self_trimmed_adj.indptr[row_index]:self_trimmed_adj.indptr[
+                    (row_index + 1)
                 ]
             ]
             for row_index in range(row_size)
         ]
         cols = [
             other_trimmed_adj.indices[
-                other_trimmed_adj.indptr[col_index] : other_trimmed_adj.indptr[
-                    col_index + 1
+                other_trimmed_adj.indptr[col_index]:other_trimmed_adj.indptr[
+                    (col_index + 1)
                 ]
             ]
             for col_index in range(col_size)
@@ -2481,13 +2483,20 @@ def col_to_type(A: "Assoc", separator: str = "|", convert: bool = True) -> "Asso
         print("Input column keys not of correct form.")
 
     # Extract column types and values
-    column_types = [split_column_key[0] for split_column_key in column_splits]
-    if convert:
-        column_vals = [
-            util.str_to_num(split_column_key[1]) for split_column_key in column_splits
-        ]
-    else:
-        column_vals = [split_column_key[1] for split_column_key in column_splits]
+    try:
+        column_types = [split_column_key[0] for split_column_key in column_splits]
+    except IndexError:
+        raise IndexError("Input column keys not of correct form.")
+    try:
+        if convert:
+            column_vals = [
+                util.str_to_num(split_column_key[1])
+                for split_column_key in column_splits
+            ]
+        else:
+            column_vals = [split_column_key[1] for split_column_key in column_splits]
+    except IndexError:
+        raise IndexError("Input column keys not of correct form.")
 
     return Assoc(row, column_types, column_vals)
 
