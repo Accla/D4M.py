@@ -636,7 +636,6 @@ class Assoc:
                 )
 
         # Remove unused row keys, column keys, and values
-        print(self)
         self.condense()
         self.deepcondense()
 
@@ -1964,19 +1963,8 @@ class Assoc:
                 of self.logical() * other.logical()  is not null, in which case that entry is the string list of
                 the non-trivial value pairs 'self[i,k],other[k,j],'.
         """
-        print(self)
-        self.printfull()
-        print(other)
-        other.printfull()
         self_log, other_log = self.logical(copy=True), other.logical(copy=True)
         C = self_log * other_log
-
-        self.printfull()
-        print(self)
-        other.printfull()
-        print(other)
-        C.printfull()
-        print(C)
 
         self_dict, other_dict = self.to_dict(), other.transpose().to_dict()
         rows = {
@@ -1993,20 +1981,15 @@ class Assoc:
 
         for index in range(len(catval_row)):
             row_key, col_key = catval_row[index], catval_col[index]
-            print(row_key)
-            print(col_key)
             common_keys = util.sorted_intersect(rows[row_key], cols[col_key])
-            print(common_keys)
             catval = list()
             for common_key in common_keys:
                 value_pair = [
                     self_dict[row_key][common_key],
                     other_dict[col_key][common_key],
                 ]
-                print(value_pair)
                 value_pair = util.num_to_str(value_pair)
                 catval.append(pair_delimiter.join(value_pair) + pair_delimiter)
-            print(catval)
             catvals.append(delimiter.join(catval) + delimiter)
 
         Assoc(catval_row, catval_col, catvals).printfull()
