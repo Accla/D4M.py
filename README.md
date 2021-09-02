@@ -85,7 +85,7 @@ Use of the database connection capabilities requires Graphulo. Graphulo is avail
 import D4M.db
 ```
 
-D4M.py relies on the Py4J package to call the Graphulo functions that enable database communication. The command D4M.db.dbsetup(...) is used to connect to a Accumulo instance and automatically starts the JVM. Note that multiple calls of D4M.db.dbsetup(...) in a single session may create multiple JVM instances.
+D4M.py relies on the Py4J package to call the Graphulo functions that enable database communication. The command `D4M.db.dbsetup(...)` is used to connect to a Accumulo instance and automatically starts the JVM. Note that multiple calls of `D4M.db.dbsetup(...)` in a single session may create multiple JVM instances.
 
 ## Testing
 
