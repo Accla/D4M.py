@@ -50,9 +50,9 @@ A = D4M.assoc.Assoc(row, column, values)
 
 You can get particular rows and columns of associative arrays by using row and column indexing, as well as get the entries where the values satisfy some condition.
 ```python
-Ar = A['a,b,', :]
-Ac = A[:, 'a,b,']
-Av = A > 'b'
+Ar = A["a,b,", :] # Select sub-associative array of A consisting only of rows "a" and "b"
+Ac = A[:, "a,b,"] # Select sub-associative array of A consisting only of columns 'a' and "b"
+Av = A > "b"      # 0,1-valued associative array corresponding to entries of A with value > "b"
 ```
 
 Associative Arrays support a variety of mathematical operations, including addition, subtraction, matrix multiplication, element-wise multiplication/division, summing across rows/columns, and more.
@@ -67,17 +67,29 @@ A.sum(0)      # Sum down columns of associative array
 A.sum(1)      # Sum across rows of associative array
 ```
 
-For more exmaples of how you can use D4M.py, check out the examples in the examples directory, including some examples with real datasets.
+To support commonly used queries and operations, the D4M.util submodule contains additional utilities for working with D4M.assoc and D4M.db. Some example uses:
+```python
+import D4M.util
+
+D4M.util.startswith("a,")       # Callable which, applied to a sequence of strings, returns indices of those starting with "a"
+D4M.util.contains("a,")         # Callable which, applied to a sequence of strings, returns indices of those containing "a"
+D4M.util.to_db_string("a,b,c,") # Properly formatted string for Accumuldo DB queries
+```
+
+For more exmaples of how you can use D4M.py, check out the examples in the examples directory, including some examples with real datasets. 
 
 ## Database Use
 
-Use of the database connection capabilities requires Graphulo. Graphulo is available on this page: <https://github.com/Accla/graphulo.>
+Use of the database connection capabilities requires Graphulo. Graphulo is available on this page: <https://github.com/Accla/graphulo.> To use, start by importing the D4M.db submodule:
+```python
+import D4M.db
+```
 
-D4M.py relies on the Py4J package to call the Graphulo functions that enable database communication. In order for Py4J to initialize the JVM and set up the Accumulo connection, it runs the dbapp.Dbapplication.java file and adds the above JARs to the class path. You can do this using D4M.db.dbsetup(), but note that doing so multiple times in a single session will create multiple JVM instances.
+D4M.py relies on the Py4J package to call the Graphulo functions that enable database communication. The command D4M.db.dbsetup(...) is used to connect to a Accumulo instance and automatically starts the JVM. Note that multiple calls of D4M.db.dbsetup(...) in a single session may create multiple JVM instances.
 
 ## Testing
 
 ***Note***
 Various parts of this implementation have been completed and compared with the original matlab in performance. In the examples/Scaling subfolder, this implementation has achieved performance on par with the Julia and MATLAB implementations of D4M.
 
-The associative array and utility submodules can be tested for correctness by running the command "pytest" in the D4M/test subdirectory. The database submodule can be included in this testing by renaming the file "_test_db.py" to "test_db.py"; custom configuration info for py4j, Graphulo, Accumulo, and path to Accumulo instances may be included in "test_db_config.txt".
+The associative array and utility submodules can be tested for correctness by running the command "pytest" in the D4M/test subdirectory. The database submodule can be included in this testing by renaming the file "\_test_db.py" to "test_db.py"; custom configuration info for py4j, Graphulo, Accumulo, and path to Accumulo instances may be included in "test_db_config.txt" for use when running tests.
