@@ -124,6 +124,7 @@ class Assoc:
             self.adj = adj.tocoo()
         else:
             if adj is not None:
+                adj = adj.tocoo()
                 adj.eliminate_zeros()
 
                 if isinstance(val, float) and val == 1.0:
@@ -634,7 +635,7 @@ class Assoc:
                     (new_val[data_indices], (self.adj.row, self.adj.col)), dtype=float
                 )
             else:
-                self.val = new_val[0 : (max_index + 1)]
+                self.val = new_val[0: (max_index + 1)]
                 self.adj = sparse.coo_matrix(
                     (data_indices + 1, (self.adj.row, self.adj.col)), dtype=int
                 )
@@ -1513,7 +1514,7 @@ class Assoc:
 
         rows = [
             self_trimmed_adj.indices[
-                self_trimmed_adj.indptr[row_index] : self_trimmed_adj.indptr[
+                self_trimmed_adj.indptr[row_index]: self_trimmed_adj.indptr[
                     (row_index + 1)
                 ]
             ]
@@ -1521,7 +1522,7 @@ class Assoc:
         ]
         cols = [
             other_trimmed_adj.indices[
-                other_trimmed_adj.indptr[col_index] : other_trimmed_adj.indptr[
+                other_trimmed_adj.indptr[col_index]: other_trimmed_adj.indptr[
                     (col_index + 1)
                 ]
             ]

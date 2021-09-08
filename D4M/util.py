@@ -290,14 +290,18 @@ def contains(substrings: StrList) -> Callable[[StrList], List[int]]:
     presanitized = substrings
     substrings = sanitize(substrings)
 
-    def func(string_list, function_name="contains", currying_parameter=presanitized):
+    def func(
+            string_list: Union[StrList, None],
+            function_name: str = "contains",
+            currying_parameter: StrList = presanitized
+    ):
         if string_list is None:
             return function_name, currying_parameter
 
         string_list = sanitize(string_list)
         good_string_list = list()
         for index in range(len(string_list)):
-            item = string_list[index]
+            item = str(string_list[index])
             for substring in substrings:
                 if substring in item:
                     good_string_list.append(index)
@@ -323,7 +327,11 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
     presanitized = prefixes
     prefixes = sanitize(prefixes)
 
-    def func(string_list, function_name="startswith", currying_parameter=presanitized):
+    def func(
+            string_list: Union[StrList, None],
+            function_name: str = "startswith",
+            currying_parameter: StrList = presanitized
+    ):
         if string_list is None:
             return function_name, currying_parameter
         else:
@@ -331,7 +339,7 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
             good_string_list = list()
 
             for index in range(len(string_list)):
-                item = string_list[index]
+                item = str(string_list[index])
                 for prefix in prefixes:
                     if item.startswith(prefix):
                         good_string_list.append(index)
@@ -404,8 +412,8 @@ def str_to_num(array: ArrayLike, silent: bool = False) -> np.ndarray:
 def remove_suffix(word, suffix):
     if len(word) == 0:
         return word
-    elif len(suffix) <= len(word) and word[(-len(suffix)) :] == suffix:
-        return word[0 : (-len(suffix))]
+    elif len(suffix) <= len(word) and word[(-len(suffix)):] == suffix:
+        return word[0: (-len(suffix))]
     else:
         return word
 
@@ -666,7 +674,7 @@ def update_indices(
     # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
     for index in range(len(padded_bad_indices) - 1):
         new_indices[
-            padded_bad_indices[index] : padded_bad_indices[(index + 1)]
+            padded_bad_indices[index]: padded_bad_indices[(index + 1)]
         ] -= index
         if index > 0:
             new_indices[padded_bad_indices[index]] = mark  # Mark bad indices

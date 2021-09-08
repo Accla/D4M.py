@@ -241,9 +241,9 @@ def test_get_index_iter(num_limit, table, row, col, val):
         index = 0
         while index + num_limit <= len(val):
             test_assoc = D4M.assoc.Assoc(
-                row[index : index + num_limit],
-                col[index : index + num_limit],
-                val[index : index + num_limit],
+                row[index: index + num_limit],
+                col[index: index + num_limit],
+                val[index: index + num_limit],
             )
             assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
             index += num_limit

@@ -666,12 +666,12 @@ def _make_chunks(query: ArrayLike, chunk_size) -> Tuple[list, int]:
     num_extra = len(query) % chunk_size
 
     chunks = [
-        D4M.util.to_db_string(query[chunk_index : (chunk_index + chunk_size)])
+        D4M.util.to_db_string(query[chunk_index: (chunk_index + chunk_size)])
         for chunk_index in range(num_chunks)
     ]
     if num_extra > 0:
         covered = num_chunks * chunk_size
-        chunks.append(D4M.util.to_db_string(query[covered : (covered + num_extra)]))
+        chunks.append(D4M.util.to_db_string(query[covered: (covered + num_extra)]))
         num_chunks += 1
     return chunks, num_chunks
 
