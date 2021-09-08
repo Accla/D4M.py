@@ -179,7 +179,102 @@ class DbServer:
         return tables
 
 
-class DbTable:
+class DbTableParent:
+    def __init__(
+            self,
+            DB: DbServer,
+            names: Union[str, Tuple[str, str]],
+            security: str = "",
+            num_limit: int = 0,
+            num_row: int = 0,
+            column_family: str = "",
+            put_bytes: float = 5e5
+    ):
+        self.DB = DB
+        self.names = (names,) if isinstance(names, str) else names
+        self.security = security
+        self.num_limit = num_limit
+        self.num_row = num_row
+        self.column_family = column_family
+        self.put_bytes = put_bytes
+        self.iter_index = 0
+
+        gateway = self.DB.gateway
+        table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
+        data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
+
+        self.table_ops = table_ops(self.DB.instance_name, self.DB.host, self.DB.user, self.DB.password)
+
+        for table_name in self.names:
+            if table_name not in self.DB.ls():
+                print("Creating " + table_name + " in " + self.DB.instance_name + ".")
+                self.table_ops.createTable(table_name)
+
+        self.d4m_query = data_search(
+            self.DB.instance_name, self.DB.host, self.names[0], self.DB.user, self.DB.password
+        )
+
+        self.d4m_query.setCloudType(self.DB.db_type)
+        self.d4m_query.setLimit(self.num_limit)
+        self.d4m_query.reset()
+
+    def nnz(self) -> int:
+        table_list = self.DB.gateway.jvm.java.util.ArrayList()
+        table_list.add(self.names[0])
+        nnz_ = self.table_ops.getNumberOfEntries(table_list)
+        return nnz_
+
+    def set_limit(self, num_limit: int) -> None:
+        self.num_limit = num_limit
+        self.d4m_query.setLimit(num_limit)
+        return None
+
+    def do_matlab_query(self, row_query: str, col_query: str) -> None:
+        self.d4m_query.reset()
+        self.d4m_query.doMatlabQuery(row_query, col_query, self.column_family, self.security)
+        return None
+
+    def reset(self) -> None:
+        self.d4m_query.setCloudType(self.DB.db_type)
+        self.d4m_query.setLimit(self.num_limit)
+        self.d4m_query.reset()
+        self.do_matlab_query(":", ":")
+        self.iter_index = 0
+        return None
+
+    def copy(self) -> "DbTableParent":
+        return DbTableParent(
+            self.DB,
+            self.names,
+            security=self.security,
+            num_limit=self.num_limit,
+            num_row=self.num_row,
+            column_family=self.column_family,
+            put_bytes=self.put_bytes
+        )
+
+    def next(self) -> None:
+        if self.has_next():
+            self.d4m_query.next()
+            self.iter_index += 1
+        else:
+            print("End of table reached.")
+        return None
+
+    def has_next(self) -> bool:
+        return self.d4m_query.hasNext()
+
+    def get_row_return_string(self):
+        return D4M.util.from_db_string(self.d4m_query.getRowReturnString())
+
+    def get_col_return_string(self):
+        return D4M.util.from_db_string(self.d4m_query.getColumnReturnString())
+
+    def get_val_return_string(self):
+        return D4M.util.from_db_string(self.d4m_query.getValueReturnString())
+
+
+class DbTable(DbTableParent):
     """Binding information to existing table.
     Attributes:
         DB = DbServer containing table
@@ -198,26 +293,102 @@ class DbTable:
         self,
         DB: DbServer,
         name: str,
-        security: str,
-        num_limit: int,
-        num_row: int,
-        column_family: str,
-        put_bytes: float,
-        d4m_query: py4j.java_gateway.JavaObject,
-        table_ops: py4j.java_gateway.JavaObject,
+        security: str = "",
+        num_limit: int = 0,
+        num_row: int = 0,
+        column_family: str = "",
+        put_bytes: float = 5e5
     ):
-        self.DB = DB
+        super().__init__(
+            DB,
+            name,
+            security=security,
+            num_limit=num_limit,
+            num_row=num_row,
+            column_family=column_family,
+            put_bytes=put_bytes
+        )
+
         self.name = name
-        self.security = security
-        self.num_limit = num_limit
-        self.num_row = num_row
-        self.column_family = column_family
-        self.put_bytes = put_bytes
-        self.d4m_query = d4m_query
-        self.table_ops = table_ops
+
+    def copy(self):
+        return DbTable(
+            self.DB,
+            self.name,
+            security=self.security,
+            num_limit=self.num_limit,
+            num_row=self.num_row,
+            column_family=self.column_family,
+            put_bytes=self.put_bytes
+        )
+
+    def put_triple(
+            self,
+            row: ArrayLike,
+            col: ArrayLike,
+            val: ArrayLike
+    ) -> None:
+        """Insert the triples (row(i), col(i), val(i)) into table.
+        Usage:
+            putTriple(table, row, col, val)
+        Inputs:
+            table = DBtable or DbTablePair instance
+            row = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+            col = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+            val = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+        Notes:
+            - If table is a DbTablePair, then table.name2 is assumed to be the transpose of
+                table.name1 for the purposes or insertion (e.g., transposed triples are put
+                into table.name2)
+            - Accumulo tables record duplicate triples.
+        """
+        gateway = self.DB.gateway
+
+        new_row = D4M.util.num_to_str(row)
+        new_col = D4M.util.num_to_str(col)
+        new_val = D4M.util.num_to_str(val)
+
+        # Optimize by selecting appropriate chunk size for insertion
+        chunk_bytes = self.put_bytes
+        num_triples = len(row)
+        avg_byte_per_triple = (
+                                      np.char.str_len(new_row).sum()
+                                      + np.char.str_len(new_col).sum()
+                                      + np.char.str_len(new_val).sum()
+                              ) / num_triples
+        chunk_size = int(
+            min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
+        )
+
+        db_insert = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInsert
+        insert_obj = db_insert(
+            self.DB.instance_name,
+            self.DB.host,
+            self.name,
+            self.DB.user,
+            self.DB.password,
+        )
+
+        for chunk_start in np.arange(0, num_triples, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, num_triples)
+            new_row_chunk = D4M.util.to_db_string(new_row[chunk_start:chunk_end])
+            new_col_chunk = D4M.util.to_db_string(new_col[chunk_start:chunk_end])
+            new_val_chunk = D4M.util.to_db_string(new_val[chunk_start:chunk_end])
+
+            insert_obj.doProcessing(
+                new_row_chunk,
+                new_col_chunk,
+                new_val_chunk,
+                self.column_family,
+                self.security,
+            )
+        return None
 
 
-class DbTablePair:
+class DbTablePair(DbTableParent):
     """Binding information to existing pair of tables.
     Attributes:
         DB = DbServer containing table
@@ -234,31 +405,124 @@ class DbTablePair:
     """
 
     def __init__(
-        self,
-        DB: DbServer,
-        name_1: str,
-        name_2: str,
-        security: str,
-        num_limit: int,
-        num_row: int,
-        column_family: str,
-        put_bytes: float,
-        d4m_query: py4j.java_gateway.JavaObject,
-        table_ops: py4j.java_gateway.JavaObject,
+            self,
+            DB: DbServer,
+            name_1: str,
+            name_2: str,
+            security: str = "",
+            num_limit: int = 0,
+            num_row: int = 0,
+            column_family: str = "",
+            put_bytes: float = 5e5
     ):
-        self.DB = DB
+        super().__init__(
+            DB,
+            (name_1, name_2),
+            security=security,
+            num_limit=num_limit,
+            num_row=num_row,
+            column_family=column_family,
+            put_bytes=put_bytes
+        )
+
         self.name_1 = name_1
         self.name_2 = name_2
-        self.security = security
-        self.num_limit = num_limit
-        self.num_row = num_row
-        self.column_family = column_family
-        self.put_bytes = put_bytes
-        self.d4m_query = d4m_query
-        self.table_ops = table_ops
+
+    def copy(self):
+        return DbTablePair(
+            self.DB,
+            self.name_1,
+            self.name_2,
+            security=self.security,
+            num_limit=self.num_limit,
+            num_row=self.num_row,
+            column_family=self.column_family,
+            put_bytes=self.put_bytes
+        )
+
+    def put_triple(
+            self,
+            row: ArrayLike,
+            col: ArrayLike,
+            val: ArrayLike
+    ) -> None:
+        """Insert the triples (row(i), col(i), val(i)) into table.
+        Usage:
+            putTriple(table, row, col, val)
+        Inputs:
+            table = DBtable or DbTablePair instance
+            row = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+            col = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+            val = string of (delimiter separated) values (delimiter is last character)
+                or list of values of length n
+        Notes:
+            - If table is a DbTablePair, then table.name2 is assumed to be the transpose of
+                table.name1 for the purposes or insertion (e.g., transposed triples are put
+                into table.name2)
+            - Accumulo tables record duplicate triples.
+        """
+        gateway = self.DB.gateway
+
+        new_row = D4M.util.num_to_str(row)
+        new_col = D4M.util.num_to_str(col)
+        new_val = D4M.util.num_to_str(val)
+
+        # Optimize by selecting appropriate chunk size for insertion
+        chunk_bytes = self.put_bytes
+        num_triples = len(row)
+        avg_byte_per_triple = (
+                                      np.char.str_len(new_row).sum()
+                                      + np.char.str_len(new_col).sum()
+                                      + np.char.str_len(new_val).sum()
+                              ) / num_triples
+        chunk_size = int(
+            min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
+        )
+
+        db_insert = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInsert
+        insert_obj = db_insert(
+            self.DB.instance_name,
+            self.DB.host,
+            self.name_1,
+            self.DB.user,
+            self.DB.password,
+        )
+        insert_objT = db_insert(
+            self.DB.instance_name,
+            self.DB.host,
+            self.name_2,
+            self.DB.user,
+            self.DB.password,
+        )
+
+        for chunk_start in np.arange(0, num_triples, chunk_size):
+            chunk_end = min(chunk_start + chunk_size, num_triples)
+            new_row_chunk = D4M.util.to_db_string(new_row[chunk_start:chunk_end])
+            new_col_chunk = D4M.util.to_db_string(new_col[chunk_start:chunk_end])
+            new_val_chunk = D4M.util.to_db_string(new_val[chunk_start:chunk_end])
+
+            insert_obj.doProcessing(
+                new_row_chunk,
+                new_col_chunk,
+                new_val_chunk,
+                self.column_family,
+                self.security,
+            )
+            insert_objT.doProcessing(
+                new_col_chunk,
+                new_row_chunk,
+                new_val_chunk,
+                self.column_family,
+                self.security,
+            )
+        return None
 
 
-DbTableLike = Union[DbTable, DbTablePair]
+DbTableLike = Union[DbTableParent, DbTable, DbTablePair]
+
+
 default_tables = ["accumulo.metadata", "accumulo.replication", "accumulo.root", "trace"]
 
 
@@ -360,77 +624,20 @@ def dbsetup(
 def _get_index_single(
     DB: DbServer,
     table_name: str,
-    security: str = "",
-    num_limit: int = 0,
-    num_row: int = 0,
-    column_family: str = "",
-    put_bytes: float = 5e5,
+    **table_options
 ) -> DbTable:
     """Create DbTable object containing binding information for tableName in DB."""
-    gateway = DB.gateway
-    table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
-    table_ops_object = table_ops(DB.instance_name, DB.host, DB.user, DB.password)
-
-    if table_name not in DB.ls():
-        print("Creating " + table_name + " in " + DB.instance_name + ".")
-        table_ops_object.createTable(table_name)
-
-    data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
-    query_object = data_search(
-        DB.instance_name, DB.host, table_name, DB.user, DB.password
-    )
-
-    db_table = DbTable(
-        DB,
-        table_name,
-        security,
-        num_limit,
-        num_row,
-        column_family,
-        put_bytes,
-        query_object,
-        table_ops_object,
-    )
-    return db_table
+    return DbTable(DB, table_name, **table_options)
 
 
 def _get_index_pair(
     DB: DbServer,
     table_name_1: str,
     table_name_2: str,
-    security: str = "",
-    num_limit: int = 0,
-    num_row: int = 0,
-    column_family: str = "",
-    put_bytes: float = 5e5,
+    **table_options
 ) -> DbTablePair:
     """Create DbTablePair object containing binding information for tableName1 and tableName2 in DB."""
-    gateway = DB.gateway
-    table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
-    table_ops_object = table_ops(DB.instance_name, DB.host, DB.user, DB.password)
-    for table_name in [table_name_1, table_name_2]:
-        if table_name not in DB.ls():
-            print("Creating " + table_name + " in " + DB.instance_name + ".")
-            table_ops_object.createTable(table_name)
-
-    data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
-    query_object = data_search(
-        DB.instance_name, DB.host, table_name_1, DB.user, DB.password
-    )
-
-    db_table_pair = DbTablePair(
-        DB,
-        table_name_1,
-        table_name_2,
-        security,
-        num_limit,
-        num_row,
-        column_family,
-        put_bytes,
-        query_object,
-        table_ops_object,
-    )
-    return db_table_pair
+    return DbTablePair(DB, table_name_1, table_name_2, **table_options)
 
 
 _colon_equivalents = [
@@ -568,66 +775,6 @@ def _get_index_assoc(
 
     return D4M.assoc.Assoc(new_row, new_col, new_val)
 
-    # needed_full_row = _needs_full(row_query)
-    # needed_full_col = _needs_full(col_query)
-    #
-    # # Get all row and/or column keys if needed; either both nontrivial queries or needed to make selection
-    # if (needed_full_row or needed_full_col) or (not _is_colon(row_query) and not _is_colon(col_query)):
-    #     table.d4m_query.doMatlabQuery(':', ':', table.column_family, table.security)
-    #     full_row = np.array([], dtype=str)
-    #     full_col = np.array([], dtype=str)
-    #     full_val = np.array([], dtype=str)
-    #
-    #     # For each query, replace with an array of actual keys
-    #     if needed_full_row:
-    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-    #         unique_full_row = np.unique(full_row)
-    #         row_query = D4M.util.select_items(row_query, unique_full_row)
-    #     if needed_full_col:
-    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
-    #         unique_full_col = np.unique(full_col)
-    #         col_query = D4M.util.select_items(col_query, unique_full_col)
-    #
-    #     # Fill in full_row and/or full_col as needed, avoiding repetition
-    #     if needed_full_row and not needed_full_col and not _is_colon(col_query):
-    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
-    #     if needed_full_col and not needed_full_row and not _is_colon(row_query):
-    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-    #     if not needed_full_row and not needed_full_col:
-    #         full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-    #         full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
-    #     if not _is_colon(row_query) and not _is_colon(col_query):
-    #         full_val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
-    #
-    #     table.d4m_query.reset()
-    # else:
-    #     full_row, full_col, full_val = np.array([], dtype=str), np.array([], dtype=str), np.array([], dtype=str)
-    #
-    # new_row, new_col, new_val = list(), list(), list()
-    # if not _is_colon(row_query) and not _is_colon(col_query):
-    #     # If querying both row and col, then go through the triples and pick out desired ones
-    #     for key_index in range(len(full_row)):
-    #         if full_row[key_index] in row_query and full_col[key_index] in col_query:
-    #             new_row.append(full_row[key_index])
-    #             new_col.append(full_col[key_index])
-    #             new_val.append(full_val[key_index])
-    # else:
-    #     # If only querying one of row or col, then use graphulo to do so
-    #     row_query = D4M.util.to_db_string(row_query) if not _is_colon(row_query) else ':'
-    #     col_query = D4M.util.to_db_string(col_query) if not _is_colon(col_query) else ':'
-    #     print(row_query)
-    #     print(col_query)
-    #
-    #     table.d4m_query.doMatlabQuery(row_query, col_query, table.column_family, table.security)
-    #     new_row, new_col = table.d4m_query.getRowReturnString(), table.d4m_query.getColumnReturnString()
-    #     new_val = table.d4m_query.getValueReturnString()
-    #
-    # # Switch around new_row and new_col if table is a DbTablePair and col_query was nontrivial
-    # if switch_keys:
-    #     new_row, new_col = new_col, new_row
-    #
-    # return D4M.assoc.Assoc(new_row, new_col, new_val)
-
 
 def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
     """Query table as iterator if table.num_limit > 0 and return associative array consisting of next batch of triples,
@@ -637,25 +784,30 @@ def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
 
     table_name = table.d4m_query.getTableName()
 
+    if table.iter_index == 0:
+        table.iter_index += 1
+    elif table.iter_index > 0 and table.has_next():
+        table.next()
+    else:
+        print("Restarting iterator from beginning.")
+        table.reset()
+
     if isinstance(table, DbTablePair) and table_name == table.name_2:
-        col = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-        row = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+        col = table.get_row_return_string()
+        row = table.get_col_return_string()
     else:
-        row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-        col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
+        row = table.get_row_return_string()
+        col = table.get_col_return_string()
 
-    val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
+    val = table.get_val_return_string()
 
-    if not table.d4m_query.hasNext():
-        _iterator_start(table)
-        print("End of table reached. Returning to beginning of table.")
-    else:
-        table.d4m_query.next()
+    if not table.has_next():
+        print("End of table reached.")
 
     return D4M.assoc.Assoc(row, col, val)
 
 
-def get_index(*arg) -> Union[DbTableLike, D4M.assoc.Assoc]:
+def get_index(*arg, **table_options) -> Union[DbTableLike, D4M.assoc.Assoc]:
     """Query a table in a given Accumulo database instance, either returning a DbTable/DbTablePair object or an
     associative array containing triples from the given table.
     Inputs:
@@ -679,7 +831,7 @@ def get_index(*arg) -> Union[DbTableLike, D4M.assoc.Assoc]:
     """
     if len(arg) == 2 and isinstance(arg[0], DbServer) and isinstance(arg[1], str):
         DB, table_name = arg
-        output = _get_index_single(DB, table_name)
+        output = _get_index_single(DB, table_name, **table_options)
     elif (
         len(arg) == 3
         and isinstance(arg[0], DbServer)
@@ -687,7 +839,7 @@ def get_index(*arg) -> Union[DbTableLike, D4M.assoc.Assoc]:
         and isinstance(arg[2], str)
     ):
         DB, table_name_1, table_name_2 = arg
-        output = _get_index_pair(DB, table_name_1, table_name_2)
+        output = _get_index_pair(DB, table_name_1, table_name_2, **table_options)
     elif len(arg) == 3 and (
         isinstance(arg[0], DbTable) or isinstance(arg[0], DbTablePair)
     ):
@@ -812,42 +964,11 @@ def delete_all(DB: DbServer, force: bool = False) -> None:
     return None
 
 
-def _iterator_start(table: DbTableLike) -> None:
-    table.d4m_query.setCloudType(table.DB.db_type)
-    table.d4m_query.setLimit(table.num_limit)
-    table.d4m_query.reset()
-    table.d4m_query.doMatlabQuery(":", ":", table.column_family, table.security)
-    return None
-
-
 def get_iterator(table: DbTableLike, num_limit: int) -> DbTableLike:
     """Query iterator functionality."""
-    if isinstance(table, DbTable):
-        table_iter = DbTable(
-            table.DB,
-            table.name,
-            table.security,
-            num_limit,
-            table.num_row,
-            table.column_family,
-            table.put_bytes,
-            table.d4m_query,
-            table.table_ops,
-        )
-    else:
-        table_iter = DbTablePair(
-            table.DB,
-            table.name_1,
-            table.name_2,
-            table.security,
-            num_limit,
-            table.num_row,
-            table.column_family,
-            table.put_bytes,
-            table.d4m_query,
-            table.table_ops,
-        )
-    _iterator_start(table_iter)
+    table_iter = table.copy()
+    table_iter.set_limit(num_limit)
+    table_iter.reset()
     return table_iter
 
 
@@ -871,72 +992,7 @@ def put_triple(
             into table.name2)
         - Accumulo tables record duplicate triples.
     """
-    gateway = table.DB.gateway
-
-    new_row = D4M.util.num_to_str(row)
-    new_col = D4M.util.num_to_str(col)
-    new_val = D4M.util.num_to_str(val)
-
-    # Optimize by selecting appropriate chunk size for insertion
-    chunk_bytes = table.put_bytes
-    num_triples = len(row)
-    avg_byte_per_triple = (
-        np.char.str_len(new_row).sum()
-        + np.char.str_len(new_col).sum()
-        + np.char.str_len(new_val).sum()
-    ) / num_triples
-    chunk_size = int(
-        min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
-    )
-
-    db_insert = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbInsert
-    if isinstance(table, DbTablePair):
-        insert_obj = db_insert(
-            table.DB.instance_name,
-            table.DB.host,
-            table.name_1,
-            table.DB.user,
-            table.DB.password,
-        )
-        insert_objT = db_insert(
-            table.DB.instance_name,
-            table.DB.host,
-            table.name_2,
-            table.DB.user,
-            table.DB.password,
-        )
-    else:
-        insert_obj = db_insert(
-            table.DB.instance_name,
-            table.DB.host,
-            table.name,
-            table.DB.user,
-            table.DB.password,
-        )
-        insert_objT = None
-
-    for chunk_start in np.arange(0, num_triples, chunk_size):
-        chunk_end = min(chunk_start + chunk_size, num_triples)
-        new_row_chunk = D4M.util.to_db_string(new_row[chunk_start:chunk_end])
-        new_col_chunk = D4M.util.to_db_string(new_col[chunk_start:chunk_end])
-        new_val_chunk = D4M.util.to_db_string(new_val[chunk_start:chunk_end])
-
-        insert_obj.doProcessing(
-            new_row_chunk,
-            new_col_chunk,
-            new_val_chunk,
-            table.column_family,
-            table.security,
-        )
-
-        if isinstance(table, DbTablePair):
-            insert_objT.doProcessing(
-                new_col_chunk,
-                new_row_chunk,
-                new_val_chunk,
-                table.column_family,
-                table.security,
-            )
+    table.put_triple(row, col, val)
     return None
 
 
@@ -952,17 +1008,7 @@ def nnz(table: DbTableLike) -> int:
     Note:
         - returns count for all triples found, including duplicates.
     """
-    if isinstance(table, DbTablePair):
-        table_name = table.name_1
-    else:
-        table_name = table.name
-
-    gateway = table.DB.gateway
-    table_list = gateway.jvm.java.util.ArrayList()
-    table_list.add(table_name)
-
-    nnz_ = table.table_ops.getNumberOfEntries(table_list)
-    return nnz_
+    return table.nnz()
 
 
 def add_splits(
