@@ -117,7 +117,9 @@ class Assoc:
             self.row = row
             self.col = col
             if not isinstance(val, float) or val != 1.0:
-                val = util.sanitize(val, convert=convert_val)
+                val = util.sanitize(val)
+                if convert_val:
+                    val = util.str_to_num(val)
             self.val = val
             self.adj = adj.tocoo()
         else:
@@ -130,7 +132,9 @@ class Assoc:
                     val = adj.data
                 else:
                     is_float = False
-                    val = util.sanitize(val, convert=convert_val)
+                    val = util.sanitize(val)
+                    if convert_val:
+                        val = util.str_to_num(val)
 
                 (row_dim, col_dim) = adj.shape
 
@@ -180,8 +184,10 @@ class Assoc:
                 aggregate = min
 
             val = util.sanitize(
-                val, prevent_upcasting=prevent_upcasting, convert=convert_val
+                val, prevent_upcasting=prevent_upcasting
             )
+            if convert_val:
+                val = util.str_to_num(val)
             val_size = np.size(val)
             max_size = max([row_size, col_size, val_size])
             if row_size == 1:
@@ -2471,13 +2477,13 @@ def col_to_type(A: "Assoc", separator: str = "|", convert: bool = True) -> "Asso
     except IndexError:
         raise IndexError("Input column keys not of correct form.")
     try:
+        column_vals = [split_column_key[1] for split_column_key in column_splits]
         if convert:
-            column_vals = [
-                util.str_to_num(split_column_key[1])
-                for split_column_key in column_splits
-            ]
-        else:
-            column_vals = [split_column_key[1] for split_column_key in column_splits]
+            # Convert only if every value is successfully converted to numerical
+            try:
+                column_vals = util.str_to_num(column_vals, silent=False)
+            except ValueError:
+                pass
     except IndexError:
         raise IndexError("Input column keys not of correct form.")
 
@@ -2583,7 +2589,8 @@ def assoc_equal(A: "Assoc", B: "Assoc", return_info: bool = False) -> bool:
 
 
 def readcsvtotriples(
-    filename: str, labels: bool = True, triples: bool = False, **fmtoptions
+    filename: str, labels: bool = True, convert_keys: bool = False, convert_values: bool = False, convert: bool = False,
+        triples: bool = False, **fmtoptions
 ) -> Tuple[List[KeyVal], List[KeyVal], List[KeyVal]]:
     """Read CSV file to row, col, val lists.
     Usage:
@@ -2594,6 +2601,11 @@ def readcsvtotriples(
         labels = (Optional, default True) Boolean indicating if row and column labels are the first column and row,
             resp.
         triples = (Optional, default False) Boolean indicating if each row is of the form 'row[i], col[i], val[i]'
+        convert_keys = (Optional, default False) Boolean indicating if row and column keys should be converted
+            from strings to numbers
+        convert_values = (Optional, default False) Boolean indicating if values should be converted from strings to
+            numbers
+        convert = (Optional, default False) Boolean = conjunction of convert_keys and convert_values
         **fmtoptions = format options accepted by csv.reader, e.g., "delimiter='\t'" for tsv's
     Outputs:
         row, col, val = value in row[i]-th row and col[i]-th column is val[i] (if not triples,
@@ -2603,6 +2615,10 @@ def readcsvtotriples(
         row, col, val = readcsv('my_file_name.csv', delimiter=';')
         row, col, val = readcsv('my_file_name.tsv', triples=True, delimiter='\t')
     """
+    if convert:
+        convert_values = True
+        convert_keys = True
+
     # Read CSV file and create (row-index,col-index):value dictionary
     with open(filename, "rU") as csv_file:
         assoc_reader = csv.reader(csv_file, **fmtoptions)
@@ -2665,15 +2681,30 @@ def readcsvtotriples(
 
             # Extract row, col, val from dictionary
             row_col_tuples = list(assoc_dict.keys())
-            row = [util.str_to_num(item[0]) for item in row_col_tuples]
-            col = [util.str_to_num(item[1]) for item in row_col_tuples]
-            val = [util.str_to_num(item) for item in list(assoc_dict.values())]
+            row = [item[0] for item in row_col_tuples]
+            col = [item[1] for item in row_col_tuples]
+            val = list(assoc_dict.values())
+            if convert_keys:
+                try:
+                    row = util.str_to_num(row)
+                except ValueError:
+                    pass
+                try:
+                    col = util.str_to_num(col)
+                except ValueError:
+                    pass
+            if convert_values:
+                try:
+                    val = util.str_to_num(val)
+                except ValueError:
+                    pass
 
     return row, col, val
 
 
 def readcsv(
-    filename: str, labels: bool = True, triples: bool = False, **fmtoptions
+    filename: str, labels: bool = True, triples: bool = False, convert_keys: bool = False, convert_values: bool = False,
+        convert: bool = False, **fmtoptions
 ) -> "Assoc":
     """Read CSV file to Assoc instance.
     Usage:
@@ -2684,6 +2715,11 @@ def readcsv(
         labels = (Optional, default True) Boolean indicating if row and column labels are the first column and row,
             resp.
         triples = (Optional, default False) Boolean indicating if each row is of the form 'row[i], col[i], val[i]'
+        convert_keys = (Optional, default False) Boolean indicating if row and column keys should be converted
+            from strings to numbers
+        convert_values = (Optional, default False) Boolean indicating if values should be converted from strings to
+            numbers
+        convert = (Optional, default False) Boolean = conjunction of convert_keys and convert_values
         fmtoptions = format options accepted by csv.reader, e.g. "delimiter='\t'" for tsv's
     Outputs:
         A = Associative Array whose column indices are given in the first line of the file, whose row indices
@@ -2695,7 +2731,8 @@ def readcsv(
         A = readcsv('my_file_name.tsv', delimiter='\t')
     """
     row, col, val = readcsvtotriples(
-        filename, labels=labels, triples=triples, **fmtoptions
+        filename, labels=labels, triples=triples, convert_keys=convert_keys, convert_values=convert_values,
+        convert=convert, **fmtoptions
     )
 
     return Assoc(row, col, val)

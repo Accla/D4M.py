@@ -341,18 +341,56 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
     return func
 
 
-def str_to_num(object_: str, delimiter: Optional[str] = None) -> Union[str, Number]:
-    """Convert string to float if possible, otherwise return original object with optionally appended delimiter."""
-    if isinstance(object_, str):
-        try:
-            object_ = int(object_)
-        except ValueError:
+def _single_str_to_num(word: Union[str, Number], silent: bool = False) -> Union[str, Number]:
+    if isinstance(word, str):
+        if len(word) == 0:
+            # Convert empty string to 0
+            num = 0
+        else:
+            # Check if can be cast as an integer or float
             try:
-                object_ = float(object_)
+                num_float = float(word)
+                num_int = int(num_float)
+                if num_int == num_float:
+                    num = num_int
+                else:
+                    num = num_float
             except ValueError:
-                if delimiter is not None:
-                    object_ += delimiter
-    return object_
+                if silent:
+                    num = word
+                else:
+                    raise ValueError(str(word) + ' cannot be converted to a valid number.')
+    else:
+        assert isinstance(word, Number)
+        num = word
+    return num
+
+
+def str_to_num(array: ArrayLike, silent: bool = False) -> np.ndarray:
+    """Convert string to float if possible."""
+    if isinstance(array, str):
+        # Check if the array/string is wholly numerical
+        try:
+            num_array = [_single_str_to_num(array)]
+        except ValueError:
+            split_array = array.split(array[-1])
+            split_array.pop()
+            num_array = [_single_str_to_num(word, silent=silent) for word in split_array]
+    elif isinstance(array, Number):
+        num_array = [array]
+    else:
+        assert hasattr(array, "__iter__")
+        num_array = [_single_str_to_num(word, silent=silent) for word in array]
+
+    if not silent:
+        num_array = np.array(num_array)
+    else:
+        num_array_attempt = np.array(num_array)
+        if np.issubdtype(num_array_attempt.dtype, int) or np.issubdtype(num_array_attempt.dtype, float):
+            num_array = num_array_attempt
+        else:
+            num_array = np.array(num_array, dtype=object)
+    return num_array
 
 
 def remove_suffix(word, suffix):
@@ -393,7 +431,7 @@ def can_sanitize(object_: Any) -> bool:
 
 
 def sanitize(
-    object_: ArrayLike, prevent_upcasting: bool = False, convert: bool = False
+    object_: ArrayLike, prevent_upcasting: bool = False,
 ) -> np.ndarray:
     """Convert
     * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
@@ -406,14 +444,11 @@ def sanitize(
             or iterable of values of length n or single value
         prevent_upcasting = (Optional, default False) Boolean indicating whether potential upcasting when forming
             numpy arrays should be avoided when possible
-        convert = (Optional, default False) Boolean indicating whether strings which represent numbers should
-            be replaced with numbers
     Outputs:
         list of values
     Examples:
         sanitize("a,b,") = np.array(['a', 'b'])
         sanitize("1,1,") = np.array(['1', '1'])
-        sanitize("1,1,", convert=True) = np.array([1, 1])
         sanitize([10, 3]) = np.array([10, 3])
         sanitize([10, 3.5]) = np.array([10, 3.5], dtype=float)
         sanitize([10, 3.5], prevent_upcasting=True) = np.array([10, 3.5], dtype=object)
@@ -424,18 +459,12 @@ def sanitize(
         if len(object_) == 0:
             return np.array([""])
         elif len(object_) == 1:
-            if convert:
-                object_ = str_to_num(object_)
             return np.array([object_])
         else:
             # Convert delimiter-separated string list by splitting using last character
             delimiter = object_[-1]
             object_ = object_.split(delimiter)
             object_.pop()  # Get rid of empty strings
-
-            # Convert to numbers if requested
-            if convert:
-                object_ = [str_to_num(item) for item in object_]
 
     # Convert to numpy array
     if not isinstance(object_, np.ndarray):

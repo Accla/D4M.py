@@ -179,31 +179,73 @@ def test_can_sanitize(test_object, can_san):
 
 
 @pytest.mark.parametrize(
-    "test,convert,prevent_upcasting,exp",
+    "test,prevent_upcasting,exp",
     [
-        ([1, 1], False, False, np.array([1, 1], dtype=int)),
-        ([1, 2.5], False, True, np.array([1, 2.5], dtype=object)),
-        ([1, 2.5], True, False, np.array([1.0, 2.5], dtype=float)),
-        ([1, 2.5], False, False, np.array([1.0, 2.5], dtype=float)),
-        ([1, 2.5], True, True, np.array([1, 2.5], dtype=object)),
-        (1, False, False, np.array([1], dtype=int)),
-        ("a,b,", False, False, np.array(["a", "b"], dtype=str)),
-        ("1,1,", False, False, np.array(["1", "1"], dtype=str)),
-        ("1,1,", True, False, np.array([1, 1], dtype=int)),
-        ("1,1.0,", True, True, np.array([1, 1.0], dtype=object)),
-        ("a,b,", True, False, np.array(["a", "b"], dtype=str)),
-        ("a,1,", True, False, np.array(["a", "1"], dtype=str)),
-        ("a,1,", True, True, np.array(["a", 1], dtype=object)),
-        ("a,1.0,", True, True, np.array(["a", 1.0], dtype=object)),
-        ("a,1.0,", True, False, np.array(["a", "1.0"], dtype=str)),
-        ("", False, False, np.array([""])),
+        ([1, 1], False, np.array([1, 1], dtype=int)),
+        ([1, 2.5], True, np.array([1, 2.5], dtype=object)),
+        ([1, 2.5], False, np.array([1.0, 2.5], dtype=float)),
+        ([1, 2.5], False, np.array([1.0, 2.5], dtype=float)),
+        ([1, 2.5], True, np.array([1, 2.5], dtype=object)),
+        (1, False, np.array([1], dtype=int)),
+        ("a,b,", False, np.array(["a", "b"], dtype=str)),
+        ("1,1,", False, np.array(["1", "1"], dtype=str)),
+        ("", False, np.array([""])),
     ],
 )
-def test_sanitize(test, convert, prevent_upcasting, exp):
+def test_sanitize(test, prevent_upcasting, exp):
     assert np.array_equal(
         exp,
-        D4M.util.sanitize(test, convert=convert, prevent_upcasting=prevent_upcasting),
+        D4M.util.sanitize(test, prevent_upcasting=prevent_upcasting),
     )
+
+
+@pytest.mark.parametrize(
+    "test,exp",
+    [
+        ("1,1,", np.array([1, 1], dtype=int)),
+        ("1", np.array([1], dtype=int)),
+        ("1.0", np.array([1], dtype=int)),
+        ("1.0,2,", np.array([1, 2], dtype=int)),
+        ("", np.array([0], dtype=int)),
+        ("3.5", np.array([3.5], dtype=float)),
+        ("2.5,-1.4,", np.array([2.5, -1.4], dtype=float)),
+    ]
+)
+def test_str_to_num(test, exp):
+    assert np.array_equal(
+        D4M.util.str_to_num(test),
+        exp
+    )
+
+
+@pytest.mark.parametrize(
+    "test,exp",
+    [
+        ("1,1,", np.array([1, 1], dtype=int)),
+        ("1.0,2.7,", np.array([1.0, 2.7], dtype=float)),
+        ("a,b,", np.array(["a", "b"], dtype=str)),
+        ("a,1,", np.array(["a", 1], dtype=object)),
+        ("a,1.0,", np.array(["a", 1.0], dtype=object)),
+    ],
+)
+def test_str_to_num_silent(test, exp):
+    assert np.array_equal(
+        D4M.util.str_to_num(test, silent=True),
+        exp
+    )
+
+
+@pytest.mark.parametrize(
+    "test",
+    [
+        "a,b,",
+        "a,1,",
+        "1.0,a,-2,",
+    ]
+)
+def test_str_to_num_loud(test):
+    with pytest.raises(ValueError):
+        D4M.util.str_to_num(test, silent=False)
 
 
 # TODO: def test_to_db_string
