@@ -341,7 +341,9 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
     return func
 
 
-def _single_str_to_num(word: Union[str, Number], silent: bool = False) -> Union[str, Number]:
+def _single_str_to_num(
+    word: Union[str, Number], silent: bool = False
+) -> Union[str, Number]:
     if isinstance(word, str):
         if len(word) == 0:
             # Convert empty string to 0
@@ -359,7 +361,9 @@ def _single_str_to_num(word: Union[str, Number], silent: bool = False) -> Union[
                 if silent:
                     num = word
                 else:
-                    raise ValueError(str(word) + ' cannot be converted to a valid number.')
+                    raise ValueError(
+                        str(word) + " cannot be converted to a valid number."
+                    )
     else:
         assert isinstance(word, Number)
         num = word
@@ -375,7 +379,9 @@ def str_to_num(array: ArrayLike, silent: bool = False) -> np.ndarray:
         except ValueError:
             split_array = array.split(array[-1])
             split_array.pop()
-            num_array = [_single_str_to_num(word, silent=silent) for word in split_array]
+            num_array = [
+                _single_str_to_num(word, silent=silent) for word in split_array
+            ]
     elif isinstance(array, Number):
         num_array = [array]
     else:
@@ -386,7 +392,9 @@ def str_to_num(array: ArrayLike, silent: bool = False) -> np.ndarray:
         num_array = np.array(num_array)
     else:
         num_array_attempt = np.array(num_array)
-        if np.issubdtype(num_array_attempt.dtype, int) or np.issubdtype(num_array_attempt.dtype, float):
+        if np.issubdtype(num_array_attempt.dtype, int) or np.issubdtype(
+            num_array_attempt.dtype, float
+        ):
             num_array = num_array_attempt
         else:
             num_array = np.array(num_array, dtype=object)
@@ -396,8 +404,8 @@ def str_to_num(array: ArrayLike, silent: bool = False) -> np.ndarray:
 def remove_suffix(word, suffix):
     if len(word) == 0:
         return word
-    elif len(suffix) <= len(word) and word[(-len(suffix)):] == suffix:
-        return word[0:(-len(suffix))]
+    elif len(suffix) <= len(word) and word[(-len(suffix)) :] == suffix:
+        return word[0 : (-len(suffix))]
     else:
         return word
 
@@ -431,7 +439,8 @@ def can_sanitize(object_: Any) -> bool:
 
 
 def sanitize(
-    object_: ArrayLike, prevent_upcasting: bool = False,
+    object_: ArrayLike,
+    prevent_upcasting: bool = False,
 ) -> np.ndarray:
     """Convert
     * strings of (delimiter-separated) values into a numpy array of values (delimiter = last character),
@@ -656,7 +665,9 @@ def update_indices(
 
     # On each sub-interval of new_indices, decrement by number of bad_indices already encountered
     for index in range(len(padded_bad_indices) - 1):
-        new_indices[padded_bad_indices[index]:padded_bad_indices[(index + 1)]] -= index
+        new_indices[
+            padded_bad_indices[index] : padded_bad_indices[(index + 1)]
+        ] -= index
         if index > 0:
             new_indices[padded_bad_indices[index]] = mark  # Mark bad indices
     updated_array = new_indices[

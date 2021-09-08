@@ -183,9 +183,7 @@ class Assoc:
                 row_size, col_size = len(row), len(col)
                 aggregate = min
 
-            val = util.sanitize(
-                val, prevent_upcasting=prevent_upcasting
-            )
+            val = util.sanitize(val, prevent_upcasting=prevent_upcasting)
             if convert_val:
                 val = util.str_to_num(val)
             val_size = np.size(val)
@@ -636,7 +634,7 @@ class Assoc:
                     (new_val[data_indices], (self.adj.row, self.adj.col)), dtype=float
                 )
             else:
-                self.val = new_val[0:(max_index + 1)]
+                self.val = new_val[0 : (max_index + 1)]
                 self.adj = sparse.coo_matrix(
                     (data_indices + 1, (self.adj.row, self.adj.col)), dtype=int
                 )
@@ -1515,7 +1513,7 @@ class Assoc:
 
         rows = [
             self_trimmed_adj.indices[
-                self_trimmed_adj.indptr[row_index]:self_trimmed_adj.indptr[
+                self_trimmed_adj.indptr[row_index] : self_trimmed_adj.indptr[
                     (row_index + 1)
                 ]
             ]
@@ -1523,7 +1521,7 @@ class Assoc:
         ]
         cols = [
             other_trimmed_adj.indices[
-                other_trimmed_adj.indptr[col_index]:other_trimmed_adj.indptr[
+                other_trimmed_adj.indptr[col_index] : other_trimmed_adj.indptr[
                     (col_index + 1)
                 ]
             ]
@@ -2589,8 +2587,13 @@ def assoc_equal(A: "Assoc", B: "Assoc", return_info: bool = False) -> bool:
 
 
 def readcsvtotriples(
-    filename: str, labels: bool = True, convert_keys: bool = False, convert_values: bool = False, convert: bool = False,
-        triples: bool = False, **fmtoptions
+    filename: str,
+    labels: bool = True,
+    convert_keys: bool = False,
+    convert_values: bool = False,
+    convert: bool = False,
+    triples: bool = False,
+    **fmtoptions
 ) -> Tuple[List[KeyVal], List[KeyVal], List[KeyVal]]:
     """Read CSV file to row, col, val lists.
     Usage:
@@ -2703,8 +2706,13 @@ def readcsvtotriples(
 
 
 def readcsv(
-    filename: str, labels: bool = True, triples: bool = False, convert_keys: bool = False, convert_values: bool = False,
-        convert: bool = False, **fmtoptions
+    filename: str,
+    labels: bool = True,
+    triples: bool = False,
+    convert_keys: bool = False,
+    convert_values: bool = False,
+    convert: bool = False,
+    **fmtoptions
 ) -> "Assoc":
     """Read CSV file to Assoc instance.
     Usage:
@@ -2731,8 +2739,13 @@ def readcsv(
         A = readcsv('my_file_name.tsv', delimiter='\t')
     """
     row, col, val = readcsvtotriples(
-        filename, labels=labels, triples=triples, convert_keys=convert_keys, convert_values=convert_values,
-        convert=convert, **fmtoptions
+        filename,
+        labels=labels,
+        triples=triples,
+        convert_keys=convert_keys,
+        convert_values=convert_values,
+        convert=convert,
+        **fmtoptions
     )
 
     return Assoc(row, col, val)

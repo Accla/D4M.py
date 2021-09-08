@@ -209,13 +209,10 @@ def test_sanitize(test, prevent_upcasting, exp):
         ("", np.array([0], dtype=int)),
         ("3.5", np.array([3.5], dtype=float)),
         ("2.5,-1.4,", np.array([2.5, -1.4], dtype=float)),
-    ]
+    ],
 )
 def test_str_to_num(test, exp):
-    assert np.array_equal(
-        D4M.util.str_to_num(test),
-        exp
-    )
+    assert np.array_equal(D4M.util.str_to_num(test), exp)
 
 
 @pytest.mark.parametrize(
@@ -229,10 +226,7 @@ def test_str_to_num(test, exp):
     ],
 )
 def test_str_to_num_silent(test, exp):
-    assert np.array_equal(
-        D4M.util.str_to_num(test, silent=True),
-        exp
-    )
+    assert np.array_equal(D4M.util.str_to_num(test, silent=True), exp)
 
 
 @pytest.mark.parametrize(
@@ -241,7 +235,7 @@ def test_str_to_num_silent(test, exp):
         "a,b,",
         "a,1,",
         "1.0,a,-2,",
-    ]
+    ],
 )
 def test_str_to_num_loud(test):
     with pytest.raises(ValueError):

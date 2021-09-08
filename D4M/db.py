@@ -181,14 +181,14 @@ class DbServer:
 
 class DbTableParent:
     def __init__(
-            self,
-            DB: DbServer,
-            names: Union[str, Tuple[str, str]],
-            security: str = "",
-            num_limit: int = 0,
-            num_row: int = 0,
-            column_family: str = "",
-            put_bytes: float = 5e5
+        self,
+        DB: DbServer,
+        names: Union[str, Tuple[str, str]],
+        security: str = "",
+        num_limit: int = 0,
+        num_row: int = 0,
+        column_family: str = "",
+        put_bytes: float = 5e5,
     ):
         self.DB = DB
         self.names = (names,) if isinstance(names, str) else names
@@ -203,7 +203,9 @@ class DbTableParent:
         table_ops = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDbTableOperations
         data_search = gateway.jvm.edu.mit.ll.d4m.db.cloud.D4mDataSearch
 
-        self.table_ops = table_ops(self.DB.instance_name, self.DB.host, self.DB.user, self.DB.password)
+        self.table_ops = table_ops(
+            self.DB.instance_name, self.DB.host, self.DB.user, self.DB.password
+        )
 
         for table_name in self.names:
             if table_name not in self.DB.ls():
@@ -211,7 +213,11 @@ class DbTableParent:
                 self.table_ops.createTable(table_name)
 
         self.d4m_query = data_search(
-            self.DB.instance_name, self.DB.host, self.names[0], self.DB.user, self.DB.password
+            self.DB.instance_name,
+            self.DB.host,
+            self.names[0],
+            self.DB.user,
+            self.DB.password,
         )
 
         self.d4m_query.setCloudType(self.DB.db_type)
@@ -231,7 +237,9 @@ class DbTableParent:
 
     def do_matlab_query(self, row_query: str, col_query: str) -> None:
         self.d4m_query.reset()
-        self.d4m_query.doMatlabQuery(row_query, col_query, self.column_family, self.security)
+        self.d4m_query.doMatlabQuery(
+            row_query, col_query, self.column_family, self.security
+        )
         return None
 
     def reset(self) -> None:
@@ -250,7 +258,7 @@ class DbTableParent:
             num_limit=self.num_limit,
             num_row=self.num_row,
             column_family=self.column_family,
-            put_bytes=self.put_bytes
+            put_bytes=self.put_bytes,
         )
 
     def next(self) -> None:
@@ -297,7 +305,7 @@ class DbTable(DbTableParent):
         num_limit: int = 0,
         num_row: int = 0,
         column_family: str = "",
-        put_bytes: float = 5e5
+        put_bytes: float = 5e5,
     ):
         super().__init__(
             DB,
@@ -306,7 +314,7 @@ class DbTable(DbTableParent):
             num_limit=num_limit,
             num_row=num_row,
             column_family=column_family,
-            put_bytes=put_bytes
+            put_bytes=put_bytes,
         )
 
         self.name = name
@@ -319,15 +327,10 @@ class DbTable(DbTableParent):
             num_limit=self.num_limit,
             num_row=self.num_row,
             column_family=self.column_family,
-            put_bytes=self.put_bytes
+            put_bytes=self.put_bytes,
         )
 
-    def put_triple(
-            self,
-            row: ArrayLike,
-            col: ArrayLike,
-            val: ArrayLike
-    ) -> None:
+    def put_triple(self, row: ArrayLike, col: ArrayLike, val: ArrayLike) -> None:
         """Insert the triples (row(i), col(i), val(i)) into table.
         Usage:
             putTriple(table, row, col, val)
@@ -355,10 +358,10 @@ class DbTable(DbTableParent):
         chunk_bytes = self.put_bytes
         num_triples = len(row)
         avg_byte_per_triple = (
-                                      np.char.str_len(new_row).sum()
-                                      + np.char.str_len(new_col).sum()
-                                      + np.char.str_len(new_val).sum()
-                              ) / num_triples
+            np.char.str_len(new_row).sum()
+            + np.char.str_len(new_col).sum()
+            + np.char.str_len(new_val).sum()
+        ) / num_triples
         chunk_size = int(
             min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
         )
@@ -405,15 +408,15 @@ class DbTablePair(DbTableParent):
     """
 
     def __init__(
-            self,
-            DB: DbServer,
-            name_1: str,
-            name_2: str,
-            security: str = "",
-            num_limit: int = 0,
-            num_row: int = 0,
-            column_family: str = "",
-            put_bytes: float = 5e5
+        self,
+        DB: DbServer,
+        name_1: str,
+        name_2: str,
+        security: str = "",
+        num_limit: int = 0,
+        num_row: int = 0,
+        column_family: str = "",
+        put_bytes: float = 5e5,
     ):
         super().__init__(
             DB,
@@ -422,7 +425,7 @@ class DbTablePair(DbTableParent):
             num_limit=num_limit,
             num_row=num_row,
             column_family=column_family,
-            put_bytes=put_bytes
+            put_bytes=put_bytes,
         )
 
         self.name_1 = name_1
@@ -437,15 +440,10 @@ class DbTablePair(DbTableParent):
             num_limit=self.num_limit,
             num_row=self.num_row,
             column_family=self.column_family,
-            put_bytes=self.put_bytes
+            put_bytes=self.put_bytes,
         )
 
-    def put_triple(
-            self,
-            row: ArrayLike,
-            col: ArrayLike,
-            val: ArrayLike
-    ) -> None:
+    def put_triple(self, row: ArrayLike, col: ArrayLike, val: ArrayLike) -> None:
         """Insert the triples (row(i), col(i), val(i)) into table.
         Usage:
             putTriple(table, row, col, val)
@@ -473,10 +471,10 @@ class DbTablePair(DbTableParent):
         chunk_bytes = self.put_bytes
         num_triples = len(row)
         avg_byte_per_triple = (
-                                      np.char.str_len(new_row).sum()
-                                      + np.char.str_len(new_col).sum()
-                                      + np.char.str_len(new_val).sum()
-                              ) / num_triples
+            np.char.str_len(new_row).sum()
+            + np.char.str_len(new_col).sum()
+            + np.char.str_len(new_val).sum()
+        ) / num_triples
         chunk_size = int(
             min(max(1, np.round(chunk_bytes / avg_byte_per_triple)), num_triples)
         )
@@ -621,20 +619,13 @@ def dbsetup(
     return DbServer(instance, hostname, username, pword, "BigTableLike", gateway)
 
 
-def _get_index_single(
-    DB: DbServer,
-    table_name: str,
-    **table_options
-) -> DbTable:
+def _get_index_single(DB: DbServer, table_name: str, **table_options) -> DbTable:
     """Create DbTable object containing binding information for tableName in DB."""
     return DbTable(DB, table_name, **table_options)
 
 
 def _get_index_pair(
-    DB: DbServer,
-    table_name_1: str,
-    table_name_2: str,
-    **table_options
+    DB: DbServer, table_name_1: str, table_name_2: str, **table_options
 ) -> DbTablePair:
     """Create DbTablePair object containing binding information for tableName1 and tableName2 in DB."""
     return DbTablePair(DB, table_name_1, table_name_2, **table_options)
@@ -675,12 +666,12 @@ def _make_chunks(query: ArrayLike, chunk_size) -> Tuple[list, int]:
     num_extra = len(query) % chunk_size
 
     chunks = [
-        D4M.util.to_db_string(query[chunk_index:(chunk_index + chunk_size)])
+        D4M.util.to_db_string(query[chunk_index : (chunk_index + chunk_size)])
         for chunk_index in range(num_chunks)
     ]
     if num_extra > 0:
         covered = num_chunks * chunk_size
-        chunks.append(D4M.util.to_db_string(query[covered:(covered + num_extra)]))
+        chunks.append(D4M.util.to_db_string(query[covered : (covered + num_extra)]))
         num_chunks += 1
     return chunks, num_chunks
 
