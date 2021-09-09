@@ -546,11 +546,11 @@ def dbsetup(
                     to get password, and dnsname is open in config/databases/instance
                     for hostname. Username is assumed to be 'AccumuloUser'
                     -- if a file, then it is assumed to be of form
-                        "instance = *actual instance name*
-                         hostname = *actual hostname*
-                         username = *actual username*
-                         password = *actual password*"
-        py4j_path, accumulo_path, graphulo_path, die_on_exit = see JavaConnector.start_java()
+                        "instance=*actual instance name*
+                         hostname=*actual hostname*
+                         username=*actual username*
+                         password=*actual password*"
+        py4j_path, accumulo_path, graphulo_path, force_restart, die_on_exit = see JavaConnector.start_java()
     Output:
         DB = DbServer containing the connection information to Accumulo instance
     Examples:
