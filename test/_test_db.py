@@ -142,12 +142,39 @@ def test_index_and_delete_single(DB):
     assert new_table.name not in DB.ls()
 
 
+def test_index_and_delete_single_getitem(DB):
+    new_table_name = _get_new_table_name(DB)
+    assert new_table_name not in DB.ls()
+
+    new_table = DB[new_table_name]
+    assert isinstance(new_table, D4M.db.DbTable)
+    assert new_table.name == new_table_name
+    assert new_table.name in DB.ls()
+
+    D4M.db.delete_table(new_table, force=True)
+    assert new_table.name not in DB.ls()
+
+
 def test_index_and_delete_pair(DB):
     new_table_name, new_table_nameT = _get_new_tablepair_name(DB)
     assert new_table_name not in DB.ls()
     assert new_table_nameT not in DB.ls()
 
     new_table_pair = D4M.db.get_index(DB, new_table_name, new_table_nameT)
+    assert isinstance(new_table_pair, D4M.db.DbTablePair)
+    assert new_table_pair.name_1 == new_table_name and new_table_pair.name_1 in DB.ls()
+    assert new_table_pair.name_2 == new_table_nameT and new_table_pair.name_2 in DB.ls()
+
+    D4M.db.delete_table(new_table_pair, force=True)
+    assert new_table_pair.name_1 not in DB.ls() and new_table_pair.name_2 not in DB.ls()
+
+
+def test_index_and_delete_pair_getitem(DB):
+    new_table_name, new_table_nameT = _get_new_tablepair_name(DB)
+    assert new_table_name not in DB.ls()
+    assert new_table_nameT not in DB.ls()
+
+    new_table_pair = DB[new_table_name, new_table_nameT]
     assert isinstance(new_table_pair, D4M.db.DbTablePair)
     assert new_table_pair.name_1 == new_table_name and new_table_pair.name_1 in DB.ls()
     assert new_table_pair.name_2 == new_table_nameT and new_table_pair.name_2 in DB.ls()

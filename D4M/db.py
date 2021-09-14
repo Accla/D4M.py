@@ -178,8 +178,8 @@ class DbServer:
         tables.pop()
         return tables
 
-    def __getitem__(self, item: Union[str, Union[str, str]]) -> "DbTableLike":
-        if len(item) == 1:
+    def __getitem__(self, item: Union[str, Tuple[str, str]]) -> "DbTableLike":
+        if isinstance(item, str):
             return get_index(self, item)
         else:
             return get_index(self, item[0], item[1])
