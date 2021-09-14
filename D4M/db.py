@@ -396,7 +396,9 @@ class DbTable(DbTableParent):
             )
         return None
 
-    def __getitem__(self, query: Union[None, Tuple[ArrayLike, ArrayLike]]) -> D4M.assoc.Assoc:
+    def __getitem__(
+        self, query: Union[None, Tuple[ArrayLike, ArrayLike]]
+    ) -> D4M.assoc.Assoc:
         if query is not None:
             return get_index(self, *query)
         else:
@@ -529,7 +531,9 @@ class DbTablePair(DbTableParent):
             )
         return None
 
-    def __getitem__(self, query: Union[None, Tuple[ArrayLike, ArrayLike]]) -> D4M.assoc.Assoc:
+    def __getitem__(
+        self, query: Union[None, Tuple[ArrayLike, ArrayLike]]
+    ) -> D4M.assoc.Assoc:
         if query is not None:
             return get_index(self, *query)
         else:
