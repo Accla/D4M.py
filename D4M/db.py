@@ -178,6 +178,12 @@ class DbServer:
         tables.pop()
         return tables
 
+    def __getitem__(self, item: Union[str, Union[str, str]]) -> "DbTableLike":
+        if len(item) == 1:
+            return get_index(self, item)
+        else:
+            return get_index(self, item[0], item[1])
+
 
 class DbTableParent:
     def __init__(
@@ -390,6 +396,12 @@ class DbTable(DbTableParent):
             )
         return None
 
+    def __getitem__(self, query: Union[None, Tuple[ArrayLike, ArrayLike]]) -> D4M.assoc.Assoc:
+        if query is not None:
+            return get_index(self, *query)
+        else:
+            return get_index(self)
+
 
 class DbTablePair(DbTableParent):
     """Binding information to existing pair of tables.
@@ -516,6 +528,12 @@ class DbTablePair(DbTableParent):
                 self.security,
             )
         return None
+
+    def __getitem__(self, query: Union[None, Tuple[ArrayLike, ArrayLike]]) -> D4M.assoc.Assoc:
+        if query is not None:
+            return get_index(self, *query)
+        else:
+            return get_index(self)
 
 
 DbTableLike = Union[DbTableParent, DbTable, DbTablePair]

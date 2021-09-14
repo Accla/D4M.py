@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='D4M',
-    version='1.2.0',
+    version='1.2.1',
     description='Python implementation of D4M',
     long_description=long_description,
     long_description_content_type='text/markdown',
