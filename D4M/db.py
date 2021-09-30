@@ -1,7 +1,7 @@
 # Import packages
 import os
 from numbers import Number
-import math
+import warnings
 import numpy as np
 from typing import Union, Optional, List, Sequence, Callable, Tuple
 from pkg_resources import resource_filename  # Facilitate packaged jars being referenced
@@ -229,6 +229,8 @@ class DbTableParent:
         self.d4m_query.setCloudType(self.DB.db_type)
         self.d4m_query.setLimit(self.num_limit)
         self.d4m_query.reset()
+        self.current_query = None
+        self.current_subquery = None
 
     def nnz(self) -> int:
         table_list = self.DB.gateway.jvm.java.util.ArrayList()
@@ -662,11 +664,18 @@ _colon_equivalents = [
 ]
 
 
-def _needs_full(query):
-    if callable(query) or (
+def _is_startswith(query):
+    name = getattr(query, "__name__", "Unknown")
+    return name.startswith("startswith")
+
+
+def _is_valid_query(query):
+    if _is_startswith(query):
+        return True
+    elif callable(query) or (
         isinstance(query, slice) and query not in _colon_equivalents
     ):
-        return True
+        return False
     else:
         query = D4M.util.sanitize(query)
         if query.dtype == int or (
@@ -674,33 +683,18 @@ def _needs_full(query):
             and ":" in query
             and (len(query) != 1 and len(query) != 3)
         ):
-            return True
-        else:
             return False
+        else:
+            return True
 
 
 def _is_colon(object_):
     return isinstance(object_, str) and object_ == ":"
 
 
-def _make_chunks(query: ArrayLike, chunk_size) -> Tuple[list, int]:
-    num_chunks = math.floor(len(query) / chunk_size)
-    num_extra = len(query) % chunk_size
-
-    chunks = [
-        D4M.util.to_db_string(query[chunk_index: (chunk_index + chunk_size)])
-        for chunk_index in range(num_chunks)
-    ]
-    if num_extra > 0:
-        covered = num_chunks * chunk_size
-        chunks.append(D4M.util.to_db_string(query[covered: (covered + num_extra)]))
-        num_chunks += 1
-    return chunks, num_chunks
-
-
 def _get_index_assoc(
     table: DbTableLike, row_query: Selectable, col_query: Selectable
-) -> D4M.assoc.Assoc:
+) -> Union[D4M.assoc.Assoc, None]:
     """Create Assoc object from the sub-array of table with queried row and column indices/keys."""
     switch_keys = False
 
@@ -711,82 +705,50 @@ def _get_index_assoc(
     if col_query not in _colon_equivalents and D4M.util.can_sanitize(col_query):
         col_query = D4M.util.sanitize(col_query)
 
-    if isinstance(table, DbTablePair):
-        if _is_colon(row_query) and not _is_colon(col_query):
-            table.d4m_query.setTableName(table.name_2)
-            row_query, col_query = col_query, row_query
-            switch_keys = True
+    if not _is_colon(col_query):
+        if isinstance(table, DbTable):
+            if table.num_limit > 0:
+                raise ValueError("Column queries are not supported for DbTable iterators.")
+            else:
+                table.d4m_query.setTableName(table.name)
         else:
-            table.d4m_query.setTableName(table.name_1)
+            assert isinstance(table, DbTablePair)
+            if _is_colon(row_query):
+                table.d4m_query.setTableName(table.name_2)
+                row_query, col_query = col_query, row_query
+                switch_keys = True
+            elif table.num_limit > 0:
+                raise ValueError("DbTablePair iterators do not support both row and column queries being nontrivial.")
+            else:
+                table.d4m_query.setTableName(table.name_1)
     else:
-        table.d4m_query.setTableName(table.name)
+        table_name = table.name if isinstance(table, DbTable) else table.name_1
+        table.d4m_query.setTableName(table_name)
 
     table.d4m_query.setCloudType(table.DB.db_type)
     table.d4m_query.setLimit(table.num_limit)
 
-    new_row, new_col, new_val = list(), list(), list()
-
-    # If row_query or col_query require knowing the entire sequence of row keys or of column keys, query entire table
-    # and loop through to pick out matching triples
-    if _needs_full(row_query) or _needs_full(col_query):
-        table.d4m_query.reset()
-        table.d4m_query.doMatlabQuery(":", ":", table.column_family, table.security)
-        full_row = D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-        full_col = D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
-        full_val = D4M.util.from_db_string(table.d4m_query.getValueReturnString())
-
-        unique_row, unique_col = np.unique(full_row), np.unique(full_col)
-        row_query = D4M.util.select_items(row_query, unique_row)
-        col_query = D4M.util.select_items(col_query, unique_col)
-
-        for triple in zip(full_row, full_col, full_val):
-            if triple[0] in row_query and triple[1] in col_query:
-                new_row.append(triple[0])
-                new_col.append(triple[1])
-                new_val.append(triple[2])
+    if not _is_valid_query(row_query) or not _is_valid_query(col_query):
+        warnings.warn("Row and column queries must either be string lists, startswith functions, or "
+                      "full slices (e.g., :).")
     else:
-        # Otherwise, split row_query and col_query up into (at most) 3 x 3 squares and query over each
-        # (graphulo does not support queries with more than 3 elements)
         if not _is_colon(row_query):
-            row_chunks, num_row_chunks = _make_chunks(row_query, 3)
-        else:
-            num_row_chunks = 1
-            row_chunks = [":"]
+            row_query = D4M.util.to_db_string(row_query)
+        table.d4m_query.reset()
+        table.d4m_query.doMatlabQuery(row_query, ":", table.column_family, table.security)
+        row = table.get_row_return_string()
+        col = table.get_col_return_string()
+        val = table.get_val_return_string()
+
+        table_assoc = D4M.assoc.Assoc(row, col, val)
+
         if not _is_colon(col_query):
-            col_chunks, num_col_chunks = _make_chunks(col_query, 3)
-        else:
-            num_col_chunks = 1
-            col_chunks = [":"]
+            table_assoc = table_assoc[:, col_query]
 
-        row_chunk_index, col_chunk_index = 0, 0
-        while col_chunk_index < num_col_chunks:
-            while row_chunk_index < num_row_chunks:
-                table.d4m_query.reset()
-                table.d4m_query.doMatlabQuery(
-                    row_chunks[row_chunk_index],
-                    col_chunks[col_chunk_index],
-                    table.column_family,
-                    table.security,
-                )
-                new_row += list(
-                    D4M.util.from_db_string(table.d4m_query.getRowReturnString())
-                )
-                new_col += list(
-                    D4M.util.from_db_string(table.d4m_query.getColumnReturnString())
-                )
-                new_val += list(
-                    D4M.util.from_db_string(table.d4m_query.getValueReturnString())
-                )
+        if switch_keys:
+            table_assoc.transpose(copy=False)
 
-                row_chunk_index += 1
-            row_chunk_index = 0
-            col_chunk_index += 1
-
-    # Switch around new_row and new_col if table is a DbTablePair and col_query was nontrivial
-    if switch_keys:
-        new_row, new_col = new_col, new_row
-
-    return D4M.assoc.Assoc(new_row, new_col, new_val)
+        return table_assoc
 
 
 def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
@@ -797,25 +759,17 @@ def _get_index_from_iter(table: DbTableLike) -> D4M.assoc.Assoc:
 
     table_name = table.d4m_query.getTableName()
 
-    if table.iter_index == 0:
-        table.iter_index += 1
-    elif table.iter_index > 0 and table.has_next():
+    if table.has_next():
         table.next()
-    else:
-        print("Restarting iterator from beginning.")
-        table.reset()
 
-    if isinstance(table, DbTablePair) and table_name == table.name_2:
-        col = table.get_row_return_string()
-        row = table.get_col_return_string()
-    else:
         row = table.get_row_return_string()
         col = table.get_col_return_string()
+        val = table.get_val_return_string()
 
-    val = table.get_val_return_string()
-
-    if not table.has_next():
-        print("End of table reached.")
+        if isinstance(table, DbTablePair) and table_name == table.name_2:
+            row, col = col, row
+    else:
+        row, col, val = [], [], []
 
     return D4M.assoc.Assoc(row, col, val)
 

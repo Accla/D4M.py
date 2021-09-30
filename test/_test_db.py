@@ -200,8 +200,6 @@ def test_put_triples(DB):
         ("1,5,", "8,A,"),
         ("d,e,", "D,E,"),
         ("1,:,7,", "2,4,"),
-        (util.contains("a,d,"), slice(2, 5)),
-        ([0, 2, 4], [1, 3, 5]),
         (["a", "b", "d"], ["A", "C", "D"]),
         (":", ":"),
     ],
@@ -226,8 +224,6 @@ def test_index_assoc_single(row_query, col_query, table, row, col, val):
         ("1,5,", "8,A,"),
         ("d,e,", "D,E,"),
         ("1,:,7,", "2,4,"),
-        (util.contains("a,d,"), slice(2, 5)),
-        ([0, 2, 4], [1, 3, 5]),
         (["a", "b", "d"], ["A", "C", "D"]),
         (":", ":"),
     ],
@@ -252,16 +248,12 @@ def test_index_assoc_single_getitem(row_query, col_query, table, row, col, val):
         ("1,5,", "8,A,"),
         ("d,e,", "D,E,"),
         ("1,:,7,", "2,4,"),
-        (util.contains("a,d,"), slice(1, 5)),
-        ([0, 2, 4], [1, 3, 5]),
         (["a", "b", "d"], ["A", "C", "D"]),
         (":", ":"),
         (":", "A,B,"),
         (":", "8,A,"),
         (":", "D,E,"),
         (":", "2,4,"),
-        (":", slice(1, 5)),
-        (":", [1, 3, 5]),
         (":", ["A", "C", "D"]),
     ],
 )
@@ -285,16 +277,12 @@ def test_index_assoc_pair(row_query, col_query, tablepair, row, col, val):
         ("1,5,", "8,A,"),
         ("d,e,", "D,E,"),
         ("1,:,7,", "2,4,"),
-        (util.contains("a,d,"), slice(1, 5)),
-        ([0, 2, 4], [1, 3, 5]),
         (["a", "b", "d"], ["A", "C", "D"]),
         (":", ":"),
         (":", "A,B,"),
         (":", "8,A,"),
         (":", "D,E,"),
         (":", "2,4,"),
-        (":", slice(1, 5)),
-        (":", [1, 3, 5]),
         (":", ["A", "C", "D"]),
     ],
 )
@@ -331,48 +319,14 @@ def test_get_index_iter(num_limit, table, row, col, val):
                 col[index: index + num_limit],
                 val[index: index + num_limit],
             )
-            assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
+            if index == 0:
+                assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator, ":", ":"))
+            else:
+                assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
             index += num_limit
         if index < len(val):
             test_assoc = D4M.assoc.Assoc(row[index:], col[index:], val[index:])
             assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
 
-        # Run one last time to check that iterator restarts after going through all triples
-        test_assoc = D4M.assoc.Assoc(
-            row[0:num_limit], col[0:num_limit], val[0:num_limit]
-        )
-        assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
-
-
-@pytest.mark.parametrize("num_limit", [2, 0, 1, 5])
-def test_get_index_iter_getitem(num_limit, table, row, col, val):
-    test_assoc = D4M.assoc.Assoc(row, col, val)
-    row, col, val = (
-        D4M.util.sanitize(row),
-        D4M.util.sanitize(col),
-        D4M.util.sanitize(val),
-    )
-
-    new_iterator = D4M.db.get_iterator(table, num_limit)
-
-    if num_limit == 0:
-        assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
-    else:
-        index = 0
-        while index + num_limit <= len(val):
-            test_assoc = D4M.assoc.Assoc(
-                row[index: index + num_limit],
-                col[index: index + num_limit],
-                val[index: index + num_limit],
-            )
-            assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
-            index += num_limit
-        if index < len(val):
-            test_assoc = D4M.assoc.Assoc(row[index:], col[index:], val[index:])
-            assert D4M.assoc.assoc_equal(test_assoc, D4M.db.get_index(new_iterator))
-
-        # Run one last time to check that iterator restarts after going through all triples
-        test_assoc = D4M.assoc.Assoc(
-            row[0:num_limit], col[0:num_limit], val[0:num_limit]
-        )
-        assert D4M.assoc.assoc_equal(test_assoc, new_iterator[None])
+        # Run one last time to check that iterator returns empty array
+        assert D4M.assoc.assoc_equal(D4M.assoc.Assoc([], [], []), D4M.db.get_index(new_iterator))

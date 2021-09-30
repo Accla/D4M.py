@@ -2,6 +2,7 @@
 import numpy as np
 import random
 import string
+import operator
 import warnings
 from numbers import Number
 from inspect import signature
@@ -308,6 +309,8 @@ def contains(substrings: StrList) -> Callable[[StrList], List[int]]:
                     break
         return good_string_list
 
+    func.__name__ = "contains(" + str(presanitized) + ")"
+
     return func
 
 
@@ -345,6 +348,8 @@ def startswith(prefixes: StrList) -> Callable[[StrList], List[int]]:
                         good_string_list.append(index)
                         break
             return good_string_list
+
+    func.__name__ = "startswith(" + str(presanitized) + ")"
 
     return func
 
@@ -500,11 +505,23 @@ def sanitize(
 def to_db_string(object_) -> str:
     """Convert input (either a delimiter-separated string or an iterable) to Accumulo-friendly string."""
     if isinstance(object_, str):
-        object_ = object_.replace(object_[-1], "\n")
+        db_string = object_.replace(object_[-1], "\n")
+    elif callable(object_) and object_.__name__.startswith("startswith"):
+        args_dict = get_default_args(object_, "function_name", "currying_parameter")
+        prefixes = args_dict["currying_parameter"]
+        if isinstance(prefixes, str):
+            delimiter = prefixes[-1]
+        else:
+            delimiter = "\n"
+        pre_db_string = sanitize(prefixes).astype(str)
+        db_string = ""
+        for index in range(len(pre_db_string)):
+            prefix = pre_db_string[index]
+            db_string += prefix + delimiter + ":" + delimiter + prefix + chr(127) + delimiter
     else:
-        object_ = sanitize(object_).astype(str)
-        object_ = "\n".join(object_) + "\n"
-    return object_
+        db_string = sanitize(object_).astype(str)
+        db_string = "\n".join(db_string) + "\n"
+    return db_string
 
 
 def from_db_string(db_string: str) -> np.ndarray:
@@ -695,14 +712,9 @@ def update_indices(
     return updated_array
 
 
-def add(object_1: Any, object_2: Any) -> Any:
-    """Binary addition (including string concatenation or other implementations of __add__)."""
-    return object_1 + object_2
-
-
-def times(object_1: Any, object_2: Any) -> Any:
-    """Binary multiplication (and other implementations of __mult__)."""
-    return object_1 * object_2
+add = operator.add
+times = operator.mul
+mul = operator.mul
 
 
 def first(object_1: Any, _: Any) -> Any:
@@ -723,6 +735,7 @@ def operation_dict() -> Dict[str, Callable]:
         "sum": add,
         "addition": add,
         "times": times,
+        "mul": times,
         "multiply": times,
         "product": times,
         "multiplication": times,
