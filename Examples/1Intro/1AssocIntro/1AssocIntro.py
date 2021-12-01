@@ -106,7 +106,7 @@ Aab = Aa.nocol() & Ab.nocol()
 
 # Compute a histogram (facets) of other columns that are in rows with both a and b
 
-F = Aab.transpose() * A
+F = Aab.transpose() @ A
 F.printfull()
 
 # Compute normalized histogram

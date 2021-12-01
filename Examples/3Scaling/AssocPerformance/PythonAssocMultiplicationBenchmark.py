@@ -48,7 +48,7 @@ for i in range(np.size(n)):
     B = Assoc(rows2[i], cols2[i], 1)
     for j in range(10):
         start = time.time()    
-        C = A * B
+        C = A @ B
         stop = time.time()
 
         assoc_time[i] += stop-start

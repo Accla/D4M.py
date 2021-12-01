@@ -1853,9 +1853,9 @@ def test_sub(test_assoc_1, test_assoc_2, exp_assoc):
         ),
     ],
 )
-def test_mul(test_assoc_1, test_assoc_2, exp_assoc):
+def test_matmul(test_assoc_1, test_assoc_2, exp_assoc):
     assert D4M.assoc.assoc_equal(
-        test_assoc_1 * test_assoc_2, exp_assoc, return_info=True
+        test_assoc_1 @ test_assoc_2, exp_assoc, return_info=True
     )
 
 
@@ -1921,7 +1921,7 @@ def test_mul(test_assoc_1, test_assoc_2, exp_assoc):
 )
 def test_elementwise_multiply(test_assoc_1, test_assoc_2, exp_assoc):
     assert D4M.assoc.assoc_equal(
-        test_assoc_1.multiply(test_assoc_2), exp_assoc, return_info=True
+        test_assoc_1 * test_assoc_2, exp_assoc, return_info=True
     )
 
 
@@ -2013,7 +2013,7 @@ def test_elementwise_divide(test_assoc_1, test_assoc_2, exp_assoc):
     ],
 )
 def test_mul_scalar(test_assoc, scalar, exp_assoc):
-    assert D4M.assoc.assoc_equal(test_assoc * scalar, exp_assoc, return_info=True)
+    assert D4M.assoc.assoc_equal(test_assoc @ scalar, exp_assoc, return_info=True)
 
 
 @pytest.mark.parametrize(

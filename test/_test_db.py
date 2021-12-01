@@ -20,7 +20,7 @@ def config_filename():
 
 @pytest.fixture(scope="session")
 def DB(test_instance):
-    DB = D4M.db.dbsetup(test_instance, die_on_exit=False)
+    DB = D4M.db.dbsetup_LLgrid(test_instance, die_on_exit=False)
     yield DB
 
 

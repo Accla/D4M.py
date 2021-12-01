@@ -1661,14 +1661,14 @@ class Assoc:
             return self.combine(other, _minus, right_zero=True, left_zero=True)
 
     # Overload matrix multiplication
-    def __mul__(self, other: Union[int, float, "Assoc"]) -> "Assoc":
+    def __matmul__(self, other: Union[int, float, "Assoc"]) -> "Assoc":
         """Array multiplication of A and B, with A's column indices matched up with B's row indices
         Usage:
-            self * other
+            self @ other
         Input:
             other = Associative array
         Output:
-            self * other = array multiplication of self and other
+            self @ other = array multiplication of self and other
         Note:
             - When either self or other are non-numerical the .logical() method is run on them.
         """
@@ -1710,22 +1710,25 @@ class Assoc:
                 self_.adj.data = self_.adj.data * other
                 return self_
 
+    def _assocmultiply(self, other):
+        return self @ other
+
     # element-wise multiplication
-    def multiply(self, other: "Assoc") -> "Assoc":
+    def __mul__(self, other: "Assoc") -> "Assoc":
         """Element-wise multiplication of self and B, matched up by row and column indices.
         Usage:
-            self.multiply(other)
+            self * other
         Input:
             other = Associative array
         Output:
-            self.multiply(other) = element-wise product of self and other if both are numerical, and otherwise
-                self.multiply(other) is the associative array whose triples are those triples
+            self * other = element-wise product of self and other if both are numerical, and otherwise
+                self * other is the associative array whose triples are those triples
                 (row_key, col_key, value) of self for which (row_key, col_key) corresponds with a nonempty
                 entry in other.
         Note:
             - In the case where at least one of self and other are non-numerical, it may not be (and often
-                isn't) the case that self.multiply(other) equals other.multiply(self). I.e., when allowing
-                non-numerical associative arrays, commutativity of (self, other) -> self.multiply(other) is not
+                isn't) the case that self * other equals other * self. I.e., when allowing
+                non-numerical associative arrays, commutativity of (self, other) -> self * other is not
                 guaranteed.
         """
         self_ = self.dropzeros(copy=True)
@@ -1765,6 +1768,9 @@ class Assoc:
 
         return multiplied
 
+    def _multiply(self, other):
+        return self * other
+
     # element-wise division -- for division by zero, treat as null
     def divide(self, other: Union["Assoc", Number]) -> "Assoc":
         """Element-wise division of self and B, matched up by row and column indices.
@@ -1794,12 +1800,12 @@ class Assoc:
                 other_inv.adj.data.astype(float, copy=False)
             )
 
-            return self_.multiply(other_inv)
+            return self_._multiply(other_inv)
         else:
             assert isinstance(other, float) or isinstance(other, int)
             try:
                 other = 1 / other
-                return self_ * other
+                return self._assocmultiply(other)
             except ValueError:
                 raise ValueError("Division by 0.")
 
@@ -1889,7 +1895,7 @@ class Assoc:
         """
         # TODO: Should this take values of type bool?
         self_, other_ = self.logical(copy=True), other.logical(copy=True)
-        return self_.multiply(other_)
+        return self_._multiply(other_)
 
     def __or__(self, other: "Assoc") -> "Assoc":
         """Element-wise logical OR (on {0,1}) of self and B, matched up by row and column indices.
@@ -1906,12 +1912,12 @@ class Assoc:
         return (self_ + other_).logical(copy=False)
 
     def sqin(self) -> "Assoc":
-        """self.transpose() * self"""
-        return self.transpose() * self
+        """self.transpose() @ self"""
+        return self.transpose()._assocmultiply(self)
 
     def sqout(self) -> "Assoc":
-        """self * self.transpose()"""
-        return self * self.transpose()
+        """self @ self.transpose()"""
+        return self._assocmultiply(self.transpose())
 
     def catkeymul(self, other: "Assoc", delimiter: str = ";") -> "Assoc":
         """Computes the array product, but values are delimiter-separated string list of
@@ -1924,11 +1930,11 @@ class Assoc:
             delimiter = (Optional, default ';') delimiter to separate the row/column indices
         Output:
             self.catkeymul(other) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
-                of self.logical() * other.logical()  is not null, in which case that entry is the string list of
+                of self.logical() @ other.logical()  is not null, in which case that entry is the string list of
                 the k-indices for which self[i,k] and other[k,j] were non-zero.
         """
         self_log, other_log = self.logical(), other.logical()
-        C = self_log * other_log
+        C = self_log._assocmultiply(other_log)
 
         self_dict, other_dict = self_log.to_dict(), other_log.transpose().to_dict()
         rows = {
@@ -1965,11 +1971,11 @@ class Assoc:
             delimiter = (Optional, default ';') delimiter to separate the value pairs
         Output:
             self.catvalmul(other) = Associative array where the (i,j)-th entry is null unless the (i,j)-th entry
-                of self.logical() * other.logical()  is not null, in which case that entry is the string list of
+                of self.logical() @ other.logical()  is not null, in which case that entry is the string list of
                 the non-trivial value pairs 'self[i,k],other[k,j],'.
         """
         self_log, other_log = self.logical(copy=True), other.logical(copy=True)
-        C = self_log * other_log
+        C = self_log._assocmultiply(other_log)
 
         self_dict, other_dict = self.to_dict(), other.transpose().to_dict()
         rows = {
@@ -2000,48 +2006,6 @@ class Assoc:
         Assoc(catval_row, catval_col, catvals).printfull()
 
         return Assoc(catval_row, catval_col, catvals)
-
-        # intersection = util.sorted_intersect(self.col, other.row)
-        #
-        # self_log = self[:, intersection].logical()
-        # other_log = other[intersection, :].logical()
-        # C = self_log * other_log
-        #
-        # row, col, val = C.find()
-        # catval = np.zeros(np.size(row), dtype=object)
-        #
-        # # Create dictionaries for faster lookups
-        # row_ind = {C.row[index]: index for index in range(np.size(C.row))}
-        # col_ind = {C.col[index]: index for index in range(np.size(C.col))}
-        # self_dict, other_dict = self.to_dict(), other.to_dict()
-        #
-        # rows = self_log.adj.tolil().rows
-        # cols = other_log.adj.transpose().tolil().rows
-        #
-        # # Enumerate all the row/col key lists to be intersected
-        # row_keys = {r: intersection[rows[row_ind[r]]] for r in C.row}
-        # col_keys = {c: set(intersection[cols[col_ind[c]]]) for c in C.col}  # Use set for O(1) lookup
-        #
-        # # Instantiate dictionary to hold already-calculated intersections
-        # cat_inters = dict()
-        #
-        # for i in range(np.size(row)):
-        #     r = row[i]
-        #     c = col[i]
-        #     if (r, c) in cat_inters:
-        #         catval[i] = cat_inters[(r, c)]
-        #     else:
-        #         rc_keys = [item for item in row_keys[r] if item in col_keys[c]]
-        #         rc_val_pairs = [str(self_dict[r][key])
-        #                         + pair_delimiter
-        #                         + str(other_dict[key][c])
-        #                         + pair_delimiter for key in rc_keys]
-        #         catval[i] = delimiter.join(rc_val_pairs) + delimiter
-        #         cat_inters[(r, c)] = catval[i]
-        #
-        # D = Assoc(row, col, catval, aggregate=util.add)
-        #
-        # return D
 
     def compare(
         self,
@@ -2362,7 +2326,7 @@ def nnz(A: "Assoc") -> int:
 
 
 def hadamard(A: "Assoc", B: "Assoc") -> "Assoc":
-    return A.multiply(B)
+    return A * B
 
 
 def combine(

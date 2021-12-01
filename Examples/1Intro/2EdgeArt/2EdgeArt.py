@@ -39,10 +39,10 @@ Eog.printfull()
 EvO = Ev[startswith('O,'), :]
 EvG = Ev[startswith('G,'), :]
 
-AvOG = EvO.transpose() * EvG
+AvOG = EvO.transpose() @ EvG
 print(AvOG)
 
-AeOG = EvO * EvG.transpose()
+AeOG = EvO @ EvG.transpose()
 AeOG.printfull()
 
 # Compute edge adjacency graph preserving pedigree.
