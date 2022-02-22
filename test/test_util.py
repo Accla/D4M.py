@@ -147,9 +147,6 @@ def test_remove_suffix(test_word, suffix, exp_word):
     assert D4M.util.remove_suffix(test_word, suffix) == exp_word
 
 
-# TODO: def test_remove_suffix
-
-
 @pytest.mark.parametrize(
     "obj,exp",
     [

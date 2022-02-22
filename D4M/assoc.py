@@ -1,5 +1,5 @@
 # Import packages
-from scipy import sparse
+from scipy import io, sparse
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
@@ -7,7 +7,7 @@ import shutil
 import warnings
 import copy as cpy
 from numbers import Number
-from typing import Union, Tuple, Optional, Callable, Sequence, List, Dict
+from typing import Union, Tuple, Optional, Callable, Sequence, List, Dict, Any
 
 # Use List & Dict for backwards (<3.9) compatibility
 
@@ -960,105 +960,134 @@ class Assoc:
         return print_string
 
     # print tabular form
-    def printfull(self) -> None:
-        """Print in tabular form."""
+    def printfull(self, cutoff_rows: bool = False, cutoff_cols: bool = False) -> None:
+        """Print in tabular form.
+        Usage:
+            A.printfull()
+            A.printfull(cutoff_rows=True)
+            A.printfull(cutoff_cols=True)
+        Inputs:
+            cutoff_rows = (Optional, default False) Boolean indicating whether the number of rows should be restricted
+                to fit within the terminal window height
+            cutoff_cols = (Optional, default False) Boolean indicating whether the number of columns should be
+                restricted so that the total width does not exceed the terminal window's width
+        Outputs: N/A
+        """
         if (isinstance(self.val, float) and np.size(self.adj.data) == 0) or np.size(
-            self.val
+                self.val
         ) == 0:
             print("Empty associative array.")
-        else:
-            terminal_col, terminal_row = shutil.get_terminal_size()
+            return None
 
+        max_array_rows, max_array_cols = self.size()  # values may change if cutoff rows or cols
+        terminal_col, terminal_row = shutil.get_terminal_size()  # in case cutoff_rows or cutoff_cols
+
+        # update rows of interest based on terminal size if cutoff_rows
+        need_cutoff_row = False
+        if cutoff_rows:
             # Determine if all rows fit in terminal window (with col labels and array size footer)
-            cutoff_row = False
             if np.size(self.row) <= terminal_row - 3:
                 max_array_rows = np.size(self.row)
             else:
-                cutoff_row = True
+                need_cutoff_row = True
                 max_array_rows = (
-                    terminal_row - 5
+                        terminal_row - 5
                 )  # Include space for vertical ellipses and final row
 
             rel_array = self[0:max_array_rows, :]  # Disregard rows outside range
             trans_dict = (
                 rel_array.transpose().to_dict()
             )  # Take transpose to collate by column labels
+
             # Add in final row (may already be present)
             final_row_dict = self[-1, :].transpose().to_dict()
             for column_key in trans_dict.keys():
                 if column_key in final_row_dict.keys():
                     trans_dict[column_key].update(final_row_dict[column_key])
+        else:
+            rel_array = self
+            trans_dict = (
+                self.transpose().to_dict()
+            )  # Take transpose to collate by column labels
 
-            # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
-            col_widths = list()
-            for index in np.arange(np.size(self.col)):
-                col_label = self.col[index]
-                if col_label in trans_dict:
-                    width = max(
-                        [len(str(val)) for val in trans_dict[col_label].values()]
-                    )
-                else:
-                    width = 0
-                width = max([width, len(str(col_label))])
-                col_widths.append(width)
+        # Find widths of columns (w.r.t. only pre-cutoff rows and last row, unless column is empty as a result)
+        col_widths = list()
+        for index in np.arange(np.size(self.col)):
+            col_label = self.col[index]
+            if col_label in trans_dict:
+                width = max(
+                    [len(str(val)) for val in trans_dict[col_label].values()]
+                )
+            else:
+                width = 0
+            width = max([width, len(str(col_label))])
+            col_widths.append(width)
 
-            # Format array values according to calculated column-wise max widths
+        # Format array values according to calculated column-wise max widths
+        if cutoff_rows:
             rel_dict = rel_array.to_dict()
             rel_dict.update(
                 self[-1, :].to_dict()
             )  # Add in final row (may already be present)
-            formatted_rows = list()
-            row_indices = list(range(max_array_rows))
-            if cutoff_row:
-                row_indices.append(-1)
-            for row_index in row_indices:
-                current_row = list()
-                for col_index in np.arange(np.size(self.col)):
-                    if self.col[col_index] in rel_dict[self.row[row_index]]:
-                        row_item = str(
-                            rel_dict[self.row[row_index]][self.col[col_index]]
-                        )
-                    else:
-                        row_item = ""
-                    current_row.append(
-                        ("  {:>" + str(col_widths[col_index]) + "}").format(row_item)
+        else:
+            rel_dict = self.to_dict()
+        formatted_rows = list()
+        row_indices = list(range(max_array_rows))
+        if cutoff_rows and need_cutoff_row:
+            row_indices.append(-1)
+        for row_index in row_indices:
+            current_row = list()
+            for col_index in np.arange(np.size(self.col)):
+                if self.col[col_index] in rel_dict[self.row[row_index]]:
+                    row_item = str(
+                        rel_dict[self.row[row_index]][self.col[col_index]]
                     )
-                formatted_rows.append(current_row)
-            if cutoff_row:
-                vellipses = list()
-                for col_index in np.arange(np.size(self.col)):
-                    vellipses.append(
-                        ("  {:>" + str(col_widths[col_index]) + "}").format(":")
-                    )  # ⋮
-                formatted_rows.insert(-1, vellipses)
-
-            # Format column labels according to calculated column-wise max widths
-            col_labels = list()
-            for index in np.arange(np.size(self.col)):
-                col_labels.append(
-                    ("  {:>" + str(col_widths[index]) + "}").format(
-                        str(self.col[index])
-                    )
+                else:
+                    row_item = ""
+                current_row.append(
+                    ("  {:>" + str(col_widths[col_index]) + "}").format(row_item)
                 )
+            formatted_rows.append(current_row)
+        if cutoff_rows and need_cutoff_row:
+            vellipses = list()
+            for col_index in np.arange(np.size(self.col)):
+                vellipses.append(
+                    ("  {:>" + str(col_widths[col_index]) + "}").format(":")
+                )  # ⋮
+            formatted_rows.insert(-1, vellipses)
 
-            # Format row labels according to max (relevant) row label width
-            row_label_width = max(
-                [len(str(self.row[row_index])) for row_index in row_indices]
+        # Format column labels according to calculated column-wise max widths
+        col_labels = list()
+        for index in np.arange(np.size(self.col)):
+            col_labels.append(
+                ("  {:>" + str(col_widths[index]) + "}").format(
+                    str(self.col[index])
+                )
             )
-            row_labels = list()
-            for row_index in row_indices:
-                row_labels.append(
-                    ("{:<" + str(row_label_width) + "}").format(
-                        str(self.row[row_index])
-                    )
+
+        # Format row labels according to max (relevant) row label width
+        row_label_width = max(
+            [len(str(self.row[row_index])) for row_index in row_indices]
+        )
+        row_labels = list()
+        for row_index in row_indices:
+            row_labels.append(
+                ("{:<" + str(row_label_width) + "}").format(
+                    str(self.row[row_index])
                 )
-            if cutoff_row:
-                row_labels.insert(-1, ("{:<" + str(row_label_width) + "}").format(":"))
+            )
+        if cutoff_rows and need_cutoff_row:
+            row_labels.insert(-1, ("{:<" + str(row_label_width) + "}").format(":"))
 
-            # Determine how many columns fit in terminal window and print
-            last_index = np.size(self.col) - 1
-            too_wide = False
+        # Determine how many columns fit in terminal window and print
+        last_index = np.size(self.col) - 1
+        too_wide = False
 
+        if not cutoff_cols:
+            print(" " * row_label_width + "".join(col_labels))
+            for row_index in np.arange(len(row_labels)):
+                print(row_labels[row_index] + "".join(formatted_rows[row_index]))
+        else:
             # Case 1: All columns fits
             if row_label_width + sum(col_widths) + 2 * (last_index + 1) <= terminal_col:
                 print(" " * row_label_width + "".join(col_labels))
@@ -1067,8 +1096,8 @@ class Assoc:
 
             # Case 2: Not all columns fit, but at least the first and last do, plus ellipsis
             elif (
-                row_label_width + col_widths[0] + col_widths[last_index] + 9
-                <= terminal_col
+                    row_label_width + col_widths[0] + col_widths[last_index] + 9
+                    <= terminal_col
             ):
 
                 # Determine how many columns fit
@@ -1122,16 +1151,16 @@ class Assoc:
 
                 too_wide = True
 
-            # Report dimensions if either horizontally or vertically cut off
-            if cutoff_row or too_wide:
-                print(
-                    "\n"
-                    + "["
-                    + str(np.size(self.row))
-                    + " rows x "
-                    + str(np.size(self.col))
-                    + " columns]"
-                )
+        # Report dimensions if either horizontally or vertically cut off
+        if (cutoff_rows and need_cutoff_row) or too_wide:
+            print(
+                "\n"
+                + "["
+                + str(np.size(self.row))
+                + " rows x "
+                + str(np.size(self.col))
+                + " columns]"
+            )
 
         return None
 
@@ -2392,7 +2421,7 @@ def val2col(A: "Assoc", separator: str = "|", int_aware: bool = True) -> "Assoc"
     Inputs:
         A = Associative Array
         separator = (Optional, defualt '|') (new) delimiting character to separate column labels from values
-        int_strip = (Optional, default True) Boolean which determines if '.0' is stripped from float strings
+        int_aware = (Optional, default True) Boolean which determines if '.0' is stripped from float strings
     Output:
         val2col(A, separator) = Associative Array B where B.row == A.row and
             B[row_label, col_label + split_separator + value] == 1 if and only if
@@ -2754,3 +2783,52 @@ def writecsv(A: "Assoc", filename: str, **fmtparams) -> None:
             assoc_writer.writerow(new_line)
 
     return None
+
+
+def read_mat(fname: str) -> Union[Dict[Any, "Assoc"], "Assoc"]:
+    """Read .mat files created within Matlab/Octave D4M."""
+    x = io.loadmat(fname)
+    Assoc_dict = {}
+    for key in x.keys():
+        if hasattr(x[key], 'classname') and (getattr(x[key], 'classname') == 'Assoc'):
+            Aout = x[key][0][0]
+            row = Aout[0][0].split(Aout[0][0][-1])[0:-1]
+            col = Aout[1][0].split(Aout[1][0][-1])[0:-1]
+            val = Aout[2]
+            if val.size == 0:
+                val = 1.0
+                Asparse = Aout[3].tocoo()
+                Assoc_dict[key] = Assoc(row, col, val, Asparse)
+            else:
+                val = val[0].split(val[0][-1])[0:-1]
+                Asparse = Aout[3]
+                r, c, v = sparse.find(Asparse)
+                row = [row[i] for i in r.astype(int)]
+                col = [col[i] for i in c.astype(int)]
+                val = [val[i-1] for i in v.astype(int)]
+                Assoc_dict[key] = Assoc(row, col, val)
+
+    if len(Assoc_dict.keys()) == 1:
+        return Assoc_dict[list(Assoc_dict.keys())[0]]
+    else:
+        return Assoc_dict
+
+
+def save_mat(fname: str, A: "Assoc", name: str = "Aout", **spio_savemat_kwargs) -> NotImplemented:
+    """Create .mat file compatible with Matlab/Octave D4M."""
+    mat_dict = {}
+    row, col, val = A.find()
+    row_cat = "\t".join(row.astype(str))
+    col_cat = "\t".join(col.astype(str))
+    adj = A.adj.tocsc()
+
+    if isinstance(A.val, float):
+        arr = np.array([[row_cat], [col_cat], [], adj])
+    else:
+        val_cat = "\t".join(row.astype(str))
+        arr = np.array([[row_cat], [col_cat], [val_cat], adj], dtype=object)
+
+    mat_dict[name] = arr
+
+    io.savemat(fname, mat_dict, **spio_savemat_kwargs)
+    return NotImplemented

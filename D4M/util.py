@@ -428,9 +428,7 @@ def num_to_str(array: ArrayLike, int_aware: bool = True) -> np.ndarray:
     array = sanitize(array)
     stringified_array = array.astype("str")
     if int_aware:
-        stringified_array = np.vectorize(lambda word: remove_suffix(word, ".0"))(
-            stringified_array
-        )
+        stringified_array = np.array([remove_suffix(word, ".0") for word in stringified_array])
     return stringified_array
 
 

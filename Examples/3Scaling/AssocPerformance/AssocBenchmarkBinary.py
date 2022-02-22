@@ -85,7 +85,7 @@ for i in range(np.size(n)):
             assoc_time_alt[i] += stop_alt - start_alt
             assoc_flops_alt[i] = len(vals[num * i + j])
             ii_alt, jj_alt, vv_alt = A_alt.find()
-            assoc_gbytes_alt[i] += (len(ii_alt) + len(jj_alt) + len(vv_alt) + 8 * m[i]) / 1e9
+                assoc_gbytes_alt[i] += (len(ii_alt) + len(jj_alt) + len(vv_alt) + 8 * m[i]) / 1e9
             assoc_gflops_alt[i] += assoc_flops_alt[i] / (stop_alt - start_alt) / 1e9
 
     assoc_time[i] = assoc_time[i] / num
