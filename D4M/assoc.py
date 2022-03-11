@@ -1736,8 +1736,11 @@ class Assoc:
             if other == 0:
                 return Assoc([], [], [])
             else:
-                self_.adj.data = self_.adj.data * other
+                self_.adj = self_.adj.multiply(other)
                 return self_
+
+    def __rmatmul__(self, other):
+        return self @ other
 
     def _assocmultiply(self, other):
         return self @ other
@@ -1796,6 +1799,9 @@ class Assoc:
         multiplied.deepcondense()
 
         return multiplied
+
+    def __rmul__(self, other):
+        return self * other
 
     def _multiply(self, other):
         return self * other
@@ -2168,7 +2174,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 == value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 == value_2
+                return np.isclose(value_1, value_2)
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2202,7 +2208,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 != value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 != value_2
+                return not np.isclose(value_1, value_2)
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2236,7 +2242,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 < value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 < value_2
+                return not np.isclose(value_1, value_2) and value_1 < value_2
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2270,7 +2276,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 > value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 > value_2
+                return not np.isclose(value_1, value_2) and value_1 > value_2
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2304,7 +2310,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 <= value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 <= value_2
+                return np.isclose(value_1, value_2) or value_1 <= value_2
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2338,7 +2344,7 @@ class Assoc:
             if isinstance(value_1, str) and isinstance(value_2, str):
                 return value_1 >= value_2
             elif util.is_numeric(value_1) and util.is_numeric(value_2):
-                return value_1 >= value_2
+                return np.isclose(value_1, value_2) or value_1 >= value_2
             elif not (
                 issubclass(type(value_1), type(value_2))
                 or issubclass(type(value_2), type(value_1))
@@ -2505,9 +2511,34 @@ def num_to_str(A: "Assoc") -> "Assoc":
 num2str = num_to_str
 
 
-def sparse_equal(sparr_1: sparse.spmatrix, sparr_2: sparse.spmatrix):
+def is_empty_assoc(A: "Assoc") -> bool:
+    row_empty = (len(A.row) == 0)
+    col_empty = (len(A.col) == 0)
+    if isinstance(A.val, float):
+        val_empty = (A.adj.size == 0)
+    else:
+        assert isinstance(A.val, np.ndarray)
+        val_empty = (len(A.val) == 0)
+    return row_empty or col_empty or val_empty
+
+
+def sparse_equal(sparr_1: sparse.spmatrix, sparr_2: sparse.spmatrix, rtol: float = 1e-05, atol: float = 1e-08):
     """Test whether two COO sparse matrices are equal."""
-    return (sparr_1 != sparr_2).nnz == 0
+    Acsr, Bcsr = sparr_1.tocsr(), sparr_2.tocsr()
+
+    A_empty = (Acsr.size == 0)
+    B_empty = (Bcsr.size == 0)
+
+    if A_empty and B_empty:
+        return True
+    elif A_empty and not B_empty:
+        return False
+    elif not A_empty and B_empty:
+        return False
+    else:
+        diff = np.abs(Acsr - Bcsr).max()
+        tol = atol + rtol * max(np.abs(Acsr).max(), np.abs(Bcsr).max())
+        return diff <= tol
 
 
 def assoc_equal(A: "Assoc", B: "Assoc", return_info: bool = False) -> bool:

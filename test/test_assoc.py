@@ -2000,6 +2000,41 @@ def test_elementwise_divide(test_assoc_1, test_assoc_2, exp_assoc):
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", [3, 6, 9]),
         ),
         (
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            2.3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [2.3, 4.6, 6.9])
+        ),
+        (
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            -3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [-3, -6, -9]),
+        ),
+        (
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            -2.3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [-2.3, -4.6, -6.9])
+        ),
+        (
+            3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [3, 6, 9]),
+        ),
+        (
+            2.3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [2.3, 4.6, 6.9])
+        ),
+        (
+            -3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [-3, -6, -9]),
+        ),
+        (
+            -2.3,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [-2.3, -4.6, -6.9])
+        ),
+        (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", "aA,aB,bB,"),
             3,
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", 3),
@@ -2023,6 +2058,16 @@ def test_mul_scalar(test_assoc, scalar, exp_assoc):
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
             3,
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1 / 3, 2 / 3, 1]),
+        ),
+        (
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            3.1,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1 / 3.1, 2 / 3.1, 3 / 3.1]),
+        ),
+        (
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
+            -3.1,
+            D4M.assoc.Assoc("a,a,b,", "A,B,B,", [-1 / 3.1, -2 / 3.1, -3 / 3.1]),
         ),
         (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", "aA,aB,bB,"),
