@@ -1762,8 +1762,8 @@ class Assoc:
             self_.col, other_.col, return_index=True
         )
 
-        self_sub = self_.adj.tocsr()[:, col_index_self][row_index_self, :]
-        other_sub = other_.adj.tocsr()[:, col_index_other][row_index_other, :]
+        self_sub = self_.adj.tocsr()[row_index_self, :][:, col_index_self]
+        other_sub = other_.adj.tocsr()[row_index_other, :][:, col_index_other]
         multiplied_adj = self_sub.multiply(other_sub).tocoo()
 
         if isinstance(self_.val, float) and isinstance(other_.val, float):
@@ -1783,7 +1783,7 @@ class Assoc:
     def __rmul__(self, other):
         return self * other
 
-    def _multiply(self, other):
+    def multiply(self, other):
         return self * other
 
     # element-wise division -- for division by zero, treat as null
@@ -1815,7 +1815,7 @@ class Assoc:
                 other_inv.adj.data.astype(float, copy=False)
             )
 
-            return self_._multiply(other_inv)
+            return self_.multiply(other_inv)
         else:
             assert isinstance(other, float) or isinstance(other, int)
             try:
@@ -1910,7 +1910,7 @@ class Assoc:
         """
         # TODO: Should this take values of type bool?
         self_, other_ = self.logical(copy=True), other.logical(copy=True)
-        return self_._multiply(other_)
+        return self_.multiply(other_)
 
     def __or__(self, other: "Assoc") -> "Assoc":
         """Element-wise logical OR (on {0,1}) of self and B, matched up by row and column indices.
