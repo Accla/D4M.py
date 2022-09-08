@@ -2,7 +2,7 @@ import pytest
 import numpy as np
 
 import D4M.util
-from D4M.util import replace_default_args
+from D4M.util import _replace_default_args
 
 # TODO: def test_string_gen
 # TODO: def test_num_string_gen
@@ -353,7 +353,7 @@ def test_sorted_append(
 def test_update_indices(
     array_of_indices, sorted_bad_indices, size, offset, mark, exp_array
 ):
-    offset, mark = replace_default_args(
+    offset, mark = _replace_default_args(
         D4M.util.update_indices, offset=offset, mark=mark
     )
     updated_array = D4M.util.update_indices(
@@ -371,7 +371,7 @@ def test_update_indices(
     ],
 )
 def test_catstr(s1, s2, sep, exp):
-    sep = replace_default_args(D4M.util.catstr, separator=sep)
+    sep = _replace_default_args(D4M.util.catstr, separator=sep)
     assert np.array_equal(exp, D4M.util.catstr(s1, s2, separator=sep))
 
 

@@ -141,29 +141,40 @@ def sorted_intersect(
         sorted_intersect(np.array([0,1,4]), np.array([0,4,7]))
             = np.array([0,4])
     """
-    set_2 = set(array_2)
-    intersection = [item for item in array_1 if item in set_2]
+    if return_index:
+        return_index_1 = True
+        return_index_2 = True
 
-    if return_index or return_index_1:
-        array_1_index = {array_1[index]: index for index in range(len(array_1))}
-        index_map_1 = [array_1_index[x] for x in intersection]
-    else:
-        index_map_1 = None
+    intersect = list()
+    index_map_1, index_map_2 = list(), list()
+    index_1, index_2 = 0, 0
 
-    if return_index or return_index_2:
-        array_2_index = {array_2[index]: index for index in range(len(array_2))}
-        index_map_2 = [array_2_index[x] for x in intersection]
-    else:
-        index_map_2 = None
+    size_1, size_2 = len(array_1), len(array_2)
+
+    while index_1 < size_1 and index_2 < size_2:
+        if array_1[index_1] == array_2[index_2]:
+            if return_index_1:
+                index_map_1.append(index_1)
+            if return_index_2:
+                index_map_2.append(index_2)
+            intersect.append(array_1[index_1])
+            index_1 += 1
+            index_2 += 1
+        elif array_1[index_1] < array_2[index_2]:
+            index_1 += 1
+        else:
+            index_2 += 1
+
+    intersect = np.array(intersect)
 
     if return_index:
-        return np.array(intersection), np.array(index_map_1), np.array(index_map_2)
+        return intersect, np.array(index_map_1), np.array(index_map_2)
     elif return_index_1:
-        return np.array(intersection), np.array(index_map_1)
+        return intersect, np.array(index_map_1)
     elif return_index_2:
-        return np.array(intersection), np.array(index_map_2)
+        return intersect, np.array(index_map_2)
     else:
-        return np.array(intersection)
+        return intersect
 
 
 def select_items(
@@ -505,7 +516,7 @@ def to_db_string(object_) -> str:
     if isinstance(object_, str):
         db_string = object_.replace(object_[-1], "\n")
     elif callable(object_) and object_.__name__.startswith("startswith"):
-        args_dict = get_default_args(object_, "function_name", "currying_parameter")
+        args_dict = _get_default_args(object_, "function_name", "currying_parameter")
         prefixes = args_dict["currying_parameter"]
         if isinstance(prefixes, str):
             delimiter = prefixes[-1]
@@ -766,16 +777,16 @@ def catstr(
     return concatenation
 
 
-def get_default_args(func, *arg_names):
+def _get_default_args(func, *arg_names):
     default_args = dict()
     for arg_name in arg_names:
         default_args[arg_name] = signature(func).parameters[arg_name].default
     return default_args
 
 
-def replace_default_args(func, **arg_pairs):
+def _replace_default_args(func, **arg_pairs):
     new_args = list()
-    default_args = get_default_args(func, *arg_pairs.keys())
+    default_args = _get_default_args(func, *arg_pairs.keys())
     for arg_name in arg_pairs.keys():
         if arg_pairs[arg_name] is None:
             new_args.append(default_args[arg_name])

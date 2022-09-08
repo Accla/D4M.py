@@ -9,7 +9,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='D4M',
-    version='1.2.3',
+    version='1.2.4',
     description='Python implementation of D4M',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -21,4 +21,5 @@ setup(
     zip_safe=False,
     packages=find_packages(),
     install_requires=['scipy', 'numpy', 'py4j', 'matplotlib'],
+    extras_require={'pygraphblas': '5.1.8.0'}
 )

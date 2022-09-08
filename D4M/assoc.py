@@ -9,6 +9,7 @@ import copy as cpy
 from numbers import Number
 from typing import Union, Tuple, Optional, Callable, Sequence, List, Dict, Any
 
+
 # Use List & Dict for backwards (<3.9) compatibility
 
 import D4M.util as util
@@ -460,32 +461,26 @@ class Assoc:
             - Elements of self.row or self.col which correspond to rows or columns of all 0's
                 (but not '' or None) are removed.
         """
-        row, col, _ = self.find()
+        row_dim, col_dim = self.adj.shape
 
-        # First do row, determine which indices in self.row show up in row, get index map, and select
-        present_row = np.isin(self.row, row)
-        index_map = np.nonzero(present_row)[0]
+        Acsr = self.adj.tocsr()
+        csr_rows = Acsr.indptr
+        good_rows = (csr_rows[:-1] < csr_rows[1:])
+        self.row = self.row[:row_dim][good_rows]
+        self.adj = Acsr[good_rows, :]
 
-        self.row = self.row[present_row]
-        self.adj = self.adj.tocsr()[
-            index_map, :
-        ].tocoo()  # Removes indices corresponding to zero rows
+        Acsc = self.adj.tocsc()
+        csc_cols = Acsc.indptr
+        good_cols = (csc_cols[:-1] < csc_cols[1:])
+        self.col = self.col[:col_dim][good_cols]
+        self.adj = Acsc[:, good_cols].tocoo()
 
-        # Col
-        present_col = np.isin(self.col, col)
-        index_map = np.nonzero(present_col)[0]
-
-        self.col = self.col[present_col]
-        self.adj = self.adj.tocsr()[
-            :, index_map
-        ].tocoo()  # Removes indices corresponding to zero cols
-
-        # If self.row or self.col are now empty, make associative array empty
-        if np.size(self.row) == 0 or np.size(self.col) == 0:
-            self.row = np.array([])
-            self.col = np.array([])
+        # Account for empty arrays
+        if len(self.row) == 0 or len(self.col) == 0 or self.adj.shape[0] == 0 or self.adj.shape[1] == 0:
+            self.row = np.empty(0)
+            self.col = np.empty(0)
             self.val = 1.0
-            self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+            self.adj = sparse.coo_matrix(([], ([], [])), shape=(0, 0))
 
         return self
 
@@ -1619,33 +1614,18 @@ class Assoc:
         """
         if isinstance(self.val, float) and isinstance(other.val, float):
             # Take union of rows and cols while keeping track of indices
-            row_union, row_index_self, row_index_other = util.sorted_union(
-                self.row, other.row, return_index=True
-            )
-            col_union, col_index_self, col_index_other = util.sorted_union(
-                self.col, other.col, return_index=True
-            )
+            row_union, row_index_self, row_index_other = util.sorted_union(self.row, other.row, return_index=True)
+            col_union, col_index_self, col_index_other = util.sorted_union(self.col, other.col, return_index=True)
 
-            row = np.append(
-                row_index_self[self.adj.row], row_index_other[other.adj.row]
-            )
-            col = np.append(
-                col_index_self[self.adj.col], col_index_other[other.adj.col]
-            )
-            val = np.append(self.adj.data, other.adj.data)
+            Aadj_reindex = sparse.coo_matrix((self.adj.data,
+                                              (row_index_self[self.adj.row], col_index_self[self.adj.col])
+                                              ), shape=(len(row_union), len(col_union)), dtype=float).tocsr()
+            Badj_reindex = sparse.coo_matrix((other.adj.data,
+                                              (row_index_other[other.adj.row], col_index_other[other.adj.col])
+                                              ), shape=(len(row_union), len(col_union)), dtype=float).tocsr()
 
-            # Make sparse matrix and sum duplicates
-            summed = Assoc(
-                row_union,
-                col_union,
-                1.0,
-                sparse.coo_matrix(
-                    (val, (row, col)), shape=(len(row_union), len(col_union))
-                ),
-                aggregate="unique",
-            )
-            summed.adj.sum_duplicates()
-            summed.dropzeros()
+            summed = Assoc(row_union, col_union, 1.0, (Aadj_reindex + Badj_reindex).tocoo(), aggregate="unique")
+            summed.condense()
         else:
             # If one associative array is numerical (and the other is necessarily not), convert other via .logical()
             warning_message = (
@@ -2037,8 +2017,6 @@ class Assoc:
                 value_pair = util.num_to_str(value_pair)
                 catval.append(pair_delimiter.join(value_pair) + pair_delimiter)
             catvals.append(delimiter.join(catval) + delimiter)
-
-        Assoc(catval_row, catval_col, catvals).printfull()
 
         return Assoc(catval_row, catval_col, catvals)
 

@@ -5,7 +5,7 @@ from numbers import Number
 
 import D4M.assoc
 import D4M.util
-from D4M.util import replace_default_args
+from D4M.util import _replace_default_args
 
 
 @pytest.mark.parametrize(
@@ -258,7 +258,7 @@ from D4M.util import replace_default_args
 def test_assoc_constructor(
     test_row, test_col, test_val, adj, aggregate, exp_row, exp_col, exp_val, exp_adj
 ):
-    adj, aggregate = replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
+    adj, aggregate = _replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
     assoc_ = D4M.assoc.Assoc(test_row, test_col, test_val, adj=adj, aggregate=aggregate)
     assert np.array_equal(assoc_.row, exp_row)
     assert np.array_equal(assoc_.col, exp_col)
@@ -337,7 +337,7 @@ def test_assoc_constructor_convert_upcast(
     exp_val,
     exp_adj,
 ):
-    adj, aggregate = replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
+    adj, aggregate = _replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
     assoc_ = D4M.assoc.Assoc(
         test_row,
         test_col,
@@ -795,7 +795,7 @@ def test_set_val(test_assoc, new_val, exp_assoc):
     ],
 )
 def test_set_adj(test_assoc, new_adj, numerical, exp_assoc):
-    numerical = replace_default_args(D4M.assoc.Assoc.set_adj, numerical=numerical)
+    numerical = _replace_default_args(D4M.assoc.Assoc.set_adj, numerical=numerical)
     assert D4M.assoc.assoc_equal(
         test_assoc.set_adj(new_adj, numerical=numerical), exp_assoc, return_info=True
     )
@@ -1155,7 +1155,7 @@ def test_get_col(test_assoc):
     ],
 )
 def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
-    adj, aggregate = replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
+    adj, aggregate = _replace_default_args(D4M.assoc.Assoc, adj=adj, aggregate=aggregate)
     assoc_ = D4M.assoc.Assoc(test_row, test_col, test_val, adj=adj, aggregate=aggregate)
     assert np.array_equal(val, assoc_.get_val())
 
@@ -2327,7 +2327,7 @@ def test_sqout(test_assoc, exp_assoc):
     ],
 )
 def test_catkeymul(test_assoc_1, test_assoc_2, delimiter, exp_assoc):
-    delimiter = replace_default_args(D4M.assoc.Assoc.catkeymul, delimiter=delimiter)
+    delimiter = _replace_default_args(D4M.assoc.Assoc.catkeymul, delimiter=delimiter)
     assert D4M.assoc.assoc_equal(
         test_assoc_1.catkeymul(test_assoc_2, delimiter=delimiter),
         exp_assoc,
@@ -2392,7 +2392,7 @@ def test_catkeymul(test_assoc_1, test_assoc_2, delimiter, exp_assoc):
     ],
 )
 def test_catvalmul(test_assoc_1, test_assoc_2, pair_delimiter, delimiter, exp_assoc):
-    pair_delimiter, delimiter = replace_default_args(
+    pair_delimiter, delimiter = _replace_default_args(
         D4M.assoc.Assoc.catvalmul, pair_delimiter=pair_delimiter, delimiter=delimiter
     )
     assert D4M.assoc.assoc_equal(
@@ -2785,7 +2785,7 @@ def test_ge(test_assoc_1, test_assoc_2, exp_assoc):
     ],
 )
 def test_val2col(row, col, val, split_separator, int_aware, exp):
-    split_separator, int_aware = replace_default_args(
+    split_separator, int_aware = _replace_default_args(
         D4M.util.catstr, separator=split_separator, int_aware=int_aware
     )
     assoc_ = D4M.assoc.Assoc(row, col, val)
@@ -2841,7 +2841,7 @@ def test_val2col(row, col, val, split_separator, int_aware, exp):
     ],
 )
 def test_col_to_type(A, separator, convert, row, col, val):
-    separator, convert = replace_default_args(
+    separator, convert = _replace_default_args(
         D4M.assoc.col_to_type, separator=separator, convert=convert
     )
     B = D4M.assoc.Assoc(row, col, val)
