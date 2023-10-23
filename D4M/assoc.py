@@ -2626,7 +2626,7 @@ def readcsvtotriples(
         convert_keys = True
 
     # Read CSV file and create (row-index,col-index):value dictionary
-    with open(filename, "rU") as csv_file:
+    with open(filename, newline="") as csv_file:
         assoc_reader = csv.reader(csv_file, **fmtoptions)
 
         if triples:
