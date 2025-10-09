@@ -2892,6 +2892,63 @@ def test_assoc_equal(assoc1, assoc2, equal):
     assert D4M.assoc.assoc_equal(assoc1, assoc2, return_info=True) == equal
 
 
+@pytest.mark.parametrize(
+    "assoc1,assoc2,labels_only,values_only",
+    [
+        (
+            D4M.assoc.Assoc("a,b,a,", "A,A,B,", [1, 2, 3]),
+            D4M.assoc.Assoc("a,b,a,", "A,A,B,", "1.0,2.0,3.0,"),
+            False,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc("a,b,a,", "A,A,B,", "aA,bA,bB,"),
+            D4M.assoc.Assoc("a,b,a,", "A,A,B,", "aA,bA,bB,"),
+            False,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc([0, 1, 2], [1, 2, 10], 1.0),
+            D4M.assoc.Assoc("0,1,2,", "1,2,10,", "1.0,1.0,1.0,"),
+            False,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc([0, 1, 2], [1, 2, 10], 1.0),
+            D4M.assoc.Assoc([0, 1, 2], [1, 2, 10], "1.0,1.0,1.0,"),
+            False,
+            True,
+        ),
+        (
+            D4M.assoc.Assoc([0, 1, 2], [1, 2, 10], 1.0),
+            D4M.assoc.Assoc("0,1,2,", "1,2,10,", 1.0),
+            True,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc("a,b,a,", [1, 2, 10], 1.0),
+            D4M.assoc.Assoc("a,b,a,", "1,2,10,", "1.0,1.0,1.0,"),
+            False,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc("a,b,a,", [1, 2, 10], 1.0),
+            D4M.assoc.Assoc("a,b,a,", "1,2,10,", 1.0),
+            True,
+            False,
+        ),
+        (
+            D4M.assoc.Assoc("a,b,a,", [1, 2, 10], 1.0),
+            D4M.assoc.Assoc("a,b,a,", [1, 2, 10], "1.0,1.0,1.0,"),
+            False,
+            True,
+        ),
+    ],
+)
+def test_num_to_str(assoc1, assoc2, labels_only, values_only):
+    assoc_out = D4M.assoc.num_to_str(assoc1, labels_only=labels_only, values_only=values_only)
+    assert D4M.assoc.assoc_equal(assoc_out, assoc2)
+
 # TODO?: def test_readcsvtotriples
 # TODO?: def test_readcsv
 # TODO?: def test_writecsv

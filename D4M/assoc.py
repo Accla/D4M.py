@@ -2469,20 +2469,16 @@ def col_to_type(A: "Assoc", separator: str = "|", convert: bool = True) -> "Asso
 col2type = col_to_type
 
 
-def num_to_str(A: "Assoc") -> "Assoc":
-    new_row, new_col, new_val = A.row, A.col, A.get_val()
-    new_row = np.char.strip(new_row.astype(str), ".0")
-    new_col = np.char.strip(new_col.astype(str), ".0")
-    if isinstance(A.val, float):
-        new_val, index_map = np.unique(A.adj.data, return_index=True)
-        index_map += 1
-        new_adj = sparse.coo_matrix((index_map, (A.adj.row, A.adj.col)), dtype=int)
-    else:
-        new_adj = A.adj
+def num_to_str(A: "Assoc", labels_only: bool = False, values_only: bool = False) -> "Assoc":
+    new_row, new_col, new_val = A.find()
 
-    B = Assoc(new_row, new_col, new_val, new_adj, aggregate="unique")
-    B.condense()
-    B.deepcondense()
+    if not values_only:
+        new_row = new_row.astype(str)
+        new_col = new_col.astype(str)
+    if not labels_only:
+        new_val = new_val.astype(str)
+
+    B = Assoc(new_row, new_col, new_val)
     return B
 
 
