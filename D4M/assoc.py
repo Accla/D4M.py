@@ -2770,7 +2770,7 @@ def writecsv(A: "Assoc", filename: str, **fmtparams) -> None:
         writeCSV(A, 'my_file_name.csv', delimiter=';')
     """
     with open(filename, "w") as csv_file:
-        assoc_writer = csv.writer(csv_file, **fmtparams, lineterminator="\r")
+        assoc_writer = csv.writer(csv_file, **fmtparams, lineterminator="\n")
 
         # Write the headings (offset by one to account for row indices)
         headings = [item for item in A.col]
