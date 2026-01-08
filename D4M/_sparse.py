@@ -4,7 +4,7 @@ import graphblas as gb
 import scipy.sparse as scisparse
 
 supported_splinalg_libraries = {"scipy.sparse", "python-graphblas"}
-selected_splinalg_library = "python-graphblas"  # change to supported sparse linear algebra of choice
+selected_splinalg_library = "scipy.sparse"  # change to supported sparse linear algebra of choice
 
 
 def _unsupported():
