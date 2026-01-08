@@ -13,6 +13,7 @@ from typing import Union, Tuple, Optional, Callable, Sequence, List, Dict, Any
 # Use List & Dict for backwards (<3.9) compatibility
 
 import D4M.util as util
+import D4M._sparse as _sparse
 
 operation_dict = util.operation_dict()
 
@@ -48,13 +49,13 @@ class Assoc:
         row: ArrayLike,
         col: ArrayLike,
         val: ArrayLike,
-        adj: Optional[sparse.spmatrix] = None,
+        adj: Optional[_sparse.Sparse_Matrix] = None,
         aggregate: Union[Callable[[KeyVal, KeyVal], KeyVal], str] = min,
         prevent_upcasting: bool = False,
         convert_val: bool = False,
     ):
-        """Construct an associative array either from an existing sparse matrix (scipy.sparse.spmatrix) or
-        from row, column, and value triples.
+        """Construct an associative array either from an existing sparse matrix (e.g., gb.Matrix or
+        scipy.sparse.coo_matrix) or from row, column, and value triples.
             Usage:
                 A = Assoc(row,col,val)
                 A = Assoc(row,col,val,aggregate=func)
@@ -110,9 +111,7 @@ class Assoc:
             self.row = np.empty(0)
             self.col = np.empty(0)
             self.val = 1.0  # Considered numerical
-            self.adj = sparse.coo_matrix(
-                ([], ([], [])), shape=(0, 0)
-            )  # Empty sparse matrix
+            self.adj = _sparse.empty()
         elif adj is not None and aggregate == "unique":
             # Assume everything is already done, except possible sanitization of val
             self.row = row
@@ -122,23 +121,24 @@ class Assoc:
                 if convert_val:
                     val = util.str_to_num(val)
             self.val = val
-            self.adj = adj.tocoo()
+            self.adj = _sparse.to_coo(adj)
         else:
             if adj is not None:
-                adj = adj.tocoo()
-                adj.eliminate_zeros()
+                adj = _sparse.to_coo(adj)
+                _sparse.eliminate_zeros(adj)
+                adj_row, adj_col, adj_data = _sparse.get_coo_params(adj)
 
                 if isinstance(val, float) and val == 1.0:
                     is_float = True
-                    adj.sum_duplicates()
-                    val = adj.data
+                    _sparse.sum_duplicates(adj)
+                    val = adj_data
                 else:
                     is_float = False
                     val = util.sanitize(val)
                     if convert_val:
                         val = util.str_to_num(val)
 
-                (row_dim, col_dim) = adj.shape
+                (row_dim, col_dim) = _sparse.get_shape(adj)
 
                 unique_row, unique_col, unique_val = (
                     np.unique(row),
@@ -150,7 +150,7 @@ class Assoc:
                 good_params = [
                     np.size(unique_row) >= row_dim,
                     np.size(unique_col) >= col_dim,
-                    np.size(unique_val) >= np.size(np.unique(adj.data)),
+                    np.size(unique_val) >= np.size(np.unique(adj_data)),
                 ]
                 param_type = ["row indices", "col indices", "values"]
                 for index in range(3):
@@ -166,14 +166,14 @@ class Assoc:
                 if False in good_params:
                     raise ValueError(error_message)
 
-                new_row, new_col, new_val = unique_row[adj.row], unique_col[adj.col], 0
+                new_row, new_col, new_val = unique_row[adj_row], unique_col[adj_col], 0
 
                 if is_float:
-                    new_val = adj.data
+                    new_val = adj_data
                 else:
                     try:
                         new_val = unique_val[
-                            adj.data - np.ones(np.size(adj.data), dtype=int)
+                            adj_data - np.ones(np.size(adj_data), dtype=int)
                         ]
                     except (TypeError, IndexError):
                         print(
@@ -184,6 +184,8 @@ class Assoc:
                 row, col, val = new_row, new_col, new_val
                 row_size, col_size = len(row), len(col)
                 aggregate = min
+            else:
+                pass
 
             val = util.sanitize(val, prevent_upcasting=prevent_upcasting)
             if convert_val:
@@ -223,9 +225,7 @@ class Assoc:
                 self.row = np.empty(0)
                 self.col = np.empty(0)
                 self.val = 1.0  # Considered numerical
-                self.adj = sparse.coo_matrix(
-                    ([], ([], [])), shape=(0, 0)
-                )  # Empty sparse matrix
+                self.adj = _sparse.empty()
             else:
                 # Get unique sorted row and column indices
                 self.row, from_row = np.unique(row, return_inverse=True)
@@ -236,23 +236,18 @@ class Assoc:
                 assert isinstance(self.val, np.ndarray)
                 if util.is_numeric(self.val[-1]):
                     if prevent_upcasting:
-                        self.adj = sparse.coo_matrix(
-                            (val, (from_row, from_col)),
-                            shape=(np.size(self.row), np.size(self.col)),
-                        )
+                        self.adj = _sparse.from_coo(from_row, from_col, val,
+                                                    shape=(np.size(self.row), np.size(self.col)))
                     else:
-                        self.adj = sparse.coo_matrix(
-                            (val, (from_row, from_col)),
-                            dtype=float,
-                            shape=(np.size(self.row), np.size(self.col)),
-                        )
+                        self.adj = _sparse.from_coo(from_row, from_col, val,
+                                                    shape=(np.size(self.row), np.size(self.col)),
+                                                    dtype=float
+                                                    )
                     self.val = 1.0
                 else:
                     # If not numerical, self.adj has entries given by indices+1 of self.val
                     val_indices = from_val + np.ones(np.size(from_val))
-                    self.adj = sparse.coo_matrix(
-                        (val_indices, (from_row, from_col)), dtype=int
-                    )
+                    self.adj = _sparse.from_coo(from_row, from_col, val_indices, dtype=int)
 
     def is_canonical(self) -> bool:
         """Determine if self is in canonical form. I.e.:
@@ -264,7 +259,7 @@ class Assoc:
         Moreover, if self is non-numerical, then additionally:
             - Every value in self.val corresponds to an entry in self.adj.
             - self.val is sorted and contains no duplicate values.
-            - Every datum in self.adj.data corresponds to an entry in self.val (i.e., self.adj.data only contains
+            - Every datum in self.adj's data corresponds to an entry in self.val (i.e., self.adj's data only contains
                 elements of {1, 2, 3,..., len(self.val)}.
         """
         canonical = True
@@ -275,8 +270,8 @@ class Assoc:
         if not (isinstance(self.row, np.ndarray) and isinstance(self.col, np.ndarray)):
             print("* self.row and/or self.col are not of valid type (np.ndarray).")
             canonical = False
-        if not isinstance(self.adj, sparse.coo_matrix):
-            print("* self.adj is not of valid type (scipy.sparse.coo_matrix).")
+        if not isinstance(self.adj, _sparse.Sparse_Matrix):
+            print("* self.adj is not of valid type.")
             canonical = False
 
         # Check if self.row and self.col are sorted
@@ -292,19 +287,25 @@ class Assoc:
             canonical = False
 
         # Check if self.adj has appropriate shape
-        if (row_num, col_num) != self.adj.shape:
+        if (row_num, col_num) != _sparse.get_shape(self.adj):
             print("* self.adj does not have shape matching self.row and self.col.")
             canonical = False
-        if isinstance(self.adj, sparse.coo_matrix):
-            adj_row_set = set(self.adj.row)
-            adj_col_set = set(self.adj.col)
+        if isinstance(self.adj, _sparse.Sparse_Matrix):
+            adj_row, adj_col, adj_data = _sparse.get_coo_params(self.adj)
+            adj_row_set = set(adj_row)
+            adj_col_set = set(adj_col)
             if row_num != len(adj_row_set) or col_num != len(adj_col_set):
                 print("* Empty rows or columns present in self.adj.")
                 canonical = False
 
+        # check if self.adj is appropriate format (COO when possible)
+        if not _sparse.is_coo_format(self.adj):
+            print("* Sparse adjacency array is not in proper sparse format.")
+            canonical = False
+
         # Check values for null values
-        if isinstance(self.val, float):
-            if np.isin(0, self.adj.data):
+        if isinstance(self.adj, _sparse.Sparse_Matrix) and isinstance(self.val, float):
+            if np.isin(0, adj_data):
                 print("* Explicit zeros stored in self.adj.")
                 canonical = False
         else:
@@ -331,12 +332,13 @@ class Assoc:
                 canonical = False
 
             # Check if self.adj contains appropriate data, i.e., integers between 1 and val_num
-            adj_min = self.adj.data.min()
-            adj_max = self.adj.data.max()
-            if self.adj.dtype != int or adj_min < 1 or adj_max > val_num:
+
+            adj_min = adj_data.min()
+            adj_max = adj_data.max()
+            if _sparse.get_dtype(self.adj) != int or adj_min < 1 or adj_max > val_num:
                 print(
                     "dtype="
-                    + str(self.adj.dtype)
+                    + str(_sparse.get_dtype(self.adj))
                     + "; min="
                     + str(adj_min)
                     + "; max="
@@ -348,7 +350,7 @@ class Assoc:
                 canonical = False
 
             # Check that every element of self.val arises
-            adj_val_set = set(self.adj.data)
+            adj_val_set = set(adj_data)
             if val_num != len(adj_val_set):
                 print(
                     "* Elements present in self.val which are not reflected in self.adj."
@@ -380,7 +382,7 @@ class Assoc:
                 A = self.deepcopy()
 
             # Remove zeros and update row and col appropriately
-            A.adj.eliminate_zeros()
+            _sparse.eliminate_zeros(A.adj)
             A.condense()
         # Otherwise, manually remove and remake Assoc instance
         else:
@@ -400,15 +402,17 @@ class Assoc:
             if len(null_val_indices) == 0:
                 return A
 
+            adj_row, adj_col, adj_data = _sparse.get_coo_params(self.adj)
+
             new_data = util.update_indices(
-                self.adj.data, null_val_indices, len(self.val), offset=1, mark=0
+                adj_data, null_val_indices, len(self.val), offset=1, mark=0
             )
             if len(null_val_indices) == len(self.val):
                 return Assoc([], [], [])
             else:
                 A.val = np.delete(A.val, null_val_indices)
 
-            adj_triples = zip(self.adj.row, self.adj.col, new_data)
+            adj_triples = zip(adj_row, adj_col, new_data)
             good_row_keys = set()
             good_col_keys = set()
             for triple in adj_triples:
@@ -424,7 +428,7 @@ class Assoc:
                 return Assoc([], [], [])
             else:
                 new_row_indices = util.update_indices(
-                    self.adj.row, null_row_indices, len(self.row), mark=0
+                    adj_row, null_row_indices, len(self.row), mark=0
                 )
                 A.row = np.delete(A.row, null_row_indices)
 
@@ -435,16 +439,16 @@ class Assoc:
                 return Assoc([], [], [])
             else:
                 new_col_indices = util.update_indices(
-                    self.adj.col, null_col_indices, len(self.col), mark=0
+                    adj_col, null_col_indices, len(self.col), mark=0
                 )
                 A.col = np.delete(A.col, null_col_indices)
 
-            A.adj = sparse.coo_matrix(
-                (new_data, (new_row_indices, new_col_indices)),
+            A.adj = _sparse.from_coo(
+                new_row_indices, new_col_indices, new_data,
                 dtype=int,
                 shape=(len(A.row), len(A.col)),
             )
-            A.adj.eliminate_zeros()
+            _sparse.eliminate_zeros(A.adj)
 
         return A
 
@@ -461,55 +465,65 @@ class Assoc:
             - Elements of self.row or self.col which correspond to rows or columns of all 0's
                 (but not '' or None) are removed.
         """
-        row_dim, col_dim = self.adj.shape
+        row_dim, col_dim = _sparse.get_shape(self.adj)
 
-        Acsr = self.adj.tocsr()
-        csr_rows = Acsr.indptr
-        good_rows = (csr_rows[:-1] < csr_rows[1:])
+        _, _, row_indptr = _sparse.get_csr_params(self.adj)
+        good_rows = (row_indptr[:-1] < row_indptr[1:])
         self.row = self.row[:row_dim][good_rows]
-        self.adj = Acsr[good_rows, :]
+        self.adj = _sparse.getitem_rows(self.adj, good_rows)
 
-        Acsc = self.adj.tocsc()
-        csc_cols = Acsc.indptr
-        good_cols = (csc_cols[:-1] < csc_cols[1:])
+        _, _, col_indptr = _sparse.get_csc_params(self.adj)
+        good_cols = (col_indptr[:-1] < col_indptr[1:])
         self.col = self.col[:col_dim][good_cols]
-        self.adj = Acsc[:, good_cols].tocoo()
+        self.adj = _sparse.getitem_cols(self.adj, good_cols)
 
         # Account for empty arrays
-        if len(self.row) == 0 or len(self.col) == 0 or self.adj.shape[0] == 0 or self.adj.shape[1] == 0:
+        if (len(self.row) == 0
+                or len(self.col) == 0
+                or _sparse.get_shape(self.adj)[0] == 0
+                or _sparse.get_shape(self.adj)[1] == 0
+        ):
             self.row = np.empty(0)
             self.col = np.empty(0)
             self.val = 1.0
-            self.adj = sparse.coo_matrix(([], ([], [])), shape=(0, 0))
+            self.adj = _sparse.empty()
 
         return self
 
     # extension of condense() which also removes unused values
     def deepcondense(self) -> "Assoc":
         """Remove values from self.val which are not reflected in self.adj."""
-
         # If numerical, do nothing (no unused values)
         if isinstance(self.val, float):
             return self
         else:
             assert isinstance(self.val, np.ndarray)
-            used_values = set([self.val[datum - 1] for datum in self.adj.data])
+            used_values = set([self.val[datum - 1] for datum in _sparse.get_data(self.adj)])
+            print("used_values={}".format(used_values))
             unused_indices = [
                 index
                 for index in range(len(self.val))
                 if self.val[index] not in used_values
             ]
-            self.adj.data = util.update_indices(
-                self.adj.data, unused_indices, len(self.val), offset=1
+            print("unused_indices={}".format(unused_indices))
+            print("self_adj_data_pre_update={}".format(_sparse.get_data(self.adj)))
+            updated_val_indices = util.update_indices(
+                _sparse.get_data(self.adj), unused_indices, len(self.val), offset=1
             )
+            print("updated_val_indices={}".format(updated_val_indices))
+            print("self.adj before update=" + str(self.adj))
+            self.adj = _sparse.update_data(self.adj, updated_val_indices)
+            print("self.adj after update=" + str(self.adj))
+            print("self.val before update=" + str(self.val))
             self.val = np.delete(self.val, unused_indices)
+            print("self.val after update=" + str(self.val))
 
             # If self.val is now empty, make associative array empty
             if np.size(self.val) == 0:
                 self.row = np.array([])
                 self.col = np.array([])
                 self.val = 1.0
-                self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+                self.adj = _sparse.empty()
 
             return self
 
@@ -523,12 +537,12 @@ class Assoc:
             self = Associative array with self.row replaced by np.unique(new_row) if new_row is compatible with
                 the shape of self.adj
         Notes:
-            - new_row is compatible with (row_dim, col_dim) = self.adj.shape if row_dim is at most the number of
+            - new_row is compatible with (row_dim, col_dim) = self.adj's shape if row_dim is at most the number of
                 unique elements in new_row
         """
         new_row = util.sanitize(new_row)
 
-        row_dim, _ = self.adj.shape
+        row_dim, _ = _sparse.get_shape(self.adj)
         true_row_size = len(set(new_row))
         if true_row_size < row_dim:
             raise ValueError("new_row is incompatible with the shape of self.adj.")
@@ -553,12 +567,12 @@ class Assoc:
             self = Associative array with self.col replaced by np.unique(new_col) if new_col is compatible with
                 the shape of self.adj
         Notes:
-            - new_col is compatible with (row_dim, col_dim) = self.adj.shape if col_dim is at most the number of
+            - new_col is compatible with (row_dim, col_dim) = self.adj's shape if col_dim is at most the number of
                 unique elements in new_col
         """
         new_col = util.sanitize(new_col)
 
-        _, col_dim = self.adj.shape
+        _, col_dim = _sparse.get_shape(self.adj)
         true_col_size = len(set(new_col))
         if true_col_size < col_dim:
             raise ValueError("new_col is incompatible with the shape of self.adj.")
@@ -580,16 +594,16 @@ class Assoc:
         Input:
             new_val = value or sequence of values
         Output:
-            self = Associative array with np.unique(new_val) replacing self.val if non-numerical or self.adj.data
-                if numerical, where self.adj.data is treated as indices used to select from np.unique(new_val)
+            self = Associative array with np.unique(new_val) replacing self.val if non-numerical or self.adj's data
+                if numerical, where self.adj's data is treated as indices used to select from np.unique(new_val)
         Notes:
-            - self.adj.data is converted to dtype=int to treat as indices
+            - self.adj's data is converted to dtype=int to treat as indices
         """
         if new_val in Assoc.null_values:
             self.row = np.array([])
             self.col = np.array([])
             self.val = 1.0
-            self.adj = sparse.coo_matrix(([], ([], [])), dtype=float, shape=(0, 0))
+            self.adj = _sparse.empty()
             return self
         else:
             new_val = util.sanitize(new_val)
@@ -599,24 +613,20 @@ class Assoc:
                 if np.issubdtype(new_val.dtype, type(null_value)):
                     new_val = new_val[np.where(new_val != null_value)]
 
-        self.adj.eliminate_zeros()
+        _sparse.eliminate_zeros(self.adj)
+        adj_row, adj_col, adj_data = _sparse.get_coo_params(self.adj)
         if len(new_val) == 1:
-            triple_num = len(self.adj.data)
+            triple_num = _sparse.nnz(self.adj)
             if np.issubdtype(new_val.dtype, int) or np.issubdtype(new_val.dtype, float):
                 self.val = 1.0
-                self.adj = sparse.coo_matrix(
-                    (np.full(triple_num, new_val[0]), (self.adj.row, self.adj.col)),
-                    dtype=float,
-                )
+                self.adj = _sparse.from_coo(adj_row, adj_col, np.full(triple_num, new_val[0]), dtype=float)
             else:
                 self.val = new_val
-                self.adj = sparse.coo_matrix(
-                    (np.ones(triple_num), (self.adj.row, self.adj.col)), dtype=int
-                )
+                self.adj = _sparse.from_coo(adj_row, adj_col, np.ones(triple_num), dtype=int)
         else:
             # Treat self.adj as containing indices of entries in new_val
             true_val_size = len(set(new_val))
-            data_indices = self.adj.data.astype(int) - 1
+            data_indices = adj_data.astype(int) - 1
             min_index, max_index = data_indices.min(), data_indices.max()
             if not (0 <= min_index and max_index < true_val_size):
                 raise ValueError("new_val is incompatible with the data in self.adj.")
@@ -626,14 +636,10 @@ class Assoc:
 
             if np.issubdtype(new_val.dtype, int) or np.issubdtype(new_val.dtype, float):
                 self.val = 1.0
-                self.adj = sparse.coo_matrix(
-                    (new_val[data_indices], (self.adj.row, self.adj.col)), dtype=float
-                )
+                self.adj = _sparse.from_coo(adj_row, adj_col, new_val[data_indices], dtype=float)
             else:
                 self.val = new_val[0: (max_index + 1)]
-                self.adj = sparse.coo_matrix(
-                    (data_indices + 1, (self.adj.row, self.adj.col)), dtype=int
-                )
+                self.adj = _sparse.from_coo(adj_row, adj_col, data_indices + 1, dtype=int)
 
         # Remove unused row keys, column keys, and values
         self.condense()
@@ -641,7 +647,7 @@ class Assoc:
 
         return self
 
-    def set_adj(self, new_adj: sparse.spmatrix, numerical: bool = True) -> "Assoc":
+    def set_adj(self, new_adj: _sparse.Sparse_Matrix, numerical: bool = True) -> "Assoc":
         """Replace current adjacency array with new adjacency array. (in-place)
         Usage:
             self.set_adj(new_adj)
@@ -659,7 +665,7 @@ class Assoc:
         if numerical is None:
             numerical = True
 
-        row_size, col_size = new_adj.shape
+        row_size, col_size = _sparse.get_shape(new_adj)
         if len(self.row) < row_size or len(self.col) < col_size:
             raise ValueError(
                 "The shape of new_adj is incompatible with the sizes of self.row and/or self.col."
@@ -667,9 +673,9 @@ class Assoc:
 
         if numerical:
             self.val = 1.0
-            self.adj = new_adj.tocoo()
+            self.adj = _sparse.to_coo(new_adj)
         else:
-            self.adj = new_adj.astype(int)
+            self.adj = _sparse.astype(_sparse.to_coo(new_adj), int)
 
         # Remove unused row keys, column keys, and values
         self.condense()
@@ -690,28 +696,25 @@ class Assoc:
 
             if util.is_numeric(value):
                 self.val = 1.0
-                self.adj = sparse.coo_matrix(
-                    (np.array([value]), (np.array([0]), np.array([0])))
-                )
+                self.adj = _sparse.from_coo(np.array([0]), np.array([0]), np.array([value]))
             else:
                 self.val = np.array([value])
-                self.adj = sparse.coo_matrix(
-                    (np.array([1]), (np.array([0]), np.array([0]))), dtype=int
-                )
+                self.adj = _sparse.from_coo(np.array([0]), np.array([0]), np.array([1]), dtype=int)
 
             return None
         else:
+            adj_row, adj_col, adj_data = _sparse.get_coo_params(self.adj)
             self.row, new_adj_row = util.sorted_append(
                 row_key,
                 self.row,
-                self.adj.row,
+                adj_row,
                 new_entry_name="row_key",
                 sorted_array_name="self.row",
             )
             self.col, new_adj_col = util.sorted_append(
                 col_key,
                 self.col,
-                self.adj.col,
+                adj_col,
                 new_entry_name="col_key",
                 sorted_array_name="self.col",
             )
@@ -720,11 +723,11 @@ class Assoc:
             if isinstance(self.val, float) and (
                 isinstance(value, int) or isinstance(value, float)
             ):
-                new_adj_data = np.append(self.adj.data, value).astype(float)
-                self.adj = sparse.coo_matrix((new_adj_data, (new_adj_row, new_adj_col)))
+                new_adj_data = np.append(adj_data, value).astype(float)
+                self.adj = _sparse.from_coo(new_adj_row, new_adj_col, new_adj_data)
             else:
                 adjusted_data = (
-                    self.adj.data - 1
+                    _sparse.get_data(self.adj) - 1
                 )  # Decrement so indices are properly zero-indexed
                 self.val, new_adj_data = util.sorted_append(
                     value,
@@ -734,9 +737,7 @@ class Assoc:
                     sorted_array_name="self values",
                 )
                 new_adj_data += 1  # Increment indices to one-index
-                self.adj = sparse.coo_matrix(
-                    (new_adj_data, (new_adj_row, new_adj_col)), dtype=int
-                )
+                self.adj = _sparse.from_coo(new_adj_row, new_adj_col, new_adj_data, dtype=int)
 
             return None
 
@@ -754,25 +755,43 @@ class Assoc:
         Output:
             row,col,val = numpy arrays for which self = Assoc(row, col, val)
         """
+        if is_empty_assoc(self):
+            return np.array([]), np.array([]), np.array([])
+        else:
+            pass
+
+        enc_row, enc_col, enc_val = list(), list(), list()
         # Use self.adj to extract row, col, and val
-        if ordering == 0:  # Order by row first, then column
-            row_adj = self.adj.tocsr().tocoo()
-            enc_val, enc_row, enc_col = row_adj.data, row_adj.row, row_adj.col
-        elif ordering == 1:  # Order by column first, then row
-            col_adj = self.adj.tocsc().tocoo()
-            enc_val, enc_row, enc_col = col_adj.data, col_adj.row, col_adj.col
-        else:  # Otherwise don't order
-            enc_val, enc_row, enc_col = self.adj.data, self.adj.row, self.adj.col
-
-        if np.size(enc_row) != 0:
-            row = self.row[enc_row]
+        if ordering == 0:
+            # use csr format parameters to order by row first, then column
+            data, indices, indptr = _sparse.get_csr_params(self.adj)
+            lower_row_index = 0
+            for row_index in range(1, np.size(indptr)):
+                upper_row_index = indptr[row_index]
+                for val_index in range(lower_row_index, upper_row_index):
+                    enc_row.append(row_index-1)
+                    enc_col.append(indices[val_index])
+                    enc_val.append(data[val_index])
+                lower_row_index = upper_row_index
+        elif ordering == 1:
+            # use csc format parameters to order by column first, then row
+            data, indices, indptr = _sparse.get_csc_params(self.adj)
+            lower_col_index = 0
+            for col_index in range(1, np.size(indptr)):
+                upper_col_index = indptr[col_index]
+                for val_index in range(lower_col_index, upper_col_index):
+                    enc_row.append(indices[val_index])
+                    enc_col.append(col_index-1)
+                    enc_val.append(data[val_index])
+                lower_col_index = upper_col_index
         else:
-            row = np.array([])
-        if np.size(enc_col) != 0:
-            col = self.col[enc_col]
-        else:
-            col = np.array([])
+            # use coo format parameters to get /some/ order
+            enc_row, enc_col, enc_val = _sparse.get_coo_params(self.adj)
 
+        # enc_row, enc_col are arrays of index pointers to self.row, self.col
+        row, col = self.row[enc_row], self.col[enc_col]
+
+        # enc_val is an array of index pointers to self.val in nonnumerical case and the values in the numerical case
         if isinstance(self.val, float):
             val = enc_val
         else:
@@ -821,12 +840,12 @@ class Assoc:
     def get_val(self) -> np.ndarray:
         """Return numpy array of unique values."""
         if isinstance(self.val, float):
-            return np.unique(self.adj.data)
+            return np.unique(_sparse.get_data(self.adj))
         else:
             assert isinstance(self.val, np.ndarray)
             return self.val
 
-    def get_adj(self) -> sparse.coo_matrix:
+    def get_adj(self) -> _sparse.Sparse_Matrix:
         return self.adj
 
     def get_value(
@@ -858,7 +877,7 @@ class Assoc:
             row_index = True
             col_index = True
 
-        row_size, col_size = self.adj.shape
+        row_size, col_size = _sparse.get_shape(self.adj)
 
         if not row_index:
             try:
@@ -880,10 +899,10 @@ class Assoc:
                 return 0
 
         if isinstance(self.val, float):
-            return self.adj.tocsr()[row_key, col_key]
+            return _sparse.getvalue(self.adj, row_key, col_key)
         else:
             assert isinstance(self.val, np.ndarray)
-            value_index = self.adj.tocsr()[row_key, col_key] - 1
+            value_index = _sparse.getvalue(self.adj, row_key, col_key) - 1
             return self.val[value_index]
 
     # Overload getitem; allows for subsref
@@ -923,16 +942,23 @@ class Assoc:
             col_select, self.col, return_indices=True
         )
 
+        self_adj_sub = _sparse.getitem_rows(self.adj, row_index_map)
+        print("self_adj_sub row first:{}".format(self_adj_sub))
+        self_adj_sub = _sparse.getitem_cols(self_adj_sub, col_index_map)
+        print("self_adj_sub column second:{}".format(self_adj_sub))
+        self_adj_sub = _sparse.coo_canonicalize(self_adj_sub)
         subarray = Assoc(
             np.array(new_row),
             np.array(new_col),
             self.val,
-            self.adj.tocsr()[row_index_map, :][:, col_index_map].tocoo(),
+            self_adj_sub,
             aggregate="unique",
         )
+        print(subarray)
         subarray = subarray.condense()
+        print(subarray)
         subarray = subarray.deepcondense()
-
+        print(subarray)
         return subarray
 
     def size(self) -> Tuple[int, int]:
@@ -943,7 +969,7 @@ class Assoc:
 
     def nnz(self) -> int:
         """Count number of non-null entries."""
-        num_nonzero = self.adj.count_nonzero()
+        num_nonzero = _sparse.nnz(self.adj)
         return num_nonzero
 
     def __str__(self) -> str:
@@ -951,7 +977,7 @@ class Assoc:
         print_string = "Row indices: " + str(self.row) + "\n"
         print_string += "Column indices: " + str(self.col) + "\n"
         print_string += "Values: " + str(self.val) + "\n"
-        print_string += "Adjacency array: " + "\n" + str(self.adj.toarray())
+        print_string += "Adjacency array: " + "\n" + str(_sparse.to_array(self.adj))
         return print_string
 
     # print tabular form
@@ -968,7 +994,7 @@ class Assoc:
                 restricted so that the total width does not exceed the terminal window's width
         Outputs: N/A
         """
-        if (isinstance(self.val, float) and np.size(self.adj.data) == 0) or np.size(
+        if (isinstance(self.val, float) and np.size(_sparse.get_data(self.adj)) == 0) or np.size(
                 self.val
         ) == 0:
             print("Empty associative array.")
@@ -1172,7 +1198,7 @@ class Assoc:
         )
 
         assoc_spy = plt.spy(
-            self.adj, markersize=marker_size, aspect="auto", **pyplot_spy_kwargs
+            _sparse.to_scipy(self.adj), markersize=marker_size, aspect="auto", **pyplot_spy_kwargs
         )
 
         if rename_axes:
@@ -1193,7 +1219,7 @@ class Assoc:
             cpy.copy(self.row),
             cpy.copy(self.col),
             cpy.copy(self.val),
-            self.adj.copy(),
+            _sparse.copy(self.adj),
             aggregate="unique",
         )
         return assoc_copy
@@ -1227,25 +1253,24 @@ class Assoc:
         if dim == 0:
             return Assoc([], [], [])
         else:
-            offset_diagonal = sparse.coo_matrix(
-                (np.ones(dim), (row_map, col_map)), dtype=int
-            )
-            offset_square = self.adj.multiply(offset_diagonal).tocoo()
-            offset_square.eliminate_zeros()  # Just to be safe
+            offset_diagonal = _sparse.from_coo(row_map, col_map, np.ones(dim), dtype=int)
+            offset_square = _sparse.ewise_mult(self.adj, offset_diagonal)
+            _sparse.eliminate_zeros(offset_square)  # Just to be safe
 
             # Extract the row and col indices that actually appear among diagonal entries
-            square_row, index_map = np.unique(offset_square.row, return_index=True)
-            square_col = offset_square.col[
+            offset_square_row, offset_square_col, offset_square_data = _sparse.get_coo_params(offset_square)
+            square_row, index_map = np.unique(offset_square_row, return_index=True)
+            square_col = offset_square_col[
                 index_map
             ]  # Same index_map works for offset_square.col & offset_square.data
             if isinstance(self.val, float):
-                square_data = offset_square.data[index_map]
+                square_data = offset_square_data[index_map]
                 diag_val = 1.0
                 diag_dtype = float
             else:
                 assert isinstance(self.val, np.ndarray)
                 square_data = index_map + 1
-                diag_val = np.unique(self.val[offset_square.data[index_map] - 1])
+                diag_val = np.unique(self.val[offset_square_data[index_map] - 1])
                 diag_dtype = int
 
             dim = len(square_row)
@@ -1253,11 +1278,7 @@ class Assoc:
                 self.row[square_row],
                 self.col[square_col],
             )  # Extract used row & column keys
-            diag_adj = sparse.coo_matrix(
-                (square_data, (np.arange(dim), np.arange(dim))),
-                dtype=diag_dtype,
-                shape=(dim, dim),
-            )
+            diag_adj = _sparse.from_coo(np.arange(dim), np.arange(dim), square_data, dtype=diag_dtype, shape=(dim, dim))
 
             return Assoc(diag_row, diag_col, diag_val, diag_adj, aggregate="unique")
 
@@ -1275,7 +1296,7 @@ class Assoc:
         """
         A = self.dropzeros(copy=copy)
         A.val = 1.0
-        A.adj.data[:] = 1.0
+        A.adj = _sparse.logical(A.adj)
         return A
 
     def transpose(self, copy: bool = True) -> "Assoc":
@@ -1285,12 +1306,12 @@ class Assoc:
                 cpy.copy(self.col),
                 cpy.copy(self.row),
                 cpy.copy(self.val),
-                self.adj.transpose().copy(),
+                _sparse.transpose(self.adj, copy=True),
                 aggregate="unique",
             )
         else:
             self.row, self.col = self.col, self.row
-            self.adj = self.adj.transpose()
+            self.adj = _sparse.transpose(self.adj)
             transposed = self
         return transposed
 
@@ -1321,12 +1342,7 @@ class Assoc:
         length = len(self_.row)
         self_.col = np.array([0])
         self_.val = 1.0
-        self_.adj = sparse.coo_matrix(
-            (
-                np.ones(length),
-                (np.arange(0, length, dtype=int), np.zeros(length, dtype=int)),
-            )
-        )
+        self_.adj = _sparse.from_coo(np.arange(0, length, dtype=int), np.zeros(length, dtype=int), np.ones(length))
 
         return self_
 
@@ -1357,12 +1373,7 @@ class Assoc:
         length = len(self_.col)
         self_.row = np.array([0])
         self_.val = 1.0
-        self_.adj = sparse.coo_matrix(
-            (
-                np.ones(length),
-                (np.zeros(length, dtype=int), np.arange(0, length, dtype=int)),
-            )
-        )
+        self_.adj = _sparse.from_coo(np.zeros(length, dtype=int), np.arange(0, length, dtype=int), np.ones(length))
 
         return self_
 
@@ -1381,31 +1392,33 @@ class Assoc:
         # If any of the values are strings, convert to logical
         # In this case, the adjacency array is the desired sparse matrix to sum over
         if not isinstance(self.val, float):
-            new_sparse = self.logical(copy=True).adj.copy()
+            new_sparse = _sparse.copy(self.logical(copy=True).adj)
         # Otherwise, build a new sparse matrix with actual (numerical) values
         else:
-            new_sparse = self.adj.copy()
+            new_sparse = _sparse.copy(self.adj)
 
         # Sum as a sparse matrix over desired axis
-        summed_sparse = new_sparse.sum(axis)
+        summed_sparse = _sparse.sparse_sum(new_sparse, axis)
 
         # Depending on axis, build associative array
         if axis is None:
             return summed_sparse
         elif axis == 1:
+            summed_sparse_adj = _sparse.transpose(_sparse.init([summed_sparse]))
             A = Assoc(
                 self.row.copy(),
                 np.array([0]),
                 1.0,
-                sparse.coo_matrix(summed_sparse),
+                summed_sparse_adj,
                 aggregate="unique",
             )
         elif axis == 0:
+            summed_sparse_adj = _sparse.init([summed_sparse])
             A = Assoc(
                 np.array([0]),
                 self.col.copy(),
                 1.0,
-                sparse.coo_matrix(summed_sparse),
+                summed_sparse_adj,
                 aggregate="unique",
             )
         else:
@@ -1530,23 +1543,27 @@ class Assoc:
         )
         self_trimmed = self[:, index_map_1]
         other_trimmed = other[index_map_2, :]
-        self_trimmed_adj = self_trimmed.adj.tocsr()
-        other_trimmed_adj = other_trimmed.adj.tocsc()
+
+        self_trimmed_adj = self_trimmed.adj
+        other_trimmed_adj = other_trimmed.adj
+
+        _, self_csr_indices, self_csr_indptr = _sparse.get_csr_params(self_trimmed_adj)
+        _, other_csc_indices, other_csc_indptr = _sparse.get_csc_params(other_trimmed_adj)
 
         row_size = len(self_trimmed.row)
         col_size = len(other_trimmed.col)
 
         rows = [
-            self_trimmed_adj.indices[
-                self_trimmed_adj.indptr[row_index]: self_trimmed_adj.indptr[
+            self_csr_indices[
+                self_csr_indptr[row_index]: self_csr_indptr[
                     (row_index + 1)
                 ]
             ]
             for row_index in range(row_size)
         ]
         cols = [
-            other_trimmed_adj.indices[
-                other_trimmed_adj.indptr[col_index]: other_trimmed_adj.indptr[
+            other_csc_indices[
+                other_csc_indptr[col_index]: other_csc_indptr[
                     (col_index + 1)
                 ]
             ]
@@ -1572,19 +1589,19 @@ class Assoc:
                         inter_index = indices[i]
 
                         if isinstance(self_trimmed.val, float):
-                            row_value = self_trimmed_adj[row_index, inter_index]
+                            row_value = _sparse.getvalue(self_trimmed_adj, row_index, inter_index)
                         else:
                             assert isinstance(self_trimmed.val, np.ndarray)
                             row_value = self_trimmed.val[
-                                self_trimmed_adj[row_index, inter_index] - 1
+                                _sparse.getvalue(self_trimmed_adj, row_index, inter_index) - 1
                             ]
 
                         if isinstance(other_trimmed.val, float):
-                            col_value = other_trimmed_adj[inter_index, col_index]
+                            col_value = _sparse.getvalue(other_trimmed_adj, inter_index, col_index)
                         else:
                             assert isinstance(other_trimmed.val, np.ndarray)
                             col_value = other_trimmed.val[
-                                other_trimmed_adj[inter_index, col_index] - 1
+                                _sparse.getvalue(other_trimmed_adj, inter_index, col_index) - 1
                             ]
 
                         sum_prod = semi_add(sum_prod, semi_mult(row_value, col_value))
@@ -1616,15 +1633,27 @@ class Assoc:
             # Take union of rows and cols while keeping track of indices
             row_union, row_index_self, row_index_other = util.sorted_union(self.row, other.row, return_index=True)
             col_union, col_index_self, col_index_other = util.sorted_union(self.col, other.col, return_index=True)
+            self_adj_row, self_adj_col, self_adj_data = _sparse.get_coo_params(self.adj)
+            other_adj_row, other_adj_col, other_adj_data = _sparse.get_coo_params(other.adj)
+            Aadj_reindex = _sparse.from_coo(row_index_self[self_adj_row],
+                                            col_index_self[self_adj_col],
+                                            self_adj_data,
+                                            shape=(len(row_union), len(col_union)),
+                                            dtype=float
+                                            )
+            Badj_reindex = _sparse.from_coo(row_index_other[other_adj_row],
+                                            col_index_other[other_adj_col],
+                                            other_adj_data,
+                                            shape=(len(row_union), len(col_union)),
+                                            dtype=float
+                                            )
 
-            Aadj_reindex = sparse.coo_matrix((self.adj.data,
-                                              (row_index_self[self.adj.row], col_index_self[self.adj.col])
-                                              ), shape=(len(row_union), len(col_union)), dtype=float).tocsr()
-            Badj_reindex = sparse.coo_matrix((other.adj.data,
-                                              (row_index_other[other.adj.row], col_index_other[other.adj.col])
-                                              ), shape=(len(row_union), len(col_union)), dtype=float).tocsr()
-
-            summed = Assoc(row_union, col_union, 1.0, (Aadj_reindex + Badj_reindex).tocoo(), aggregate="unique")
+            summed = Assoc(row_union,
+                           col_union,
+                           1.0,
+                           _sparse.add(Aadj_reindex, Badj_reindex),
+                           aggregate="unique"
+                           )
             summed.condense()
         else:
             # If one associative array is numerical (and the other is necessarily not), convert other via .logical()
@@ -1649,10 +1678,10 @@ class Assoc:
         """Take arithmetic difference of numerical associative arrays and set difference otherwise."""
         # If both associative arrays are numerical, compute the element-wise arithmetic difference.
         if isinstance(self.val, float) and isinstance(other.val, float):
-            other = other.deepcopy()
-            other.adj.data = -other.adj.data
+            other_row, other_col, other_val = other.find()
+            _other = Assoc(other_row, other_col, -other_val)
 
-            return self + other
+            return self + _other
         else:
             # Otherwise, delete from self any entries having a corresponding non-null entry in other
             def _minus(object_1, object_2):
@@ -1690,22 +1719,19 @@ class Assoc:
             if not isinstance(other.val, float):
                 other_ = other.logical(copy=True)
 
-            # Convert adjacency arrays to CSR format for better performance
-            self_sparse = self_.adj.tocsr()
-            other_sparse = other_.adj.tocsr()
-
             # Intersect A.col and B.row
             intersection, index_map_1, index_map_2 = util.sorted_intersect(
                 self_.col, other_.row, return_index=True
             )
 
             # Get appropriate sub-matrices and multiply
-            self_sparse = self_sparse[:, index_map_1]
-            other_sparse = other_sparse[index_map_2, :]
-            product_sparse = self_sparse * other_sparse
+            self_sparse = _sparse.getitem_cols(self_.adj, index_map_1)
+            other_sparse = _sparse.getitem_rows(other_.adj, index_map_2)
+            product_sparse = _sparse.matmul(self_sparse, other_sparse)
+            product_sparse = _sparse.coo_canonicalize(product_sparse)
 
             product = Assoc(
-                self_.row, other_.col, 1.0, product_sparse.tocoo(), aggregate="unique"
+                self_.row, other_.col, 1.0, product_sparse, aggregate="unique"
             )
 
             # Remove empty rows and columns
@@ -2489,30 +2515,11 @@ def is_empty_assoc(A: "Assoc") -> bool:
     row_empty = (len(A.row) == 0)
     col_empty = (len(A.col) == 0)
     if isinstance(A.val, float):
-        val_empty = (A.adj.size == 0)
+        val_empty = (_sparse.nnz(A.adj) == 0)
     else:
         assert isinstance(A.val, np.ndarray)
         val_empty = (len(A.val) == 0)
     return row_empty or col_empty or val_empty
-
-
-def sparse_equal(sparr_1: sparse.spmatrix, sparr_2: sparse.spmatrix, rtol: float = 1e-05, atol: float = 1e-08):
-    """Test whether two COO sparse matrices are equal."""
-    Acsr, Bcsr = sparr_1.tocsr(), sparr_2.tocsr()
-
-    A_empty = (Acsr.size == 0)
-    B_empty = (Bcsr.size == 0)
-
-    if A_empty and B_empty:
-        return True
-    elif A_empty and not B_empty:
-        return False
-    elif not A_empty and B_empty:
-        return False
-    else:
-        diff = np.abs(Acsr - Bcsr).max()
-        tol = atol + rtol * max(np.abs(Acsr).max(), np.abs(Bcsr).max())
-        return diff <= tol
 
 
 def assoc_equal(A: "Assoc", B: "Assoc", return_info: bool = False) -> bool:
@@ -2577,7 +2584,7 @@ def assoc_equal(A: "Assoc", B: "Assoc", return_info: bool = False) -> bool:
                 + dtype_2_message
             )
 
-    if not sparse_equal(A.adj, B.adj):
+    if not _sparse.sparse_equal(A.adj, B.adj):
         is_equal = False
         if return_info:
             print("Adjs unequal:" + str(A.adj) + " vs. " + str(B.adj))

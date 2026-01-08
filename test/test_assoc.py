@@ -5,6 +5,7 @@ from numbers import Number
 
 import D4M.assoc
 import D4M.util
+import D4M._sparse
 from D4M.util import _replace_default_args
 
 
@@ -20,7 +21,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 1.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 1.0]])),
         ),
         (
             "a,b,b,",
@@ -31,7 +32,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [1.0, 1.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [1.0, 1.0]])),
         ),
         (
             "a,b,",
@@ -42,7 +43,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(np.array([[1, 0], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 0], [0, 2]])),
         ),
         (
             ["a", "b"],
@@ -53,7 +54,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 1.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 1.0]])),
         ),
         (
             [1, 2],
@@ -64,7 +65,7 @@ from D4M.util import _replace_default_args
             np.array([1, 2]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 1.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 1.0]])),
         ),
         (
             [],
@@ -75,7 +76,7 @@ from D4M.util import _replace_default_args
             np.empty(0),
             np.empty(0),
             1.0,
-            sp.coo_matrix(([], ([], [])), shape=(0, 0)),
+            D4M._sparse.empty(),
         ),
         (
             "a,b,a,",
@@ -86,7 +87,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[4.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[4.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -97,7 +98,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[4.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[4.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -108,7 +109,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -119,7 +120,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -130,7 +131,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[3.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[3.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -141,7 +142,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[3.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[3.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -152,7 +153,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -163,7 +164,7 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[3.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[3.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
@@ -174,84 +175,84 @@ from D4M.util import _replace_default_args
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[9.0, 0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[9.0, 0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
             "A,B,B,",
             1.0,
-            sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]])),
             None,
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]])),
         ),
         (
             "a,b,a,",
             "A,B,B,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             None,
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bA"]),
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
         ),
         (
             "a,b,",
             "A,B,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             None,
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bA"]),
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
         ),
         (
             "a,b,",
             "A,B,",
             "aA,aB,bA,bB,",
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
             "unique",
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
             "unique",
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
         ),
         (
             np.array(["a", "b"]),
             np.array(["B", "A"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
             "unique",
             np.array(["a", "b"]),
             np.array(["B", "A"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
         ),
         (
             "a,b,",
             "B,A,",
             "aA,aB,bA,bB,",
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
             "unique",
             np.array(["a", "b"]),
             np.array(["B", "A"]),
             np.array(["aA", "aB", "bA", "bB"]),
-            sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
         ),
     ],
 )
@@ -263,7 +264,7 @@ def test_assoc_constructor(
     assert np.array_equal(assoc_.row, exp_row)
     assert np.array_equal(assoc_.col, exp_col)
     assert np.array_equal(assoc_.val, exp_val) or (assoc_.val == 1.0 and exp_val == 1.0)
-    assert D4M.assoc.sparse_equal(assoc_.adj, exp_adj)
+    assert D4M._sparse.sparse_equal(assoc_.adj, exp_adj)
 
 
 @pytest.mark.parametrize(
@@ -281,7 +282,7 @@ def test_assoc_constructor(
             np.array(["a", "b", "c"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1, 0], [2, 0], [0, 3]]), dtype=float),
+            D4M._sparse.from_dense(np.array([[1, 0], [2, 0], [0, 3]]), dtype=float),
         ),
         (
             "a,b,c,",
@@ -294,7 +295,7 @@ def test_assoc_constructor(
             np.array(["a", "b", "c"]),
             np.array(["A", "B"]),
             np.array(["1", "2", "3"]),
-            sp.coo_matrix(np.array([[1, 0], [2, 0], [0, 3]]), dtype=int),
+            D4M._sparse.from_dense(np.array([[1, 0], [2, 0], [0, 3]]), dtype=int),
         ),
         (
             "a,b,c,",
@@ -307,7 +308,7 @@ def test_assoc_constructor(
             np.array(["a", "b", "c"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1, 0], [2, 0], [0, 3]]), dtype=float),
+            D4M._sparse.from_dense(np.array([[1, 0], [2, 0], [0, 3]]), dtype=float),
         ),
         (
             "a,b,c,",
@@ -320,7 +321,7 @@ def test_assoc_constructor(
             np.array(["a", "b", "c"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(np.array([[1, 0], [2, 0], [0, 3]]), dtype=int),
+            D4M._sparse.from_dense(np.array([[1, 0], [2, 0], [0, 3]]), dtype=int),
         ),
     ],
 )
@@ -350,7 +351,7 @@ def test_assoc_constructor_convert_upcast(
     assert np.array_equal(assoc_.row, exp_row)
     assert np.array_equal(assoc_.col, exp_col)
     assert np.array_equal(assoc_.val, exp_val) or (assoc_.val == 1.0 and exp_val == 1.0)
-    assert D4M.assoc.sparse_equal(assoc_.adj, exp_adj)
+    assert D4M._sparse.sparse_equal(assoc_.adj, exp_adj)
 
 
 @pytest.mark.parametrize(
@@ -376,21 +377,21 @@ def test_assoc_constructor_incompatible_lengths(test_row, test_col, test_val):
             "a,",
             "A,B,B,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             "Invalid input: not enough unique row indices.",
         ),
         (
             "a,",
             "A,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             "Invalid input: not enough unique row indices, not enough unique col indices.",
         ),
         (
             "a,b,",
             "A,B,",
             ["aA"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             "Invalid input: not enough unique values.",
         ),
     ],
@@ -410,121 +411,119 @@ def test_assoc_constructor_sparse_too_small(
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float),
             True,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(([1, 2, 1], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 1], dtype=int),
             True,
         ),
         (
             ["a", "b"],
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             2.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float).tocsr(),
+            D4M._sparse.to_csr(D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float)),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["B", "A"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B", "B"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(
-                ([1, 1, 1], ([0, 1, 1], [0, 0, 1])), dtype=float, shape=(3, 3)
-            ),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 1, 1], shape=(3, 3), dtype=float),
             False,
         ),
         (
             np.array(["a", "b", "c"]),
             np.array(["A", "B", "C"]),
             1.0,
-            sp.coo_matrix(([1, 1, 1], ([0, 2, 2], [0, 0, 2])), dtype=float),
+            D4M._sparse.from_coo([0, 2, 2], [0, 0, 2], [1, 1, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([1, 0, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 0, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["", "aA", "bB"]),
-            sp.coo_matrix(([1, 2, 3], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 3], dtype=int),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["bB", "aA"]),
-            sp.coo_matrix(([1, 2, 1], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 1], dtype=int),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aA", "bB"]),
-            sp.coo_matrix(([1, 2, 1], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 1], dtype=int),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(([1, 2, 0], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 0], dtype=int),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(([1, 2, 3], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 3], dtype=int),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(([1, 2, 1], ([0, 1, 1], [0, 0, 1])), dtype=float),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 2, 1], dtype=float),
             False,
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bA", "bB"]),
-            sp.coo_matrix(([1, 3, 1], ([0, 1, 1], [0, 0, 1])), dtype=int),
+            D4M._sparse.from_coo([0, 1, 1], [0, 0, 1], [1, 3, 1], dtype=int),
             False,
         ),
     ],
@@ -549,56 +548,56 @@ def test_is_canonical(test_row, test_col, test_val, test_adj, canonical):
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([2, 0], ([0, 1], [0, 1]))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [2, 0]),
             D4M.assoc.Assoc("a,", "A,", [2]),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([0, 2], ([0, 1], [0, 1]))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [0, 2]),
             D4M.assoc.Assoc("b,", "B,", [2]),
         ),
         (
             np.array(["a", "b", "c"]),
             np.array(["A", "B", "C"]),
             1.0,
-            sp.coo_matrix(([2, 0, 2], ([0, 1, 2], [0, 1, 2]))),
+            D4M._sparse.from_coo([0, 1, 2], [0, 1, 2], [2, 0, 2]),
             D4M.assoc.Assoc("a,c,", "A,C,", [2, 2]),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(([2, 2], ([0, 1], [0, 1]))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [2, 2]),
             D4M.assoc.Assoc("a,b,", "A,B,", 2),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(([1, 2], ([0, 1], [0, 1]))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [1, 2]),
             D4M.assoc.Assoc("a,b,", "A,B,", "aA,bB,"),
         ),
         (
             np.array(["a", "b", "c"]),
             np.array(["A", "B", "C"]),
             np.array(["", "aA", "bB"]),
-            sp.coo_matrix(([2, 3, 1], ([0, 1, 2], [0, 1, 2]))),
+            D4M._sparse.from_coo([0, 1, 2], [0, 1, 2], [2, 3, 1]),
             D4M.assoc.Assoc("a,b,", "A,B,", "aA,bB,"),
         ),
         (
             np.array(["amber", "ash", "birch"]),
             np.array(["color"]),
             np.array(["", "amber", "white"]),
-            sp.coo_matrix(([2, 1, 3], ([0, 1, 2], [0, 0, 0]))),
+            D4M._sparse.from_coo([0, 1, 2], [0, 0, 0], [2, 1, 3]),
             D4M.assoc.Assoc("amber,birch,", "color,color,", "amber,white,"),
         ),
         (
             np.array(["a"]),
             np.array(["A"]),
             np.array([""]),
-            sp.coo_matrix(([1], ([0], [0]))),
+            D4M._sparse.from_coo([0], [0], [1]),
             D4M.assoc.Assoc([], [], []),
         ),
     ],
@@ -624,30 +623,28 @@ def test_dropzeros(test_row, test_col, test_val, test_adj, exp_assoc):
             np.array(["a", "b", "c"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix((np.array([1, 1]), (np.array([0, 1]), np.array([0, 1])))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [1, 1]),
             D4M.assoc.Assoc("a,b,", "A,B,", 1),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B", "C"]),
             1.0,
-            sp.coo_matrix((np.array([1, 1]), (np.array([0, 1]), np.array([0, 1])))),
+            D4M._sparse.from_coo([0, 1], [0, 1], [1, 1]),
             D4M.assoc.Assoc("a,b,", "A,B,", 1),
         ),
         (
             np.array(["a", "b", "c"]),
             np.array(["A", "B", "C"]),
             np.array(["aA", "bB"]),
-            sp.coo_matrix(
-                (np.array([1, 2], dtype=int), (np.array([0, 1]), np.array([0, 1])))
-            ),
+            D4M._sparse.from_coo([0, 1], [0, 1], np.array([1, 2], dtype=int)),
             D4M.assoc.Assoc("a,b,", "A,B,", "aA,bB,"),
         ),
         (
             np.array(["a"]),
             np.array(["A"]),
             np.array([]),
-            sp.coo_matrix((np.array([]), (np.array([]), np.array([]))), shape=(0, 0)),
+            D4M._sparse.empty(),
             D4M.assoc.Assoc([], [], []),
         ),
     ],
@@ -666,27 +663,37 @@ def test_condense(test_row, test_col, test_val, test_adj, exp_assoc):
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             1.0,
-            sp.coo_matrix(
-                (np.array([1, 1, 1]), (np.array([0, 0, 1]), np.array([0, 1, 1])))
-            ),
+            D4M._sparse.from_coo([0, 0, 1], [0, 1, 1], [1, 1, 1]),
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", 1),
         ),
         (
             np.array(["a", "b"]),
             np.array(["A", "B"]),
             np.array(["aA", "aB", "bB"]),
-            sp.coo_matrix(
-                (np.array([1, 3]), (np.array([0, 1]), np.array([0, 1]))), dtype=int
-            ),
+            D4M._sparse.from_coo([0, 1], [0, 1], [1, 3], dtype=int),
             D4M.assoc.Assoc("a,b,", "A,B,", "aA,bB,"),
         ),
         (
             np.array([]),
             np.array([]),
             np.array(["aA"]),
-            sp.coo_matrix((np.array([]), (np.array([]), np.array([]))), shape=(0, 0)),
+            D4M._sparse.empty(),
             D4M.assoc.Assoc([], [], []),
         ),
+        (
+            np.array(["a", "b"]),
+            np.array(["A", "B"]),
+            np.array(["aA", "aB", "bB"]),
+            D4M._sparse.from_coo([1, 0], [1, 0], [3, 1], dtype=int),
+            D4M.assoc.Assoc("a,b,", "A,B,", "aA,bB,"),
+        ),
+        (
+            D4M.assoc.Assoc("amber,ash,birch,", "color,size,beauty,", "amber,big,ugly,")[":", np.array([0, 2])].row,
+            D4M.assoc.Assoc("amber,ash,birch,", "color,size,beauty,", "amber,big,ugly,")[":", np.array([0, 2])].col,
+            D4M.assoc.Assoc("amber,ash,birch,", "color,size,beauty,", "amber,big,ugly,")[":", np.array([0, 2])].val,
+            D4M.assoc.Assoc("amber,ash,birch,", "color,size,beauty,", "amber,big,ugly,")[":", np.array([0, 2])].adj,
+            D4M.assoc.Assoc("ash,birch,", "size,beauty,", "big,ugly,")
+        )
     ],
 )
 def test_deepcondense(test_row, test_col, test_val, test_adj, exp_assoc):
@@ -770,25 +777,25 @@ def test_set_val(test_assoc, new_val, exp_assoc):
     [
         (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", 1),
-            sp.coo_matrix(([1, 2, 3], ([0, 0, 1], [0, 1, 1]))),
+            D4M._sparse.from_coo([0, 0, 1], [0, 1, 1], [1, 2, 3]),
             None,
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
         ),
         (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", 1),
-            sp.coo_matrix(([1], ([0], [0]))),
+            D4M._sparse.from_coo([0], [0], [1]),
             None,
             D4M.assoc.Assoc("a,", "A,", 1),
         ),
         (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", "aA,aB,bB,"),
-            sp.coo_matrix(([1, 2, 3], ([0, 0, 1], [0, 1, 1]))),
+            D4M._sparse.from_coo([0, 0, 1], [0, 1, 1], [1, 2, 3]),
             None,
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", [1, 2, 3]),
         ),
         (
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", "aA,aB,bB,"),
-            sp.coo_matrix(([1, 2, 3], ([0, 0, 1], [0, 1, 1]))),
+            D4M._sparse.from_coo([0, 0, 1], [0, 1, 1], [1, 2, 3]),
             False,
             D4M.assoc.Assoc("a,a,b,", "A,B,B,", "aA,aB,bB,"),
         ),
@@ -971,7 +978,7 @@ def test_to_dict2(test_assoc, exp_dict):
         (D4M.assoc.Assoc("a,b,a,", "A,B,A,", [3, 2, 3], None, D4M.util.times)),
         (
             D4M.assoc.Assoc(
-                "a,b,a,", "A,B,B,", 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]]))
+                "a,b,a,", "A,B,B,", 1.0, adj=D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]]))
             )
         ),
         (
@@ -979,7 +986,7 @@ def test_to_dict2(test_assoc, exp_dict):
                 "a,b,a,",
                 "A,B,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -987,7 +994,7 @@ def test_to_dict2(test_assoc, exp_dict):
                 "a,b,",
                 "A,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -995,8 +1002,8 @@ def test_to_dict2(test_assoc, exp_dict):
                 "a,b,",
                 "A,B,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
-                "unique",
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
+                aggregate="unique",
             )
         ),
         (
@@ -1004,8 +1011,8 @@ def test_to_dict2(test_assoc, exp_dict):
                 np.array(["a", "b"]),
                 np.array(["A", "B"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
-                "unique",
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
+                aggregate="unique",
             )
         ),
         (
@@ -1013,8 +1020,8 @@ def test_to_dict2(test_assoc, exp_dict):
                 np.array(["a", "b"]),
                 np.array(["B", "A"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
-                "unique",
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
+                aggregate="unique",
             )
         ),
         (
@@ -1022,8 +1029,8 @@ def test_to_dict2(test_assoc, exp_dict):
                 "a,b,",
                 "B,A,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
-                "unique",
+                adj=D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
+                aggregate="unique",
             )
         ),
     ],
@@ -1052,7 +1059,7 @@ def test_get_row(test_assoc):
         (D4M.assoc.Assoc("a,b,a,", "A,B,A,", [3, 2, 3], None, D4M.util.times)),
         (
             D4M.assoc.Assoc(
-                "a,b,a,", "A,B,B,", 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]]))
+                "a,b,a,", "A,B,B,", 1.0, D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]]))
             )
         ),
         (
@@ -1060,7 +1067,7 @@ def test_get_row(test_assoc):
                 "a,b,a,",
                 "A,B,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -1068,7 +1075,7 @@ def test_get_row(test_assoc):
                 "a,b,",
                 "A,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -1076,7 +1083,7 @@ def test_get_row(test_assoc):
                 "a,b,",
                 "A,B,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1085,7 +1092,7 @@ def test_get_row(test_assoc):
                 np.array(["a", "b"]),
                 np.array(["A", "B"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1094,7 +1101,7 @@ def test_get_row(test_assoc):
                 np.array(["a", "b"]),
                 np.array(["B", "A"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1103,7 +1110,7 @@ def test_get_row(test_assoc):
                 "a,b,",
                 "B,A,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1132,7 +1139,7 @@ def test_get_col(test_assoc):
             "a,b,a,",
             "A,B,B,",
             1.0,
-            sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]])),
+            D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]])),
             None,
             np.array([1.0, 2.0, 3.0]),
         ),
@@ -1140,7 +1147,7 @@ def test_get_col(test_assoc):
             "a,b,a,",
             "A,B,B,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             None,
             np.array(["aA", "aB", "bA"]),
         ),
@@ -1148,7 +1155,7 @@ def test_get_col(test_assoc):
             "a,b,",
             "A,B,",
             ["aA", "bA", "aB"],
-            sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+            D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             None,
             np.array(["aA", "aB", "bA"]),
         ),
@@ -1180,7 +1187,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
         (D4M.assoc.Assoc("a,b,a,", "A,B,A,", [3, 2, 3], None, D4M.util.times)),
         (
             D4M.assoc.Assoc(
-                "a,b,a,", "A,B,B,", 1.0, sp.coo_matrix(np.array([[1.0, 3.0], [0, 2.0]]))
+                "a,b,a,", "A,B,B,", 1.0, D4M._sparse.from_dense(np.array([[1.0, 3.0], [0, 2.0]]))
             )
         ),
         (
@@ -1188,7 +1195,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 "a,b,a,",
                 "A,B,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -1196,7 +1203,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 "a,b,",
                 "A,B,",
                 ["aA", "bA", "aB"],
-                sp.coo_matrix(np.array([[1, 3], [0, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [0, 2]])),
             )
         ),
         (
@@ -1204,7 +1211,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 "a,b,",
                 "A,B,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1213,7 +1220,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 np.array(["a", "b"]),
                 np.array(["A", "B"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1222,7 +1229,7 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 np.array(["a", "b"]),
                 np.array(["B", "A"]),
                 np.array(["aA", "aB", "bA", "bB"]),
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
@@ -1231,14 +1238,14 @@ def test_get_val(test_row, test_col, test_val, adj, aggregate, val):
                 "a,b,",
                 "B,A,",
                 "aA,aB,bA,bB,",
-                sp.coo_matrix(np.array([[1, 3], [4, 2]])),
+                D4M._sparse.from_dense(np.array([[1, 3], [4, 2]])),
                 "unique",
             )
         ),
     ],
 )
 def test_get_adj(test_assoc):
-    assert D4M.assoc.sparse_equal(test_assoc.get_adj(), test_assoc.adj)
+    assert D4M._sparse.sparse_equal(test_assoc.get_adj(), test_assoc.adj)
 
 
 @pytest.mark.parametrize(
@@ -1493,10 +1500,15 @@ def test_deepcopy(test_assoc):
     assert not (test_assoc.col is exp_assoc.col)
     if not isinstance(test_assoc.val, float):
         assert not (test_assoc.val is exp_assoc.val)
-    assert not (test_assoc.adj.data is exp_assoc.adj.data)
-    assert not (test_assoc.adj.row is exp_assoc.adj.row)
-    assert not (test_assoc.adj.col is exp_assoc.adj.col)
-
+    if D4M._sparse.selected_splinalg_library == "python-graphblas":
+        test_assoc.build([5], [5], [1])
+        assert not D4M.assoc.assoc_equal(test_assoc, exp_assoc)
+    elif D4M._sparse.selected_splinalg_library == "scipy.sparse":
+        assert not (test_assoc.adj.data is exp_assoc.adj.data)
+        assert not (test_assoc.adj.row is exp_assoc.adj.row)
+        assert not (test_assoc.adj.col is exp_assoc.adj.col)
+    else:
+        assert False
 
 @pytest.mark.parametrize(
     "test_assoc,exp_assoc",
