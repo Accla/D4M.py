@@ -1,0 +1,6 @@
+numpy
+scipy
+pytest
+matplotlib
+py4j
+python-graphblas

@@ -1,10 +1,18 @@
 import numpy as np
+import os
 from typing import Union, Tuple, Optional
 import graphblas as gb
 import scipy.sparse as scisparse
 
 supported_splinalg_libraries = {"scipy.sparse", "python-graphblas"}
-selected_splinalg_library = "scipy.sparse"  # change to supported sparse linear algebra of choice
+selected_splinalg_library = os.environ.get("D4M_SPARSE_BACKEND", "scipy.sparse")
+
+if selected_splinalg_library not in supported_splinalg_libraries:
+    raise ValueError(
+        "D4M_SPARSE_BACKEND must be one of "
+        + ", ".join(sorted(supported_splinalg_libraries))
+        + "."
+    )
 
 
 def _unsupported():
@@ -446,7 +454,7 @@ def sparse_equal(sparse_mat_A: Sparse_Matrix, sparse_mat_B: Sparse_Matrix, rtol:
 # Getter methods
 def get_data(sparse_mat: Sparse_Matrix) -> np.ndarray:
     if selected_splinalg_library == "python-graphblas":
-        sparse_mat_data = sparse_mat.vals
+        _, _, sparse_mat_data = sparse_mat.to_coo()
     elif selected_splinalg_library == "scipy.sparse":
         # check if already in coo format and has canonical format
         if sparse_mat.format == "coo" and sparse_mat.has_canonical_format:
@@ -525,7 +533,10 @@ def get_csc_params(sparse_mat: Sparse_Matrix) -> Tuple[np.ndarray, np.ndarray, n
 
 def getitem_rows(sparse_mat: Sparse_Matrix, sub_row: Union[list, np.array]) -> Sparse_Matrix:
     if selected_splinalg_library == "python-graphblas":
-        sparse_mat_sub = sparse_mat[sub_row, :]
+        sub_row = np.asarray(sub_row)
+        if sub_row.dtype == bool:
+            sub_row = np.flatnonzero(sub_row)
+        sparse_mat_sub = sparse_mat[sub_row, :].new()
     elif selected_splinalg_library == "scipy.sparse":
         if sparse_mat.format == "csr":
             sparse_mat_csr = sparse_mat
@@ -540,7 +551,10 @@ def getitem_rows(sparse_mat: Sparse_Matrix, sub_row: Union[list, np.array]) -> S
 
 def getitem_cols(sparse_mat: Sparse_Matrix, sub_col: Union[list, np.array]) -> Sparse_Matrix:
     if selected_splinalg_library == "python-graphblas":
-        sparse_mat_sub = sparse_mat[:, sub_col]
+        sub_col = np.asarray(sub_col)
+        if sub_col.dtype == bool:
+            sub_col = np.flatnonzero(sub_col)
+        sparse_mat_sub = sparse_mat[:, sub_col].new()
     elif selected_splinalg_library == "scipy.sparse":
         if sparse_mat.format == "csc":
             sparse_mat_csc = sparse_mat

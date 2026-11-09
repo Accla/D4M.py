@@ -1,0 +1,47 @@
+FROM debian:bookworm-slim AS graphblas-builder
+
+ARG GRAPHBLAS_VERSION=v10.5.2
+
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        build-essential \
+        ca-certificates \
+        cmake \
+        curl \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl --fail --location --silent --show-error \
+        "https://github.com/DrTimothyAldenDavis/GraphBLAS/archive/refs/tags/${GRAPHBLAS_VERSION}.tar.gz" \
+        --output /tmp/graphblas.tar.gz \
+    && mkdir /tmp/graphblas \
+    && tar --extract --file /tmp/graphblas.tar.gz --strip-components=1 --directory /tmp/graphblas \
+    && cmake -S /tmp/graphblas -B /tmp/graphblas/build \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_C_FLAGS_RELEASE=-O2 \
+        -DCMAKE_INSTALL_PREFIX=/opt/suitesparse-graphblas \
+    && cmake --build /tmp/graphblas/build --parallel 2 \
+    && cmake --install /tmp/graphblas/build
+
+FROM python:3.11-slim-bookworm
+
+ENV D4M_SPARSE_BACKEND=scipy.sparse \
+    LD_LIBRARY_PATH=/opt/suitesparse-graphblas/lib \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+COPY --from=graphblas-builder /opt/suitesparse-graphblas /opt/suitesparse-graphblas
+
+WORKDIR /workspace
+
+COPY requirements-test.txt setup.py README.md MANIFEST.in ./
+COPY D4M ./D4M
+COPY test ./test
+
+RUN python -m pip install --upgrade pip \
+    && python -m pip install -r requirements-test.txt \
+    && python -m pip install --no-deps . \
+    && python -c "import graphblas as gb; gb.Matrix.from_coo([0], [0], [1]); print(gb.backend)"
+
+CMD ["python", "-m", "pytest", "test/test_util.py", "test/test_assoc.py", "test/test_sparse.py"]
