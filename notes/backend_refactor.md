@@ -194,6 +194,99 @@ bundle it into the mechanical extraction without a tested install path.
    - Build/install the package from a clean tree and import `D4M.assoc` to
      confirm `setuptools.find_packages()` includes `D4M._sparse`.
 
+## Stage 1 Inventory And Baseline
+
+Inventory captured before extraction:
+
+- The facade has 33 public functions (the earlier count of 30 was incorrect).
+- Compatibility attributes are `selected_splinalg_library`,
+  `supported_splinalg_libraries`, and `Sparse_Matrix`.
+- `D4M/assoc.py` uses `Sparse_Matrix` in three annotations and three runtime
+  `isinstance` checks. Tests inspect `selected_splinalg_library` in
+  `test/test_sparse.py` and `test/test_assoc.py`. No caller outside
+  `_sparse.py` currently reads `supported_splinalg_libraries`.
+- `assoc.py` accesses all facade operations except `from_dense` directly;
+  `from_dense` remains part of the public facade and must be preserved.
+
+The public callable argument signatures are:
+
+```text
+init(sparse_like, *args, **kwargs)
+from_coo(row, col, val, shape=None, dtype=None)
+from_dense(np_mat, missing_value=0, dtype=None)
+empty()
+astype(sparse_mat, dtype)
+to_coo(sparse_mat, copy=True)
+is_coo_format(sparse_mat)
+to_csr(sparse_mat, copy=True)
+to_csc(sparse_mat, copy=True)
+to_array(sparse_mat)
+to_scipy(sparse_mat)
+sum_duplicates(sparse_mat)
+eliminate_zeros(sparse_mat)
+copy(sparse_mat)
+add(sparse_mat_A, sparse_mat_B, convert_to_coo=True)
+matmul(sparse_mat_A, sparse_mat_B, convert_to_coo=True)
+ewise_mult(sparse_mat_A, sparse_mat_B, convert_to_coo=True)
+nnz(sparse_mat)
+sparse_sum(sparse_mat, dimension=None)
+logical(sparse_mat, copy=False)
+transpose(sparse_mat, copy=False)
+coo_canonicalize(sparse_mat, copy=False)
+sparse_equal(sparse_mat_A, sparse_mat_B, rtol=1e-05, atol=1e-08)
+get_data(sparse_mat)
+get_dtype(sparse_mat)
+get_shape(sparse_mat)
+get_coo_params(sparse_mat)
+get_csr_params(sparse_mat)
+get_csc_params(sparse_mat)
+getitem_rows(sparse_mat, sub_row)
+getitem_cols(sparse_mat, sub_col)
+getvalue(sparse_mat, row_index, col_index)
+update_data(sparse_mat, new_data)
+```
+
+Default SciPy baseline, run in the repository test container with
+`D4M_SPARSE_BACKEND=scipy.sparse`:
+
+```text
+python -m pytest test/test_util.py test/test_assoc.py test/test_sparse.py
+534 passed, 49 warnings
+```
+
+## Stage 2 Backend Test Coverage
+
+`test/test_sparse.py` now exercises every public facade operation without
+importing either backend library directly. Shared behavior is asserted through
+the facade, while SciPy storage formats and observable copy behavior are
+checked only where applicable. Focused GraphBLAS regression coverage includes
+boolean row/column selection and canonical `get_data` ordering.
+
+The unchanged GraphBLAS core-suite baseline before expanding the tests was:
+
+```text
+446 passed, 88 failed, 50 warnings
+```
+
+Three of those failures came from the previous `test_from_coo` test indexing a
+`None` shape, rather than from production behavior. The expanded suite marks
+five known GraphBLAS facade incompatibilities as expected failures: `init`, the
+three `sparse_sum` cases, and `update_data`. These document the current parity
+boundary without bundling correctness fixes into test establishment.
+
+Stage 2 verification results are:
+
+```text
+D4M_SPARSE_BACKEND=scipy.sparse
+567 passed, 49 warnings
+
+D4M_SPARSE_BACKEND=python-graphblas (test/test_sparse.py)
+32 passed, 5 xfailed
+
+D4M_SPARSE_BACKEND=python-graphblas (core suite)
+477 passed, 85 failed, 5 xfailed, 50 warnings
+```
+
 ## Definition Of Done
 
 - `D4M/_sparse.py` is replaced by the `_sparse` package containing
