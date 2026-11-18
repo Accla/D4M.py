@@ -145,3 +145,11 @@ D4M.db.delete_all(DB, force=True)                     # Delete all non-default t
 Various parts of this implementation have been completed and compared with the original matlab in performance. In the examples/Scaling subfolder, this implementation has achieved performance on par with the Julia and MATLAB implementations of D4M. The HPEC 2022 article ["Python Implementaiton of the Dynamic Distributed Dimensional Data Model"](https://arxiv.org/abs/2209.00602) shows performance and analysis comparisons.
 
 The associative array and utility submodules can be tested for correctness by running the command "pytest" in the D4M/test subdirectory. The database submodule can be included in this testing by renaming the file "\_test_db.py" to "test_db.py"; custom configuration info for py4j, Graphulo, Accumulo, and path to Accumulo instances may be included in "test_db_config.txt" for use when running tests.
+
+The core non-database test suite can also run in a Podman container that builds
+SuiteSparse:GraphBLAS v10.5.2 from its upstream GitHub release:
+```
+scripts/test-container.sh test/test_util.py test/test_assoc.py test/test_sparse.py
+```
+The default backend is SciPy. Set `D4M_SPARSE_BACKEND=python-graphblas` to run
+the experimental GraphBLAS backend.

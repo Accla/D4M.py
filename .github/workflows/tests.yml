@@ -1,0 +1,22 @@
+name: Tests
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Container tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build test image
+        run: docker build --file Containerfile.test --tag d4m-test .
+
+      - name: Run tests
+        run: docker run --rm d4m-test
