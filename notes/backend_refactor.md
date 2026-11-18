@@ -24,7 +24,7 @@ stable.
 ## Current API And Constraints
 
 `D4M._sparse` currently provides a single functional abstraction over
-`scipy.sparse` and `python-graphblas`. Its 30 public operations are used
+`scipy.sparse` and `python-graphblas`. Its 33 public operations are used
 throughout `D4M/assoc.py`; callers also rely on these module attributes:
 
 - `selected_splinalg_library`, populated from `D4M_SPARSE_BACKEND` at import
@@ -63,9 +63,17 @@ interface as instance methods:
   `getitem_cols`, `getvalue`, and `update_data`.
 
 Each class exposes a `sparse_matrix_type` class or instance attribute. It is
-`gb.Matrix` for GraphBLAS and the existing SciPy sparse-array union/type tuple
-for SciPy. `__init__.py` uses this attribute to publish the backwards-compatible
+`gb.Matrix` for GraphBLAS and a runtime-checkable tuple of the accepted SciPy
+sparse array and matrix classes for SciPy. The current `typing.Union` excludes
+the `coo_matrix` returned by `empty()`, so it cannot be retained as the runtime
+alias. `__init__.py` uses this attribute to publish the backwards-compatible
 `Sparse_Matrix` alias.
+
+GraphBLAS algebra, `logical`, and `transpose` currently return lazy expression
+or transposed-view objects rather than `gb.Matrix` instances. Preserve those
+return forms during extraction; do not insert `.new()` solely to make every
+result satisfy the `Sparse_Matrix` runtime alias. Materialization and a broader
+runtime type contract are parity/design changes outside the mechanical move.
 
 Do not add a broad conversion layer between the libraries. Backend methods
 receive and return their backend's native matrix type. `to_scipy` remains the
@@ -83,8 +91,10 @@ The contract should define behavioral requirements, not merely names:
 
 - `from_coo` returns canonical COO data for SciPy and a native GraphBLAS matrix
   for GraphBLAS.
-- `convert_to_coo` is honored by SciPy algebra methods and intentionally has no
-  storage-format effect for GraphBLAS.
+- `convert_to_coo` is honored by SciPy `add` and `matmul` and intentionally has
+  no storage-format effect for GraphBLAS. SciPy `ewise_mult` currently ignores
+  it and returns CSR for the covered COO inputs; preserve and document that
+  behavior during extraction rather than silently changing it.
 - `copy=False` preserves the existing non-copy behavior wherever the backend
   permits it.
 - Mutating methods (`sum_duplicates`, `eliminate_zeros`) return `None`.
@@ -160,20 +170,28 @@ bundle it into the mechanical extraction without a tested install path.
      format.
    - Keep canonicalization, CSR/CSC conversion choices, zero elimination, and
      tolerance logic exactly as they work today.
-   - Make the SciPy matrix runtime type suitable for the existing
-     `isinstance(..., _sparse.Sparse_Matrix)` checks in `assoc.py`.
+   - Add a focused regression test for `empty()` and the other supported SciPy
+     sparse matrix/array forms, then replace the current `typing.Union` alias
+     with a tuple suitable for the existing
+     `isinstance(..., _sparse.Sparse_Matrix)` checks in `assoc.py`. This is a
+     correctness fix discovered by the inventory, not part of branch movement.
 
 4. Add `GraphBLASBackend`.
    - Move each GraphBLAS branch into a corresponding method, retaining native
      methods such as `dup`, `to_coo`, `to_csr`, `to_csc`, and expression
      materialization with `.new()` for indexing.
+   - Preserve lazy expression and transposed-view return types from algebra,
+     `logical`, and `transpose`; do not add eager materialization as part of
+     extraction.
    - Preserve no-op behavior for GraphBLAS operations that have no native
      equivalent (`sum_duplicates`, `eliminate_zeros`, and storage-format
      conversion).
-   - Correct extraction mistakes only with tests. For example, verify argument
-     ordering in `update_data` against `get_coo_params` and construct the
-     replacement matrix with `new_data`, not the old values, if that is the
-     intended behavior.
+   - Keep the five focused GraphBLAS expected failures passing as expected
+     failures during mechanical extraction. Handle `init`, the three
+     `sparse_sum` modes, and `update_data` in a separate parity change with
+     focused tests; current `sparse_sum` uses APIs removed by the installed
+     dependency, while `update_data` both unpacks `get_coo_params` in the wrong
+     order and rebuilds with the old values instead of `new_data`.
 
 5. Replace the module with the package facade.
    - Add `D4M/_sparse/__init__.py` and explicit delegating wrappers.
@@ -193,6 +211,12 @@ bundle it into the mechanical extraction without a tested install path.
      default command.
    - Build/install the package from a clean tree and import `D4M.assoc` to
      confirm `setuptools.find_packages()` includes `D4M._sparse`.
+   - Test a SciPy-only install path without `python-graphblas`. Stage 1 confirmed
+     that `setup.py` does not install the `graphblas` package imported by the
+     current implementation (its `pygraphblas` extra is a different project),
+     so lazy selected-backend imports are required for the default install to
+     work as declared. Treat dependency metadata cleanup as a separate,
+     explicitly tested packaging change.
 
 ## Stage 1 Inventory And Baseline
 
@@ -286,6 +310,29 @@ D4M_SPARSE_BACKEND=python-graphblas (test/test_sparse.py)
 D4M_SPARSE_BACKEND=python-graphblas (core suite)
 477 passed, 85 failed, 5 xfailed, 50 warnings
 ```
+
+## Adjustments After Stages 1 And 2
+
+The first two stages support the package-and-facade design, with these changes
+to the remaining work:
+
+- Treat 33 functions, not 30, as the complete facade contract.
+- Preserve the observed SciPy `ewise_mult` behavior: unlike `add` and `matmul`,
+  it currently ignores `convert_to_coo`. Changing that behavior requires a
+  separate decision and regression test.
+- Fix the SciPy `Sparse_Matrix` runtime alias under focused coverage. The
+  current `typing.Union` does not recognize the `coo_matrix` produced by
+  `empty()`, despite `assoc.py` using the alias with `isinstance`.
+- Do not force GraphBLAS results to be concrete `gb.Matrix` objects during
+  extraction. Several operations intentionally return lazy expressions or a
+  transposed view under the current dependency.
+- Keep GraphBLAS `init`, `sparse_sum`, and `update_data` repairs separate from
+  extraction. Their five expected failures now define an explicit parity
+  boundary against which stages 4 through 6 can be checked.
+- Verify a SciPy-only installation before completion. The declared runtime
+  dependencies do not provide the imported `graphblas` package, making the
+  facade's lazy backend import a packaging requirement rather than only an
+  optimization.
 
 ## Definition Of Done
 
