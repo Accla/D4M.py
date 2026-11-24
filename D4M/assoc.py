@@ -49,7 +49,7 @@ class Assoc:
         row: ArrayLike,
         col: ArrayLike,
         val: ArrayLike,
-        adj: Optional[_sparse.Sparse_Matrix] = None,
+        adj: "Optional[_sparse.Sparse_Matrix]" = None,
         aggregate: Union[Callable[[KeyVal, KeyVal], KeyVal], str] = min,
         prevent_upcasting: bool = False,
         convert_val: bool = False,
@@ -647,7 +647,7 @@ class Assoc:
 
         return self
 
-    def set_adj(self, new_adj: _sparse.Sparse_Matrix, numerical: bool = True) -> "Assoc":
+    def set_adj(self, new_adj: "_sparse.Sparse_Matrix", numerical: bool = True) -> "Assoc":
         """Replace current adjacency array with new adjacency array. (in-place)
         Usage:
             self.set_adj(new_adj)
@@ -845,7 +845,7 @@ class Assoc:
             assert isinstance(self.val, np.ndarray)
             return self.val
 
-    def get_adj(self) -> _sparse.Sparse_Matrix:
+    def get_adj(self) -> "_sparse.Sparse_Matrix":
         return self.adj
 
     def get_value(

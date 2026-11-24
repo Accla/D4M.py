@@ -334,6 +334,44 @@ to the remaining work:
   facade's lazy backend import a packaging requirement rather than only an
   optimization.
 
+## Stages 3 Through 6 Implementation Results
+
+The mixed module has been replaced by the planned package. `ScipyBackend` and
+`GraphBLASBackend` each implement all 33 operations, and `__init__.py` exposes
+explicit wrappers with the original signatures while importing only the
+selected backend.
+
+The SciPy runtime alias is now `(scipy.sparse.sparray,
+scipy.sparse.spmatrix)`, which recognizes both sparse arrays and the legacy
+`coo_matrix` returned by `empty()`. Because that alias is a runtime tuple rather
+than a type annotation, the three `assoc.py` annotations that reference it are
+quoted to defer their evaluation; the existing `isinstance` checks continue to
+use the alias directly.
+
+Verification after extraction:
+
+```text
+D4M_SPARSE_BACKEND=scipy.sparse (core suite)
+567 passed, 49 warnings
+
+D4M_SPARSE_BACKEND=python-graphblas (test/test_sparse.py)
+32 passed, 5 xfailed
+
+D4M_SPARSE_BACKEND=python-graphblas (core suite)
+477 passed, 85 failed, 5 xfailed, 50 warnings
+```
+
+The GraphBLAS results exactly match the stage 2 parity boundary. Its lazy
+expression and transposed-view results remain unchanged, and the five focused
+expected failures remain deferred parity work.
+
+The container build produced and installed a wheel containing
+`D4M._sparse`. From outside the source tree, `D4M.assoc` and the SciPy backend
+imported successfully after uninstalling `python-graphblas` and
+`suitesparse-graphblas`. Selecting the GraphBLAS backend in that environment
+raised the intended explanatory `ImportError`. Unsupported backend values
+continued to raise the existing deterministic `ValueError`.
+
 ## Definition Of Done
 
 - `D4M/_sparse.py` is replaced by the `_sparse` package containing

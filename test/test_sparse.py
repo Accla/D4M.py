@@ -72,6 +72,7 @@ def test_empty():
     assert sparse.get_shape(actual) == (0, 0)
     assert sparse.nnz(actual) == 0
     assert sparse.to_array(actual).shape == (0, 0)
+    assert isinstance(actual, sparse.Sparse_Matrix)
 
 
 def test_astype():
